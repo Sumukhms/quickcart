@@ -16,7 +16,13 @@ export const protect = (req, res, next) => {
 
 export const restrictTo = (...roles) => (req, res, next) => {
   if (!roles.includes(req.user.role)) {
-    return res.status(403).json({ message: "Access denied" });
+    return res.status(403).json({ message: `Access denied. Required role: ${roles.join(" or ")}` });
   }
   next();
 };
+
+// Aliases for clean role-based route protection
+export const customerOnly = restrictTo("customer");
+export const storeOnly = restrictTo("store");
+export const deliveryOnly = restrictTo("delivery");
+export const storeOrDelivery = restrictTo("store", "delivery");

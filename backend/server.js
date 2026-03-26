@@ -4,40 +4,72 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import "dotenv/config";
 import connectDB from "./src/config/db.js";
-import { initSocket } from "./src/socket/socketHandler.js";
-import authRoutes from "./src/routes/authRoutes.js";
-import storeRoutes from "./src/routes/storeRoutes.js";
+import authRoutes    from "./src/routes/authRoutes.js";
+import storeRoutes   from "./src/routes/storeRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
-import cartRoutes from "./src/routes/cartRoutes.js";
-import orderRoutes from "./src/routes/orderRoutes.js";
+import cartRoutes    from "./src/routes/cartRoutes.js";
+import orderRoutes   from "./src/routes/orderRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
+
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 const io = new Server(httpServer, {
-  cors: { origin: "http://localhost:5173", credentials: true },
+  cors: { origin: ALLOWED_ORIGINS, credentials: true },
 });
 
 connectDB();
-initSocket(io);
 
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+// ─── Middleware ────────────────────────────────────────────────
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json());
-
-// Attach io to req so controllers can emit
 app.use((req, _res, next) => { req.io = io; next(); });
 
-app.use("/api/auth", authRoutes);
-app.use("/api/stores", storeRoutes);
+// ─── Routes ───────────────────────────────────────────────────
+app.use("/api/auth",     authRoutes);
+app.use("/api/stores",   storeRoutes);
 app.use("/api/products", productRoutes);
-app.use("/api/cart", cartRoutes);
-app.use("/api/orders", orderRoutes);
+app.use("/api/cart",     cartRoutes);
+app.use("/api/orders",   orderRoutes);
 
-app.get("/", (_req, res) => res.json({ message: "QuickCart API running" }));
+app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", roles: ["customer", "store", "delivery"] }));
 
-// Global error handler
+// ─── Socket.io ────────────────────────────────────────────────
+io.on("connection", (socket) => {
+  console.log("Socket connected:", socket.id);
+
+  // Role-based room joining
+  socket.on("join_store", (storeId) => {
+    socket.join(`store_${storeId}`);
+    console.log(`Socket joined store room: ${storeId}`);
+  });
+
+  socket.on("join_order", (orderId) => {
+    socket.join(`order_${orderId}`);
+  });
+
+  socket.on("join_delivery", (agentId) => {
+    socket.join(`delivery_${agentId}`);
+  });
+
+  socket.on("update_location", ({ orderId, lat, lng }) => {
+    io.to(`order_${orderId}`).emit("location_update", { lat, lng });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Socket disconnected:", socket.id);
+  });
+});
+
+// ─── Global error handler ─────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error(err.stack);
-  res.status(500).json({ message: "Something went wrong" });
+  res.status(err.status || 500).json({ message: err.message || "Something went wrong" });
 });
 
 const PORT = process.env.PORT || 5000;

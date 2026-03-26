@@ -1,7 +1,13 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import api from "../api/api";
 
 const AuthContext = createContext();
+
+export const ROLE_HOME = {
+  customer: "/user/home",
+  store: "/store/dashboard",
+  delivery: "/delivery/dashboard",
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -9,33 +15,49 @@ export function AuthProvider({ children }) {
   });
   const [token, setToken] = useState(() => localStorage.getItem("qc-token"));
 
-  const login = async (email, password) => {
+  const _persist = (data) => {
+    setUser(data.user);
+    setToken(data.token);
+    localStorage.setItem("qc-user", JSON.stringify(data.user));
+    localStorage.setItem("qc-token", data.token);
+  };
+
+  const login = useCallback(async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem("qc-user", JSON.stringify(data.user));
-    localStorage.setItem("qc-token", data.token);
-    return data;
-  };
+    _persist(data);
+    return data; // includes redirectTo
+  }, []);
 
-  const register = async (name, email, password, role = "customer") => {
-    const { data } = await api.post("/auth/register", { name, email, password, role });
-    setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem("qc-user", JSON.stringify(data.user));
-    localStorage.setItem("qc-token", data.token);
-    return data;
-  };
+  const register = useCallback(async (payload) => {
+    const { data } = await api.post("/auth/register", payload);
+    _persist(data);
+    return data; // includes redirectTo
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("qc-user");
     localStorage.removeItem("qc-token");
-  };
+  }, []);
+
+  const updateUser = useCallback((updates) => {
+    const updated = { ...user, ...updates };
+    setUser(updated);
+    localStorage.setItem("qc-user", JSON.stringify(updated));
+  }, [user]);
+
+  const isCustomer  = user?.role === "customer";
+  const isStore     = user?.role === "store";
+  const isDelivery  = user?.role === "delivery";
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoggedIn: !!user }}>
+    <AuthContext.Provider value={{
+      user, token, login, register, logout, updateUser,
+      isLoggedIn: !!user,
+      isCustomer, isStore, isDelivery,
+      homeRoute: user ? ROLE_HOME[user.role] : "/login",
+    }}>
       {children}
     </AuthContext.Provider>
   );
