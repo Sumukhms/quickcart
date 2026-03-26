@@ -1,24 +1,22 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
-        brand: "#6366f1",       // main indigo
-        brandLight: "#818cf8",  // hover / highlights
-        brandGlow: "#a5b4fc",   // glow accents
-
-        bgMain: "#020617",      // deep dark background
-        bgSoft: "#0f172a",      // section background
-        card: "#1e293b",        // card surfaces
-
-        textPrimary: "#f8fafc",
-        textMuted: "#94a3b8"
-      }
+        brand: "#f97316",
+        brandDark: "#ea580c",
+        dark: "#0a0a0a",
+        surface: "#111111",
+        card: "#1a1a1a",
+        border: "#2a2a2a",
+        muted: "#6b7280",
+      },
+      fontFamily: {
+        sans: ["'DM Sans'", "sans-serif"],
+        display: ["'Syne'", "sans-serif"],
+      },
     },
   },
   plugins: [],
-}
+};

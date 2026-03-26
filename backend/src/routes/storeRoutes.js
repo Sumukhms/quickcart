@@ -1,11 +1,10 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
-import { createStore , getStores , getStoreById} from "../controllers/storeController.js";
-
-const router = express.Router();
-
-router.post("/", protect, createStore);
-router.get("/", getStores);
-router.get("/:id", getStoreById);
-
-export default router;
+import { createStore, getStores, getStoreById, updateStore, getMyStore } from "../controllers/storeController.js";
+import { protect, restrictTo } from "../middleware/authMiddleware.js";
+const r = express.Router();
+r.get("/", getStores);
+r.get("/mine", protect, restrictTo("store"), getMyStore);
+r.get("/:id", getStoreById);
+r.post("/", protect, restrictTo("store"), createStore);
+r.put("/:id", protect, restrictTo("store"), updateStore);
+export default r;

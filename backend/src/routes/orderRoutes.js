@@ -1,9 +1,10 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
-import { placeOrderv , getMyOrders } from "../controllers/orderController.js";
-
-const router = express.Router();
-
-router.post("/", protect, placeOrder);
-router.get("/my-orders", protect, getMyOrders);
-export default router;
+import { placeOrder, getMyOrders, getOrderById, updateOrderStatus, getStoreOrders } from "../controllers/orderController.js";
+import { protect, restrictTo } from "../middleware/authMiddleware.js";
+const r = express.Router();
+r.post("/", protect, restrictTo("customer"), placeOrder);
+r.get("/my", protect, getMyOrders);
+r.get("/:id", protect, getOrderById);
+r.put("/:id/status", protect, restrictTo("store", "delivery"), updateOrderStatus);
+r.get("/store/:storeId", protect, restrictTo("store"), getStoreOrders);
+export default r;

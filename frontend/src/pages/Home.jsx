@@ -1,8 +1,11 @@
-import { ShoppingBasket, Utensils, Cookie, Coffee, Pill } from "lucide-react";
-import { useEffect, useState } from "react";
-import { getStores } from "../api/api";
+import { useState, useEffect } from "react";
+import { Search, ShoppingBasket, Utensils, Cookie, Coffee, Pill, Grid } from "lucide-react";
+import api from "../api/api";
+import StoreCard from "../components/StoreCard";
+import { PageLoader } from "../components/UI";
 
-const categories = [
+const CATEGORIES = [
+  { name: "All", icon: Grid },
   { name: "Groceries", icon: ShoppingBasket },
   { name: "Food", icon: Utensils },
   { name: "Snacks", icon: Cookie },
@@ -10,73 +13,85 @@ const categories = [
   { name: "Medicines", icon: Pill },
 ];
 
-const [stores, setStores] = useState([]);
+export default function Home() {
+  const [stores, setStores] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
 
-useEffect(() => {
+  useEffect(() => {
+    const t = setTimeout(() => fetchStores(), 300);
+    return () => clearTimeout(t);
+  }, [search, category]);
+
   const fetchStores = async () => {
+    setLoading(true);
     try {
-      const data = await getStores();
+      const params = {};
+      if (search) params.search = search;
+      if (category !== "All") params.category = category;
+      const { data } = await api.get("/stores", { params });
       setStores(data);
-    } catch (error) {
-      console.error("Error fetching stores:", error);
-    }
+    } catch { }
+    finally { setLoading(false); }
   };
 
-  fetchStores();
-}, []);
-
-function Home() {
   return (
-    <div className="bg-bgMain min-h-screen text-textPrimary p-10">
-      <h1 className="text-3xl font-bold mb-8">Shop by Category</h1>
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Hero */}
+      <div className="mb-10">
+        <h1 className="font-display text-4xl md:text-5xl font-bold text-white leading-tight">
+          Groceries delivered<br />
+          <span className="text-brand">in minutes.</span>
+        </h1>
+        <p className="text-muted mt-3 text-lg">Order from stores near you — fresh, fast, reliable.</p>
 
-      <div className="grid grid-cols-5 gap-6">
-        {categories.map((category, index) => {
-          const Icon = category.icon;
-
-          return (
-            <div
-              key={index}
-              className="bg-card p-8 rounded-2xl flex flex-col items-center gap-4 hover:scale-105 hover:bg-slate-700 transition-all duration-300 cursor-pointer shadow-md hover:shadow-lg"
-            >
-              <div className="bg-bgSoft p-3 rounded-full">
-                <Icon size={28} className="text-brand" />
-              </div>
-
-              <span className="text-textPrimary font-medium">
-                {category.name}
-              </span>
-            </div>
-          );
-        })}
+        {/* Search */}
+        <div className="relative mt-6 max-w-lg">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            className="input pl-11 py-3.5 text-base"
+            placeholder="Search stores..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
-      <h2 className="text-2xl font-bold mt-12 mb-6">Nearby Stores</h2>
-
-      <div className="grid grid-cols-3 gap-6">
-        {stores.map((store) => (
-          <div
-            key={store._id}
-            className="bg-card p-6 rounded-xl shadow-md hover:shadow-lg transition cursor-pointer"
+      {/* Categories */}
+      <div className="flex gap-2 flex-wrap mb-8">
+        {CATEGORIES.map(({ name, icon: Icon }) => (
+          <button
+            key={name}
+            onClick={() => setCategory(name)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
+              category === name
+                ? "bg-brand border-brand text-white"
+                : "bg-card border-border text-muted hover:border-brand/40 hover:text-white"
+            }`}
           >
-            <h3 className="text-lg font-semibold text-textPrimary">
-              {store.name}
-            </h3>
-
-            <p className="text-textMuted text-sm mt-2">{store.category}</p>
-
-            <p className="text-textMuted text-sm mt-1">
-              Rating: ⭐ {store.rating}
-            </p>
-
-            <p className="text-textMuted text-sm mt-1">
-              {store.isOpen ? "Open Now" : "Closed"}
-            </p>
-          </div>
+            <Icon size={15} />
+            {name}
+          </button>
         ))}
       </div>
+
+      {/* Stores grid */}
+      {loading ? (
+        <PageLoader />
+      ) : stores.length === 0 ? (
+        <div className="text-center py-20 text-muted">
+          <p className="text-lg">No stores found</p>
+          <p className="text-sm mt-1">Try a different search or category</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-muted text-sm mb-4">{stores.length} store{stores.length !== 1 ? "s" : ""} found</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {stores.map((s) => <StoreCard key={s._id} store={s} />)}
+          </div>
+        </>
+      )}
     </div>
   );
 }
-
-export default Home;
