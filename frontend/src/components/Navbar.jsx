@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  ShoppingCart, User, Search, X, Moon, Sun, Menu,
-  Package, LogOut, Settings, ChevronDown, Zap, MapPin
+  ShoppingCart, User, Search, X, Moon, Sun,
+  Package, LogOut, Settings, ChevronDown, MapPin,
+  LayoutDashboard
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useCart } from "../context/CartContext";
@@ -18,7 +19,6 @@ export default function Navbar() {
   const [search, setSearch] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const userMenuRef = useRef(null);
 
@@ -34,32 +34,44 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
+  // Close user menu on route change
+  useEffect(() => { setUserMenuOpen(false); }, [location.pathname]);
+
   const handleSearch = (e) => {
     e.preventDefault();
     if (search.trim()) navigate(`/?search=${encodeURIComponent(search.trim())}`);
   };
 
+  const menuLinks = [
+    ...(user?.role === "store" ? [{ to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" }] : []),
+    { to: "/profile", icon: User, label: "Profile" },
+    { to: "/orders", icon: Package, label: "My Orders" },
+    { to: "/settings", icon: Settings, label: "Settings" },
+  ];
+
   return (
     <>
       <nav
-        className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "shadow-2xl" : ""}`}
+        className="sticky top-0 z-50 transition-all duration-300"
         style={{
-          backgroundColor: scrolled ? "rgba(7,7,8,0.92)" : "var(--bg)",
+          backgroundColor: scrolled ? "rgba(7,7,8,0.94)" : "var(--bg)",
           backdropFilter: scrolled ? "blur(20px)" : "none",
           borderBottom: `1px solid ${scrolled ? "rgba(255,255,255,0.06)" : "transparent"}`,
+          boxShadow: scrolled ? "0 4px 30px rgba(0,0,0,0.3)" : "none",
         }}
       >
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
-          <div className="flex items-center gap-4 h-16">
-            
+          <div className="flex items-center gap-3 h-16">
+
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 flex-shrink-0 group">
               <div className="relative">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-sm"
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-sm transition-transform group-hover:scale-110"
                   style={{ background: "linear-gradient(135deg, #ff6b35, #ff8c5a)", boxShadow: "0 4px 12px rgba(255,107,53,0.4)" }}>
                   Q
                 </div>
-                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[var(--bg)] animate-pulse" />
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 animate-pulse"
+                  style={{ borderColor: "var(--bg)" }} />
               </div>
               <span className="font-display font-bold text-lg hidden sm:block" style={{ color: "var(--text-primary)" }}>
                 Quick<span style={{ color: "var(--brand)" }}>Cart</span>
@@ -113,14 +125,14 @@ export default function Navbar() {
                 <ShoppingCart size={20} className="group-hover:text-orange-400 transition-colors" />
                 {count > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                    style={{ background: "var(--brand)", animation: count > 0 ? "wiggle 0.4s ease" : "none" }}>
+                    style={{ background: "var(--brand)" }}>
                     {count > 99 ? "99+" : count}
                   </span>
                 )}
               </button>
 
               {/* Orders shortcut */}
-              <Link to="/orders" className="hidden sm:flex p-2 rounded-xl transition-all hover:scale-110 items-center gap-1.5 text-sm font-medium"
+              <Link to="/orders" className="hidden sm:flex p-2 rounded-xl transition-all hover:scale-110 items-center"
                 style={{ background: "var(--elevated)", color: "var(--text-secondary)" }}>
                 <Package size={18} />
               </Link>
@@ -138,33 +150,35 @@ export default function Navbar() {
                     <span className="text-sm font-medium hidden lg:block" style={{ color: "var(--text-primary)" }}>
                       {user?.name?.split(" ")[0]}
                     </span>
-                    <ChevronDown size={14} style={{ color: "var(--text-muted)" }} className={`transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown size={14} style={{ color: "var(--text-muted)" }}
+                      className={`transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} />
                   </button>
 
                   {userMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl overflow-hidden shadow-2xl border py-1"
+                    <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl overflow-hidden shadow-2xl border py-1 z-50"
                       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)", animation: "scaleIn 0.2s cubic-bezier(0.16,1,0.3,1)" }}>
-                      <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
                         <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{user?.name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{user?.email}</p>
+                        <p className="text-xs mt-0.5 capitalize" style={{ color: "var(--text-muted)" }}>{user?.role} account</p>
                       </div>
-                      {[
-                        { to: "/profile", icon: User, label: "Profile" },
-                        { to: "/orders", icon: Package, label: "My Orders" },
-                        { to: "/settings", icon: Settings, label: "Settings" },
-                      ].map(({ to, icon: Icon, label }) => (
+                      {menuLinks.map(({ to, icon: Icon, label }) => (
                         <Link key={to} to={to} onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-[var(--hover)]"
-                          style={{ color: "var(--text-secondary)" }}>
-                          <Icon size={16} />
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors"
+                          style={{ color: "var(--text-secondary)" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--hover)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <Icon size={15} />
                           {label}
                         </Link>
                       ))}
-                      <div className="border-t mt-1" style={{ borderColor: "var(--border)" }} />
-                      <button onClick={() => { logout(); setUserMenuOpen(false); navigate("/"); }}
+                      <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                      <button
+                        onClick={() => { logout(); setUserMenuOpen(false); navigate("/"); }}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium w-full transition-colors"
-                        style={{ color: "#ef4444" }}>
-                        <LogOut size={16} />
+                        style={{ color: "#ef4444" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(239,68,68,0.05)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <LogOut size={15} />
                         Sign Out
                       </button>
                     </div>

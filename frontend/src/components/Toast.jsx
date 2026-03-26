@@ -1,5 +1,5 @@
 import { CheckCircle, XCircle, Info, AlertCircle, X } from "lucide-react";
-import { useCart } from "../../context/CartContext";
+import { useCart } from "../context/CartContext";
 
 const icons = {
   success: <CheckCircle size={18} />,
@@ -8,11 +8,11 @@ const icons = {
   warning: <AlertCircle size={18} />,
 };
 
-const colors = {
-  success: "border-green-500/40 bg-green-500/10 text-green-400",
-  error: "border-red-500/40 bg-red-500/10 text-red-400",
-  info: "border-blue-500/40 bg-blue-500/10 text-blue-400",
-  warning: "border-yellow-500/40 bg-yellow-500/10 text-yellow-400",
+const styles = {
+  success: { border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.08)", color: "#22c55e" },
+  error: { border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#ef4444" },
+  info: { border: "1px solid rgba(59,130,246,0.3)", background: "rgba(59,130,246,0.08)", color: "#3b82f6" },
+  warning: { border: "1px solid rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.08)", color: "#f59e0b" },
 };
 
 export default function ToastContainer() {
@@ -20,16 +20,25 @@ export default function ToastContainer() {
 
   return (
     <div className="fixed top-20 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-md shadow-2xl min-w-[280px] max-w-[360px] pointer-events-auto ${colors[toast.type || "success"]}`}
-          style={{ animation: "toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both" }}
-        >
-          {icons[toast.type || "success"]}
-          <span className="text-sm font-medium flex-1">{toast.message}</span>
-        </div>
-      ))}
+      {toasts.map((toast) => {
+        const type = toast.type || "success";
+        return (
+          <div
+            key={toast.id}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl backdrop-blur-md shadow-2xl min-w-[280px] max-w-[360px] pointer-events-auto"
+            style={{
+              ...styles[type],
+              animation: "toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
+              backgroundColor: "var(--surface)",
+            }}
+          >
+            <span style={{ color: styles[type].color }}>{icons[type]}</span>
+            <span className="text-sm font-medium flex-1" style={{ color: "var(--text-primary)" }}>
+              {toast.message}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
