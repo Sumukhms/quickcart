@@ -1,20 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ChevronLeft, MapPin, Phone, Clock, CheckCircle, Package,
-  Truck, RefreshCw, Star, MessageCircle, Zap,
-  ShoppingBag, XCircle, User, Store
+  Truck, RefreshCw, Star, MessageCircle, Zap, ShoppingBag,
+  XCircle, AlertCircle, Loader2
 } from "lucide-react";
-import api from "../../api/api";
+import { orderAPI } from "../../api/api";
+import { useSocket } from "../../context/SocketContext";
 
-// ─── Step config ─────────────────────────────────────────────
 const STATUS_STEPS = [
-  { key: "pending",           label: "Order Placed",      sub: "We received your order",          icon: ShoppingBag, color: "#f59e0b" },
-  { key: "confirmed",         label: "Confirmed",         sub: "Store accepted your order",        icon: CheckCircle, color: "#3b82f6" },
-  { key: "preparing",         label: "Preparing",         sub: "Your items are being packed",      icon: Package,     color: "#8b5cf6" },
-  { key: "ready_for_pickup",  label: "Ready for Pickup",  sub: "Looking for a delivery partner",   icon: Zap,         color: "#f97316" },
-  { key: "out_for_delivery",  label: "Out for Delivery",  sub: "Rider is on the way to you",       icon: Truck,       color: "#ff6b35" },
-  { key: "delivered",         label: "Delivered",         sub: "Enjoy your order! 🎉",             icon: CheckCircle, color: "#22c55e" },
+  { key: "pending",           label: "Order Placed",      sub: "We received your order",         icon: ShoppingBag,  color: "#f59e0b" },
+  { key: "confirmed",         label: "Confirmed",         sub: "Store accepted your order",       icon: CheckCircle,  color: "#3b82f6" },
+  { key: "preparing",         label: "Preparing",         sub: "Your items are being packed",     icon: Package,      color: "#8b5cf6" },
+  { key: "ready_for_pickup",  label: "Ready for Pickup",  sub: "Looking for a delivery partner",  icon: Zap,          color: "#f97316" },
+  { key: "out_for_delivery",  label: "Out for Delivery",  sub: "Rider is heading to you",         icon: Truck,        color: "#ff6b35" },
+  { key: "delivered",         label: "Delivered",         sub: "Enjoy your order! 🎉",            icon: CheckCircle,  color: "#22c55e" },
 ];
 
 const STATUS_INDEX = {
@@ -22,36 +22,10 @@ const STATUS_INDEX = {
   ready_for_pickup: 3, out_for_delivery: 4, delivered: 5, cancelled: -1,
 };
 
-const DEMO_ORDER = {
-  _id: "demo123",
-  status: "preparing",
-  createdAt: new Date().toISOString(),
-  estimatedTime: "20–30 min",
-  paymentMethod: "cod",
-  deliveryAddress: "123, 4th Main, HSR Layout, Bengaluru – 560102",
-  totalPrice: 245,
-  deliveryFee: 20,
-  notes: "Please ring the bell twice",
-  storeId: {
-    name: "FreshMart Express",
-    phone: "+91 98765 43210",
-    address: "Koramangala 5th Block, Bengaluru",
-    category: "Groceries",
-  },
-  deliveryAgentId: null,
-  items: [
-    { name: "Amul Full Cream Milk", price: 28,  quantity: 2, image: "" },
-    { name: "Brown Bread Loaf",     price: 45,  quantity: 1, image: "" },
-    { name: "Tata Salt 1kg",        price: 22,  quantity: 1, image: "" },
-    { name: "Fortune Refined Oil",  price: 145, quantity: 1, image: "" },
-  ],
-};
-
-function PulsingDot({ color = "var(--brand)" }) {
+function PulsingDot({ color }) {
   return (
     <span className="relative inline-flex h-3 w-3 flex-shrink-0">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
-        style={{ background: color }} />
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: color }} />
       <span className="relative inline-flex rounded-full h-3 w-3" style={{ background: color }} />
     </span>
   );
@@ -60,38 +34,54 @@ function PulsingDot({ color = "var(--brand)" }) {
 export default function UserTrack() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { joinOrderRoom, on } = useSocket();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showRating, setShowRating] = useState(false);
+  const [error, setError] = useState(null);
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
+  const [showRating, setShowRating] = useState(false);
   const intervalRef = useRef(null);
 
-  useEffect(() => { fetchOrder(); }, [id]);
+  const fetchOrder = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    setError(null);
+    try {
+      const { data } = await orderAPI.getById(id);
+      setOrder(data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not load order details.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [id]);
 
+  useEffect(() => { fetchOrder(); }, [fetchOrder]);
+
+  // Join socket room for live updates
+  useEffect(() => {
+    if (id) joinOrderRoom(id);
+    const unsub = on("order_status_update", ({ orderId, status }) => {
+      if (orderId === id || orderId?.toString() === id) {
+        setOrder(prev => prev ? { ...prev, status } : prev);
+        if (status === "delivered") setShowRating(true);
+      }
+    });
+    return () => { if (typeof unsub === "function") unsub(); };
+  }, [id, joinOrderRoom, on]);
+
+  // Polling fallback (every 20s for active orders)
   useEffect(() => {
     if (!order || ["delivered", "cancelled"].includes(order.status)) {
       clearInterval(intervalRef.current);
       return;
     }
-    intervalRef.current = setInterval(() => fetchOrder(true), 15000);
+    intervalRef.current = setInterval(() => fetchOrder(true), 20000);
     return () => clearInterval(intervalRef.current);
-  }, [order?.status]);
-
-  const fetchOrder = async (silent = false) => {
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
-    try {
-      const { data } = await api.get(`/orders/${id}`);
-      setOrder(data);
-    } catch {
-      setOrder({ ...DEMO_ORDER, _id: id });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  }, [order?.status, fetchOrder]);
 
   if (loading) {
     return (
@@ -103,7 +93,23 @@ export default function UserTrack() {
             <div className="absolute inset-2.5 rounded-full border-2 animate-spin"
               style={{ borderColor: "transparent", borderBottomColor: "#f59e0b", animationDirection: "reverse", animationDuration: "0.7s" }} />
           </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading your order...</p>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading order...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
+        <div className="text-center">
+          <AlertCircle size={48} className="mx-auto mb-4" style={{ color: "#ef4444" }} />
+          <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>Order not found</h2>
+          <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>{error}</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => fetchOrder()} className="btn btn-brand text-sm">Retry</button>
+            <Link to="/user/orders" className="btn btn-ghost text-sm">My Orders</Link>
+          </div>
         </div>
       </div>
     );
@@ -111,12 +117,12 @@ export default function UserTrack() {
 
   if (!order) return null;
 
-  const stepIdx      = STATUS_INDEX[order.status] ?? 0;
-  const isCancelled  = order.status === "cancelled";
-  const isDelivered  = order.status === "delivered";
-  const isActive     = !isCancelled && !isDelivered;
-  const currentStep  = STATUS_STEPS[stepIdx];
-  const orderTotal   = (order.totalPrice || 0) + (order.deliveryFee || 0);
+  const stepIdx = STATUS_INDEX[order.status] ?? 0;
+  const isCancelled = order.status === "cancelled";
+  const isDelivered = order.status === "delivered";
+  const isActive = !isCancelled && !isDelivered;
+  const currentStep = STATUS_STEPS[stepIdx];
+  const orderTotal = (order.totalPrice || 0) + (order.deliveryFee || 0);
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
@@ -125,9 +131,8 @@ export default function UserTrack() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            {/* ✅ Fixed: navigate to /user/orders instead of broken path */}
             <button onClick={() => navigate("/user/orders")}
-              className="p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95"
+              className="p-2.5 rounded-xl transition-all hover:scale-110"
               style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
               <ChevronLeft size={18} />
             </button>
@@ -163,20 +168,17 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Delivered banner */}
         {isDelivered && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
             style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}>
             <div className="text-3xl">🎉</div>
             <div className="flex-1">
               <p className="font-bold" style={{ color: "#22c55e" }}>Order Delivered!</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                Hope you enjoy your order!
-              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Hope you enjoy your order!</p>
             </div>
             {!showRating && (
               <button onClick={() => setShowRating(true)}
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all hover:scale-105"
+                className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl"
                 style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
                 <Star size={12} /> Rate
               </button>
@@ -184,7 +186,6 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Cancelled banner */}
         {isCancelled && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
             style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}>
@@ -198,26 +199,22 @@ export default function UserTrack() {
 
         {/* Rating panel */}
         {showRating && (
-          <div className="rounded-3xl p-5 mb-4"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          <div className="rounded-3xl p-5 mb-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>How was your order?</p>
-            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience with {order.storeId?.name}</p>
+            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience</p>
             <div className="flex justify-center gap-3 mb-4">
               {[1,2,3,4,5].map(s => (
-                <button key={s}
-                  onClick={() => setRating(s)}
-                  onMouseEnter={() => setHoverRating(s)}
-                  onMouseLeave={() => setHoverRating(0)}
-                  className="text-3xl transition-transform hover:scale-125 active:scale-110">
+                <button key={s} onClick={() => setRating(s)}
+                  onMouseEnter={() => setHoverRating(s)} onMouseLeave={() => setHoverRating(0)}
+                  className="text-3xl transition-transform hover:scale-125">
                   {s <= (hoverRating || rating) ? "⭐" : "☆"}
                 </button>
               ))}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setShowRating(false)}
-                className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
-              <button onClick={() => setShowRating(false)} disabled={!rating}
-                className="btn btn-brand flex-1 justify-center text-sm py-2.5">
+              <button onClick={() => setShowRating(false)} className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
+              <button onClick={() => { addToast?.("Thank you for your rating! ⭐", "success"); setShowRating(false); }}
+                disabled={!rating} className="btn btn-brand flex-1 justify-center text-sm py-2.5">
                 Submit Rating
               </button>
             </div>
@@ -226,13 +223,11 @@ export default function UserTrack() {
 
         {/* Progress timeline */}
         {!isCancelled && (
-          <div className="rounded-3xl p-5 mb-4"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest mb-5"
-              style={{ color: "var(--text-muted)" }}>Order Progress</h2>
+          <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            <h2 className="font-bold text-xs uppercase tracking-widest mb-5" style={{ color: "var(--text-muted)" }}>Order Progress</h2>
             <div className="space-y-1">
               {STATUS_STEPS.map((step, i) => {
-                const isDone    = i <= stepIdx;
+                const isDone = i <= stepIdx;
                 const isActivStep = i === stepIdx;
                 const Icon = step.icon;
                 return (
@@ -240,9 +235,7 @@ export default function UserTrack() {
                     <div className="flex flex-col items-center" style={{ width: 36, flexShrink: 0 }}>
                       <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
                         style={{
-                          background: isDone
-                            ? isActivStep ? step.color : "rgba(34,197,94,0.1)"
-                            : "var(--elevated)",
+                          background: isDone ? isActivStep ? step.color : "rgba(34,197,94,0.1)" : "var(--elevated)",
                           border: `2px solid ${isDone ? isActivStep ? step.color : "rgba(34,197,94,0.3)" : "var(--border)"}`,
                           boxShadow: isActivStep ? `0 0 18px ${step.color}45` : "none",
                           transform: isActivStep ? "scale(1.1)" : "scale(1)",
@@ -256,13 +249,11 @@ export default function UserTrack() {
                     </div>
                     <div className="pt-2 pb-4 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm"
-                          style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}>
+                        <p className="font-semibold text-sm" style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}>
                           {step.label}
                         </p>
                         {isActivStep && (
-                          <span className="tag text-[10px] py-0.5 px-2"
-                            style={{ background: step.color + "20", color: step.color }}>
+                          <span className="tag text-[10px] py-0.5 px-2" style={{ background: step.color + "20", color: step.color }}>
                             Current
                           </span>
                         )}
@@ -278,15 +269,11 @@ export default function UserTrack() {
 
         {/* Delivery agent */}
         {order.deliveryAgentId && (
-          <div className="rounded-3xl p-5 mb-4"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest mb-4"
-              style={{ color: "var(--text-muted)" }}>Delivery Partner</h2>
+          <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Delivery Partner</h2>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>
-                🛵
-              </div>
+                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>🛵</div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold" style={{ color: "var(--text-primary)" }}>
                   {order.deliveryAgentId?.name || "Delivery Partner"}
@@ -297,28 +284,20 @@ export default function UserTrack() {
                   <span>· {order.deliveryAgentId?.vehicleType || "bike"}</span>
                 </div>
               </div>
-              <div className="flex gap-2">
-                {order.deliveryAgentId?.phone && (
-                  <a href={`tel:${order.deliveryAgentId.phone}`}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-                    style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
-                    <Phone size={16} />
-                  </a>
-                )}
-                <button className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
-                  <MessageCircle size={16} />
-                </button>
-              </div>
+              {order.deliveryAgentId?.phone && (
+                <a href={`tel:${order.deliveryAgentId.phone}`}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
+                  style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
+                  <Phone size={16} />
+                </a>
+              )}
             </div>
           </div>
         )}
 
         {/* Store info */}
-        <div className="rounded-3xl p-5 mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-          <h2 className="font-bold text-xs uppercase tracking-widest mb-4"
-            style={{ color: "var(--text-muted)" }}>Store</h2>
+        <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Store</h2>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
               style={{ background: "var(--elevated)" }}>🏪</div>
@@ -337,8 +316,7 @@ export default function UserTrack() {
         </div>
 
         {/* Order items */}
-        <div className="rounded-3xl overflow-hidden mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+        <div className="rounded-3xl overflow-hidden mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
             <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
               Items ({order.items?.length || 0})
@@ -349,18 +327,11 @@ export default function UserTrack() {
               style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
               <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 img-fallback text-sm"
                 style={{ background: "var(--elevated)" }}>
-                {item.image
-                  ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                  : <span>🛍️</span>}
+                {item.image ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" /> : <span>🛍️</span>}
               </div>
               <p className="flex-1 text-sm" style={{ color: "var(--text-secondary)" }}>{item.name}</p>
-              <span className="text-xs px-2 py-0.5 rounded-md mr-2"
-                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
-                ×{item.quantity || 1}
-              </span>
-              <p className="text-sm font-bold w-16 text-right" style={{ color: "var(--text-primary)" }}>
-                ₹{(item.price || 0) * (item.quantity || 1)}
-              </p>
+              <span className="text-xs px-2 py-0.5 rounded-md mr-2" style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>×{item.quantity || 1}</span>
+              <p className="text-sm font-bold w-16 text-right" style={{ color: "var(--text-primary)" }}>₹{(item.price || 0) * (item.quantity || 1)}</p>
             </div>
           ))}
           <div className="px-5 py-4 flex justify-between font-bold"
@@ -371,24 +342,18 @@ export default function UserTrack() {
         </div>
 
         {/* Delivery address */}
-        <div className="rounded-3xl p-5 mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-          <h2 className="font-bold text-xs uppercase tracking-widest mb-4"
-            style={{ color: "var(--text-muted)" }}>Delivery Address</h2>
+        <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Delivery Address</h2>
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(255,107,53,0.1)" }}>
               <MapPin size={15} style={{ color: "var(--brand)" }} />
             </div>
             <div>
-              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {order.deliveryAddress}
-              </p>
+              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{order.deliveryAddress}</p>
               {order.notes && (
                 <p className="text-xs mt-1.5 px-2 py-1 rounded-lg inline-block"
-                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
-                  📝 {order.notes}
-                </p>
+                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>📝 {order.notes}</p>
               )}
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                 {order.paymentMethod === "cod" ? "💵 Cash on Delivery" : "💳 Online Payment"}
@@ -399,17 +364,14 @@ export default function UserTrack() {
 
         {/* CTA */}
         {isDelivered ? (
-          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
-            Order Again 🔄
-          </Link>
+          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">Order Again 🔄</Link>
         ) : isCancelled ? (
-          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
-            Browse Stores
-          </Link>
+          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">Browse Stores</Link>
         ) : (
-          <button onClick={() => fetchOrder(true)}
+          <button onClick={() => fetchOrder(true)} disabled={refreshing}
             className="btn btn-ghost w-full justify-center py-3.5 text-sm">
-            <RefreshCw size={15} /> Refresh Status
+            {refreshing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+            Refresh Status
           </button>
         )}
       </div>

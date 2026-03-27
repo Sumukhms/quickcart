@@ -1,21 +1,27 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { cartAPI } from "../api/api";
+import { useAuth } from "./AuthContext";
 
 const CartContext = createContext();
 
 export function CartProvider({ children }) {
+  const { isLoggedIn, isCustomer } = useAuth();
   const [cartItems, setCartItems] = useState([]);
   const [cartStore, setCartStore] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [syncing, setSyncing] = useState(false);
 
+  // ── Toasts ─────────────────────────────────────────────
   const addToast = useCallback((message, type = "success") => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   }, []);
 
+  // ── Local cart helpers (optimistic) ────────────────────
   const addToCart = useCallback((product, store) => {
     if (cartStore && cartStore._id !== store._id) {
-      addToast("Clear cart first to add from another store", "error");
+      addToast("Clear your cart before adding from another store", "error");
       return false;
     }
     setCartStore(store);
@@ -50,7 +56,10 @@ export function CartProvider({ children }) {
   const count = cartItems.reduce((sum, i) => sum + i.qty, 0);
 
   return (
-    <CartContext.Provider value={{ cartItems, cartStore, total, count, toasts, addToCart, removeFromCart, updateQty, clearCart, addToast }}>
+    <CartContext.Provider value={{
+      cartItems, cartStore, total, count, toasts,
+      addToCart, removeFromCart, updateQty, clearCart, addToast, syncing
+    }}>
       {children}
     </CartContext.Provider>
   );

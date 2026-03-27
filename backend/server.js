@@ -9,6 +9,7 @@ import storeRoutes   from "./src/routes/storeRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import cartRoutes    from "./src/routes/cartRoutes.js";
 import orderRoutes   from "./src/routes/orderRoutes.js";
+import couponRoutes  from "./src/routes/couponRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -36,6 +37,7 @@ app.use("/api/stores",   storeRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart",     cartRoutes);
 app.use("/api/orders",   orderRoutes);
+app.use("/api/coupons",  couponRoutes);
 
 app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", roles: ["customer", "store", "delivery"] }));
 
@@ -43,7 +45,6 @@ app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", role
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  // Role-based room joining
   socket.on("join_store", (storeId) => {
     socket.join(`store_${storeId}`);
     console.log(`Socket joined store room: ${storeId}`);

@@ -1,95 +1,74 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ChevronLeft, Phone, MapPin, CheckCircle, Package,
-  Truck, Navigation, Store, User, Check, RefreshCw,
-  MessageCircle, AlertCircle, Clock, DollarSign, ChevronRight
+  ChevronLeft, Phone, CheckCircle, Package, Truck, Navigation,
+  Store, User, Check, RefreshCw, AlertCircle, DollarSign, Loader2
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
-import api from "../../api/api";
-
-const DEMO_ACTIVE = {
-  _id: "active1",
-  status: "out_for_delivery",
-  totalPrice: 245,
-  deliveryFee: 35,
-  deliveryAddress: "12, 3rd Main Road, HSR Layout, Bengaluru – 560102",
-  storeId: {
-    name: "FreshMart Express",
-    address: "Koramangala 5th Block, Bengaluru",
-    phone: "+91 98765 43210",
-  },
-  userId: {
-    name: "Raj Kumar",
-    address: "HSR Layout",
-    phone: "+91 87654 32109",
-  },
-  items: [
-    { name: "Amul Full Cream Milk", quantity: 2, price: 28 },
-    { name: "Brown Bread Loaf",     quantity: 1, price: 45 },
-    { name: "Fortune Oil 1L",       quantity: 1, price: 145 },
-  ],
-  paymentMethod: "cod",
-  createdAt: new Date().toISOString(),
-};
+import { useSocket } from "../../context/SocketContext";
+import { orderAPI } from "../../api/api";
 
 const STEPS = [
-  { key: "pickup",  label: "Pick Up",      sub: "Go to store & collect order",     icon: Store,    color: "#22c55e" },
-  { key: "transit", label: "On the Way",   sub: "Riding to customer's address",    icon: Truck,    color: "var(--brand)" },
-  { key: "done",    label: "Delivered",    sub: "Hand over to customer",           icon: CheckCircle, color: "#22c55e" },
+  { key: "pickup",  label: "Pick Up",    sub: "Go to store & collect order",  icon: Store,       color: "#22c55e" },
+  { key: "transit", label: "On the Way", sub: "Riding to customer's address", icon: Truck,       color: "var(--brand)" },
+  { key: "done",    label: "Delivered",  sub: "Hand over to customer",        icon: CheckCircle, color: "#22c55e" },
 ];
 
 export default function DeliveryActive() {
   const { user } = useAuth();
   const { addToast } = useCart();
+  const { emit } = useSocket();
   const navigate = useNavigate();
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [markingDone, setMarkingDone] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0); // 0=pickup, 1=transit, 2=done
-  const [otp, setOtp] = useState("");
-  const [showOtp, setShowOtp] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
 
-  useEffect(() => { fetchActive(); }, []);
-
-  const fetchActive = async (silent = false) => {
+  const fetchActive = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const { data } = await api.get("/orders/delivery/mine", { params: { status: "out_for_delivery" } });
+      const { data } = await orderAPI.getMyDeliveries({ status: "out_for_delivery" });
       setOrder(data[0] || null);
-    } catch {
-      setOrder(DEMO_ACTIVE);
+    } catch (err) {
+      if (!silent) addToast(err.response?.data?.message || "Failed to load active delivery", "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [addToast]);
+
+  useEffect(() => { fetchActive(); }, [fetchActive]);
 
   const markPickedUp = () => {
     setCurrentStep(1);
     addToast("Order picked up! 📦 Head to customer.", "success");
+    // Emit location update
+    if (order) emit("update_location", { orderId: order._id, lat: 12.9716, lng: 77.5946 });
   };
 
-  const markDelivered = async () => {
+  const markDelivered = useCallback(async () => {
     if (!order) return;
     setMarkingDone(true);
     try {
-      await api.post(`/orders/${order._id}/delivered`);
-    } catch {}
-    addToast("Order delivered! 🎉 Great job!", "success");
-    navigate("/delivery/history");
-  };
+      await orderAPI.markDelivered(order._id);
+      addToast("Order delivered! 🎉 Great job!", "success");
+      navigate("/delivery/history");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to mark as delivered", "error");
+    } finally {
+      setMarkingDone(false);
+    }
+  }, [order, addToast, navigate]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin"
-            style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }} />
+          <Loader2 size={32} className="animate-spin" style={{ color: "var(--brand)" }} />
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading delivery...</p>
         </div>
       </div>
@@ -107,14 +86,8 @@ export default function DeliveryActive() {
             <ChevronLeft size={18} />
           </Link>
           <div className="flex-1">
-            <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
-              Active Delivery
-            </h1>
-            {order && (
-              <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                #{(order._id || "").slice(-8).toUpperCase()}
-              </p>
-            )}
+            <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>Active Delivery</h1>
+            {order && <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>#{order._id?.slice(-8).toUpperCase()}</p>}
           </div>
           <button onClick={() => fetchActive(true)}
             className="p-2.5 rounded-xl transition-all hover:scale-110"
@@ -123,15 +96,11 @@ export default function DeliveryActive() {
           </button>
         </div>
 
-        {/* No active delivery */}
         {!order ? (
-          <div className="text-center py-20 rounded-3xl"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          <div className="text-center py-20 rounded-3xl" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <div className="text-6xl mb-4" style={{ animation: "float 3s ease-in-out infinite" }}>🛵</div>
             <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>No Active Delivery</h2>
-            <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-              Accept an order from the dashboard to start delivering.
-            </p>
+            <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>Accept an order from the dashboard to start delivering.</p>
             <Link to="/delivery/dashboard" className="btn btn-brand text-sm">Find Orders</Link>
           </div>
         ) : (
@@ -141,21 +110,16 @@ export default function DeliveryActive() {
               style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,107,53,0.04))", border: "1.5px solid rgba(255,107,53,0.2)" }}>
               <div className="text-2xl">💰</div>
               <div className="flex-1">
-                <p className="font-bold" style={{ color: "var(--text-primary)" }}>
-                  ₹{order.deliveryFee || 30} earnings on this delivery
-                </p>
+                <p className="font-bold" style={{ color: "var(--text-primary)" }}>₹{order.deliveryFee || 30} earnings</p>
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Order value: ₹{order.totalPrice} · {order.paymentMethod === "cod" ? "💵 Cash on delivery" : "💳 Online paid"}
+                  Order: ₹{order.totalPrice} · {order.paymentMethod === "cod" ? "💵 Collect cash" : "💳 Online paid"}
                 </p>
               </div>
             </div>
 
             {/* Step tracker */}
-            <div className="rounded-2xl p-4 mb-4"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
-                Delivery Progress
-              </p>
+            <div className="rounded-2xl p-4 mb-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Progress</p>
               <div className="flex items-center gap-0">
                 {STEPS.map((step, i) => {
                   const isDone = i < currentStep;
@@ -171,11 +135,7 @@ export default function DeliveryActive() {
                             boxShadow: isActive ? `0 0 16px ${step.color}40` : "none",
                             transform: isActive ? "scale(1.1)" : "scale(1)",
                           }}>
-                          {isDone ? (
-                            <Check size={15} style={{ color: step.color }} />
-                          ) : (
-                            <Icon size={14} style={{ color: isActive ? step.color : "var(--text-muted)" }} />
-                          )}
+                          {isDone ? <Check size={15} style={{ color: step.color }} /> : <Icon size={14} style={{ color: isActive ? step.color : "var(--text-muted)" }} />}
                         </div>
                         <p className="text-[10px] font-semibold text-center"
                           style={{ color: isDone || isActive ? "var(--text-primary)" : "var(--text-muted)" }}>
@@ -196,7 +156,7 @@ export default function DeliveryActive() {
             <div className="rounded-3xl overflow-hidden mb-4"
               style={{ backgroundColor: "var(--card)", border: `1.5px solid ${currentStep === 0 ? "rgba(34,197,94,0.3)" : "var(--border)"}` }}>
 
-              {/* Store / Pickup */}
+              {/* Store */}
               <div className="p-5" style={{ borderBottom: "1px solid var(--border)" }}>
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -205,19 +165,11 @@ export default function DeliveryActive() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                        Pickup from
-                      </p>
-                      {currentStep > 0 && (
-                        <span className="tag tag-green text-[10px]"><Check size={9} /> Picked up</span>
-                      )}
+                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Pickup from</p>
+                      {currentStep > 0 && <span className="tag tag-green text-[10px]"><Check size={9} /> Picked up</span>}
                     </div>
-                    <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>
-                      {order.storeId?.name}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      {order.storeId?.address}
-                    </p>
+                    <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>{order.storeId?.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{order.storeId?.address}</p>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {order.storeId?.phone && (
@@ -234,19 +186,13 @@ export default function DeliveryActive() {
                   </div>
                 </div>
 
-                {/* Items list */}
-                <div className="rounded-xl p-3 mb-3"
-                  style={{ background: "var(--elevated)" }}>
-                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
-                    Items to collect
-                  </p>
+                {/* Items */}
+                <div className="rounded-xl p-3 mb-3" style={{ background: "var(--elevated)" }}>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>Items to collect</p>
                   {order.items?.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm py-1">
+                    <div key={i} className="flex items-center justify-between text-sm py-0.5">
                       <span style={{ color: "var(--text-secondary)" }}>• {item.name}</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded-md"
-                        style={{ background: "var(--card)", color: "var(--text-muted)" }}>
-                        ×{item.quantity || 1}
-                      </span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>×{item.quantity || 1}</span>
                     </div>
                   ))}
                 </div>
@@ -260,7 +206,7 @@ export default function DeliveryActive() {
                 )}
               </div>
 
-              {/* Delivery / Customer */}
+              {/* Customer */}
               <div className="p-5">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -268,19 +214,12 @@ export default function DeliveryActive() {
                     <User size={16} style={{ color: "var(--brand)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                      Deliver to
-                    </p>
-                    <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>
-                      {order.userId?.name}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      {order.deliveryAddress}
-                    </p>
+                    <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Deliver to</p>
+                    <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>{order.userId?.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{order.deliveryAddress}</p>
                     {order.paymentMethod === "cod" && (
-                      <div className="flex items-center gap-1.5 mt-1.5 text-xs font-semibold"
-                        style={{ color: "#f59e0b" }}>
-                        <DollarSign size={11} /> Collect ₹{order.totalPrice} in cash
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs font-semibold" style={{ color: "#f59e0b" }}>
+                        <DollarSign size={11} /> Collect ₹{order.totalPrice} cash
                       </div>
                     )}
                   </div>
@@ -301,7 +240,6 @@ export default function DeliveryActive() {
               </div>
             </div>
 
-            {/* Hint for step 0 */}
             {currentStep === 0 && (
               <div className="flex items-center gap-2 text-xs px-4 py-3 rounded-xl mb-4"
                 style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}>
@@ -310,7 +248,6 @@ export default function DeliveryActive() {
               </div>
             )}
 
-            {/* Mark delivered CTA */}
             {currentStep === 1 && (
               <>
                 <div className="flex items-center gap-2 text-xs px-4 py-3 rounded-xl mb-4"
@@ -318,13 +255,11 @@ export default function DeliveryActive() {
                   <Truck size={14} />
                   You're on your way! Tap "Mark Delivered" when you reach the customer.
                 </div>
-                <button
-                  onClick={markDelivered}
-                  disabled={markingDone}
+                <button onClick={markDelivered} disabled={markingDone}
                   className="btn btn-brand w-full justify-center py-4 text-base font-bold"
                   style={{ boxShadow: "0 8px 24px rgba(255,107,53,0.35)" }}>
                   {markingDone
-                    ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ? <><Loader2 size={18} className="animate-spin" /> Marking delivered...</>
                     : <><CheckCircle size={18} /> Mark as Delivered</>}
                 </button>
               </>

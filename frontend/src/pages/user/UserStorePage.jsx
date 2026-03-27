@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Star, Clock, MapPin, Phone, Search, AlertCircle } from "lucide-react";
-import api from "../../api/api";
+import { ArrowLeft, Star, Clock, MapPin, Phone, Search, AlertCircle, RefreshCw } from "lucide-react";
+import { storeAPI, productAPI } from "../../api/api";
 import ProductCard from "../../components/store/ProductCard";
 import { SkeletonProductCard, PageLoader, EmptyState } from "../../components/ui/Skeleton";
 
@@ -13,7 +13,6 @@ const CAT_GRADIENT = {
   Medicines: "from-red-600 to-rose-700",
   Other:     "from-purple-600 to-violet-700",
 };
-
 const CAT_EMOJI = {
   Groceries: "🛒", Food: "🍛", Snacks: "🍿",
   Beverages: "🧃", Medicines: "💊", Other: "🏪",
@@ -21,40 +20,47 @@ const CAT_EMOJI = {
 
 export default function UserStorePage() {
   const { id } = useParams();
-  const [store,    setStore]    = useState(null);
+  const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState("");
-  const [search,   setSearch]   = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
-  useEffect(() => { fetchData(); }, [id]);
-
-  const fetchData = async () => {
-    setLoading(true); setError("");
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const [storeRes, prodRes] = await Promise.all([
-        api.get(`/stores/${id}`),
-        api.get(`/products/store/${id}`),
+        storeAPI.getById(id),
+        productAPI.getByStore(id),
       ]);
       setStore(storeRes.data);
       setProducts(prodRes.data);
     } catch (err) {
       setError(err.response?.data?.message || "Could not load store. Please try again.");
-    } finally { setLoading(false); }
-  };
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return <PageLoader />;
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
         <div className="text-center max-w-sm">
-          <AlertCircle size={48} className="mx-auto mb-4" style={{ color: "#ef4444" }} />
+          <div className="text-6xl mb-4">😕</div>
           <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>Store not found</h2>
           <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>{error}</p>
-          <Link to="/user/home" className="btn btn-brand">← Back to Stores</Link>
+          <div className="flex gap-3 justify-center">
+            <button onClick={fetchData} className="btn btn-brand text-sm">
+              <RefreshCw size={14} /> Retry
+            </button>
+            <Link to="/user/home" className="btn btn-ghost text-sm">← Back</Link>
+          </div>
         </div>
       </div>
     );
@@ -66,12 +72,11 @@ export default function UserStorePage() {
   const categories = ["All", ...new Set(products.map(p => p.category))];
 
   const filtered = products.filter(p => {
-    const matchCat    = activeCategory === "All" || p.category === activeCategory;
+    const matchCat = activeCategory === "All" || p.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
 
-  // Group by category when showing all
   const grouped = filtered.reduce((acc, p) => {
     const cat = activeCategory === "All" ? p.category : activeCategory;
     if (!acc[cat]) acc[cat] = [];
@@ -84,20 +89,18 @@ export default function UserStorePage() {
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
-
       {/* Store Hero */}
-      <div className={`relative bg-gradient-to-r ${grad} pt-4 pb-16`}>
+      <div className={`relative bg-gradient-to-br ${grad} pt-4 pb-16`}>
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
           <Link to="/user/home"
             className="inline-flex items-center gap-2 text-white/80 hover:text-white transition-colors mb-4 text-sm font-medium">
             <ArrowLeft size={16} /> Back to stores
           </Link>
-
           <div className="flex items-start gap-4">
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0 shadow-2xl"
               style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)" }}>
               {store.image
-                ? <img src={store.image} alt={store.name} className="w-full h-full object-cover rounded-2xl" />
+                ? <img src={store.image} alt={store.name} className="w-full h-full object-cover rounded-2xl" onError={e => { e.target.style.display="none"; e.target.parentNode.textContent = emoji; }} />
                 : emoji}
             </div>
             <div className="flex-1 min-w-0">
@@ -108,15 +111,13 @@ export default function UserStorePage() {
                 </span>
               </div>
               {store.description && (
-                <p className="text-white/70 text-sm mt-1">{store.description}</p>
-              )}
-              {isFood && store.cuisine && (
-                <p className="text-white/60 text-xs mt-1">🍽️ {store.cuisine}</p>
+                <p className="text-white/70 text-sm mt-1 line-clamp-2">{store.description}</p>
               )}
               <div className="flex items-center gap-4 mt-2 flex-wrap">
                 {store.rating > 0 && (
                   <span className="flex items-center gap-1 text-yellow-300 text-sm font-semibold">
-                    <Star size={14} fill="currentColor" /> {store.rating.toFixed(1)} ({store.totalRatings} ratings)
+                    <Star size={14} fill="currentColor" />
+                    {store.rating.toFixed(1)} ({store.totalRatings?.toLocaleString() || 0})
                   </span>
                 )}
                 <span className="flex items-center gap-1 text-white/70 text-sm">
@@ -139,7 +140,7 @@ export default function UserStorePage() {
             {[
               { icon: "🚚", label: "Free delivery" },
               { icon: "⏱️", label: store.deliveryTime },
-              { icon: "💰", label: store.minOrder > 0 ? `Min ₹${store.minOrder}` : "No min order" },
+              { icon: "💰", label: store.minOrder > 0 ? `Min ₹${store.minOrder}` : "No minimum" },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-1.5 text-xs flex-shrink-0 font-medium"
                 style={{ color: "var(--text-secondary)" }}>
@@ -155,8 +156,6 @@ export default function UserStorePage() {
               </a>
             )}
           </div>
-
-          {/* Category filter */}
           {categories.length > 1 && (
             <div className="flex gap-2 pb-3 overflow-x-auto scrollbar-hide">
               {categories.map(cat => (
@@ -177,20 +176,18 @@ export default function UserStorePage() {
 
       {/* Products */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-20">
-        {/* Search */}
         <div className="relative max-w-md mb-6">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
           <input className="input-theme pl-10 py-2.5 text-sm"
-            placeholder={isFood ? `Search ${store.name}'s menu…` : `Search in ${store.name}…`}
+            placeholder={isFood ? `Search ${store.name}'s menu…` : `Search products…`}
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
-        {/* Closed notice */}
         {!store.isOpen && (
           <div className="flex items-center gap-2 p-4 rounded-2xl mb-5 text-sm"
             style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
             <AlertCircle size={15} />
-            This store is currently closed. You can browse the menu but cannot place orders right now.
+            This store is currently closed. You can browse but cannot place orders right now.
           </div>
         )}
 
@@ -198,13 +195,13 @@ export default function UserStorePage() {
           <EmptyState
             icon={isFood ? "🍽️" : "📦"}
             title={`${store.name} hasn't added any ${isFood ? "menu items" : "products"} yet`}
-            subtitle="Check back later — they're still setting up!"
+            subtitle="Check back later!"
           />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon="🔍"
             title="No items found"
-            subtitle={`Try a different search or category`}
+            subtitle="Try a different search or category"
             action={
               <button onClick={() => { setSearch(""); setActiveCategory("All"); }}
                 className="btn btn-brand text-sm">Clear filters</button>
@@ -219,9 +216,8 @@ export default function UserStorePage() {
                   {prods.length}
                 </span>
                 {isFood && (
-                  <div className="flex items-center gap-2 ml-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                    <span>🟢 Veg</span>
-                    <span>🔴 Non-veg</span>
+                  <div className="flex items-center gap-2 ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <span>🟢 Veg</span><span>🔴 Non-veg</span>
                   </div>
                 )}
               </div>

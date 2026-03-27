@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ShoppingBasket, Utensils, Cookie, Coffee, Pill, Grid3X3,
-  Zap, Clock, Shield, Star, ArrowRight, TrendingUp, AlertCircle, RefreshCw
+  Zap, Clock, Shield, Star, ArrowRight, TrendingUp, RefreshCw,
+  Search, MapPin, ChevronRight, Flame
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import api from "../../api/api";
+import { storeAPI } from "../../api/api";
 import StoreCard from "../../components/StoreCard";
 import { SkeletonCard, EmptyState } from "../../components/ui/Skeleton";
 
@@ -19,54 +20,54 @@ const CATEGORIES = [
 ];
 
 const FEATURES = [
-  { icon: Zap,    label: "10-min delivery", sub: "Ultra fast",          color: "#f59e0b" },
-  { icon: Shield, label: "100% safe",        sub: "Quality guaranteed",  color: "#22c55e" },
-  { icon: Clock,  label: "24/7 open",        sub: "Always available",    color: "#3b82f6" },
-  { icon: Star,   label: "Top rated",        sub: "4.8+ rated stores",   color: "#a855f7" },
+  { icon: Zap,    label: "10-min delivery", sub: "Ultra fast",         color: "#f59e0b" },
+  { icon: Shield, label: "100% safe",       sub: "Quality guaranteed", color: "#22c55e" },
+  { icon: Clock,  label: "24/7 open",       sub: "Always available",   color: "#3b82f6" },
+  { icon: Star,   label: "Top rated",       sub: "4.8+ rated stores",  color: "#a855f7" },
 ];
 
 const BANNERS = [
-  { bg: "from-orange-600 via-red-600 to-pink-600",          title: "First order FREE",  sub: "Use code QUICKFIRST", badge: "🎁 New user offer",  emoji: "🎁" },
-  { bg: "from-purple-600 via-violet-600 to-indigo-600",     title: "10 min delivery",   sub: "From 50+ local stores", badge: "⚡ Express",      emoji: "⚡" },
-  { bg: "from-teal-600 via-emerald-600 to-green-600",       title: "Fresh groceries",   sub: "Farm to doorstep",    badge: "🌿 Fresh daily",    emoji: "🌿" },
+  { bg: "from-orange-600 via-red-600 to-pink-700",      title: "First order FREE",  sub: "Use code QUICKFIRST at checkout", badge: "🎁 New user offer", emoji: "🎁" },
+  { bg: "from-purple-700 via-violet-600 to-indigo-700", title: "10 min delivery",   sub: "From 50+ local stores near you",  badge: "⚡ Express",      emoji: "⚡" },
+  { bg: "from-teal-600 via-emerald-600 to-green-700",   title: "Fresh groceries",   sub: "Farm-fresh daily essentials",     badge: "🌿 Fresh daily",  emoji: "🌿" },
 ];
 
 export default function UserHome() {
   const { user } = useAuth();
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState(false);
+  const [error, setError] = useState(null);
   const [category, setCategory] = useState("All");
   const [bannerIdx, setBannerIdx] = useState(0);
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") || "";
 
   useEffect(() => {
-    const t = setInterval(() => setBannerIdx(i => (i + 1) % BANNERS.length), 4000);
+    const t = setInterval(() => setBannerIdx(i => (i + 1) % BANNERS.length), 4500);
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    const t = setTimeout(fetchStores, 200);
-    return () => clearTimeout(t);
-  }, [category, searchQuery]);
-
-  const fetchStores = async () => {
+  const fetchStores = useCallback(async () => {
     setLoading(true);
-    setApiError(false);
+    setError(null);
     try {
       const params = {};
       if (searchQuery) params.search = searchQuery;
       if (category !== "All") params.category = category;
-      const { data } = await api.get("/stores", { params });
+      const { data } = await storeAPI.getAll(params);
       setStores(data);
     } catch (err) {
-      setApiError(true);
+      setError(err.response?.data?.message || "Could not load stores. Check your connection.");
       setStores([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [category, searchQuery]);
+
+  useEffect(() => {
+    const t = setTimeout(fetchStores, 150);
+    return () => clearTimeout(t);
+  }, [fetchStores]);
 
   const banner = BANNERS[bannerIdx];
 
@@ -79,31 +80,34 @@ export default function UserHome() {
           <h1 className="font-display font-bold text-2xl" style={{ color: "var(--text-primary)" }}>
             Hey {user?.name?.split(" ")[0]} 👋
           </h1>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>What would you like today?</p>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
+            What would you like today?
+          </p>
         </div>
 
         {/* Hero Banner */}
         <section className="py-3">
-          <div
-            className={`relative rounded-3xl overflow-hidden p-8 bg-gradient-to-r ${banner.bg} transition-all duration-700`}
+          <div className={`relative rounded-3xl overflow-hidden p-8 bg-gradient-to-br ${banner.bg} transition-all duration-700`}
             style={{ minHeight: 200 }}>
             <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-20 pointer-events-none"
               style={{ background: "radial-gradient(circle, white, transparent)", transform: "translate(30%, -30%)" }} />
+            <div className="absolute bottom-0 left-1/3 w-48 h-48 rounded-full opacity-10 pointer-events-none"
+              style={{ background: "radial-gradient(circle, white, transparent)", transform: "translateY(40%)" }} />
             <div className="relative z-10">
-              <span className="inline-block tag text-xs mb-3 bg-white/20 text-white border-0">
+              <span className="inline-flex items-center gap-1.5 tag text-xs mb-3 bg-white/20 text-white border-0 backdrop-blur-sm">
                 {banner.badge}
               </span>
               <h2 className="font-display font-bold text-3xl md:text-4xl text-white leading-tight mb-2">
                 {banner.title}
               </h2>
               <p className="text-white/80 text-base mb-4">{banner.sub}</p>
-              <button
-                className="btn text-sm font-bold px-5 py-2.5 rounded-xl text-white"
+              <Link to="/checkout"
+                className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl text-white transition-all hover:scale-105"
                 style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.3)" }}>
-                Claim Now <ArrowRight size={14} />
-              </button>
+                Order Now <ArrowRight size={14} />
+              </Link>
             </div>
-            <div className="absolute right-8 bottom-0 text-7xl opacity-70 hidden md:block"
+            <div className="absolute right-8 bottom-0 text-7xl opacity-70 hidden md:block leading-none"
               style={{ animation: "float 4s ease-in-out infinite" }}>
               {banner.emoji}
             </div>
@@ -145,7 +149,7 @@ export default function UserHome() {
               const active = category === name;
               return (
                 <button key={name} onClick={() => setCategory(name)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold flex-shrink-0 transition-all hover:scale-105"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold flex-shrink-0 transition-all hover:scale-105 active:scale-95"
                   style={{
                     background: active ? color : "var(--card)",
                     color: active ? "white" : "var(--text-secondary)",
@@ -167,36 +171,35 @@ export default function UserHome() {
               <h2 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
                 {searchQuery ? `"${searchQuery}"` : category === "All" ? "All Stores" : category}
               </h2>
-              {!loading && !apiError && (
+              {!loading && !error && (
                 <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
                   {stores.length} store{stores.length !== 1 ? "s" : ""} nearby
                 </p>
               )}
             </div>
             <div className="flex items-center gap-2">
-              {apiError && (
-                <button onClick={fetchStores}
-                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
-                  style={{ background: "rgba(255,107,53,0.1)", color: "var(--brand)" }}>
-                  <RefreshCw size={12} /> Retry
-                </button>
-              )}
+              <button onClick={fetchStores}
+                className="p-2 rounded-xl transition-all hover:scale-110"
+                style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              </button>
               <button className="flex items-center gap-1 text-sm font-semibold" style={{ color: "var(--brand)" }}>
                 <TrendingUp size={15} /> Top rated
               </button>
             </div>
           </div>
 
-          {/* API Error */}
-          {apiError && (
-            <div className="rounded-2xl p-5 mb-5 flex items-center gap-3"
+          {error && (
+            <div className="rounded-2xl p-5 mb-5 flex items-start gap-3"
               style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <AlertCircle size={18} style={{ color: "#ef4444", flexShrink: 0 }} />
+              <div className="text-xl flex-shrink-0">⚠️</div>
               <div>
-                <p className="font-bold text-sm" style={{ color: "#ef4444" }}>Connection error</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                  Could not reach the server. Make sure the backend is running on port 5000.
-                </p>
+                <p className="font-bold text-sm" style={{ color: "#ef4444" }}>Connection Error</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{error}</p>
+                <button onClick={fetchStores} className="text-xs font-semibold mt-2"
+                  style={{ color: "var(--brand)" }}>
+                  Try again →
+                </button>
               </div>
             </div>
           )}
@@ -205,26 +208,22 @@ export default function UserHome() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger">
               {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
             </div>
-          ) : stores.length === 0 && !apiError ? (
+          ) : stores.length === 0 && !error ? (
             <EmptyState
               icon="🏪"
               title="No stores found"
               subtitle={
-                searchQuery
-                  ? `No results for "${searchQuery}"`
-                  : category !== "All"
-                  ? `No ${category} stores in your area yet`
-                  : "No stores have been created yet. Store owners can sign up and create their store."
+                searchQuery ? `No results for "${searchQuery}"`
+                  : category !== "All" ? `No ${category} stores yet`
+                  : "No stores available. Check back soon!"
               }
-              action={
-                category !== "All" ? (
-                  <button onClick={() => setCategory("All")} className="btn btn-brand text-sm">
-                    Browse all stores
-                  </button>
-                ) : null
-              }
+              action={category !== "All" ? (
+                <button onClick={() => setCategory("All")} className="btn btn-brand text-sm">
+                  Browse all stores
+                </button>
+              ) : null}
             />
-          ) : !apiError && (
+          ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger">
               {stores.map(s => <StoreCard key={s._id} store={s} linkPrefix="/user/store" />)}
             </div>

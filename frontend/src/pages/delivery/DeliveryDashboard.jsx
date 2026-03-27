@@ -1,67 +1,29 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Truck, MapPin, DollarSign, Package, Clock, Check,
   ToggleLeft, ToggleRight, RefreshCw, Navigation, ChevronRight,
-  Star, Zap, TrendingUp, Phone, LogOut, Bike, AlertCircle,
-  Bell, CheckCircle
+  Star, Zap, TrendingUp, Phone, LogOut, AlertCircle, Bell, Loader2
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
-import api from "../../api/api";
-
-const DEMO_AVAILABLE = [
-  {
-    _id: "av1", totalPrice: 245, deliveryFee: 35,
-    storeId: { name: "FreshMart Express", address: "Koramangala 5th Block", phone: "+91 98765 43210" },
-    userId:  { name: "Raj Kumar", phone: "+91 87654 32109", address: "12, 3rd Main, HSR Layout" },
-    items:   [{ name: "Amul Milk" }, { name: "Bread" }, { name: "Eggs" }],
-    createdAt: new Date().toISOString(),
-    distanceKm: 2.4,
-  },
-  {
-    _id: "av2", totalPrice: 360, deliveryFee: 40,
-    storeId: { name: "Biryani House", address: "Indiranagar, 100ft Rd", phone: "+91 76543 21098" },
-    userId:  { name: "Priya Singh", phone: "+91 65432 10987", address: "77, 8th Main, Indiranagar" },
-    items:   [{ name: "Chicken Biryani" }, { name: "Raita" }, { name: "Gulab Jamun" }],
-    createdAt: new Date(Date.now() - 300000).toISOString(),
-    distanceKm: 1.8,
-  },
-];
-
-const DEMO_STATS = {
-  totalDeliveries: 142,
-  rating: 4.8,
-  earningsToday: 340,
-  earningsWeek: 2140,
-  earningsMonth: 8450,
-  completionRate: 98,
-};
+import { useSocket } from "../../context/SocketContext";
+import { orderAPI, authAPI } from "../../api/api";
 
 function OrderAvailableCard({ order, onAccept, accepting }) {
   const timeSince = Math.floor((Date.now() - new Date(order.createdAt)) / 60000);
-
   return (
     <div className="rounded-2xl overflow-hidden transition-all hover:-translate-y-0.5"
       style={{ backgroundColor: "var(--card)", border: "1.5px solid rgba(255,107,53,0.2)" }}>
-
-      {/* Urgency indicator */}
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#22c55e" }} />
           <span className="text-xs font-semibold" style={{ color: "#22c55e" }}>New Order</span>
         </div>
-        <div className="flex items-center gap-2">
-          {timeSince < 2 && (
-            <span className="tag tag-brand text-[10px]"><Zap size={9} /> Just now</span>
-          )}
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {timeSince < 1 ? "Just now" : `${timeSince}m ago`}
-          </span>
-        </div>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {timeSince < 1 ? "Just now" : `${timeSince}m ago`}
+        </span>
       </div>
-
-      {/* Route */}
       <div className="px-5 pb-3">
         <div className="flex items-start gap-3 mb-3">
           <div className="flex flex-col items-center gap-1 flex-shrink-0 pt-1">
@@ -71,53 +33,40 @@ function OrderAvailableCard({ order, onAccept, accepting }) {
           </div>
           <div className="flex-1 space-y-2">
             <div>
-              <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-                {order.storeId?.name}
-              </p>
+              <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{order.storeId?.name}</p>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>{order.storeId?.address}</p>
             </div>
             <div>
-              <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-                {order.userId?.name}
-              </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>{order.userId?.address}</p>
+              <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{order.userId?.name}</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>{order.userId?.address || order.deliveryAddress}</p>
             </div>
           </div>
           <div className="text-right flex-shrink-0">
             <p className="font-bold text-xl" style={{ color: "var(--brand)" }}>₹{order.deliveryFee || 30}</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-              {order.distanceKm ? `${order.distanceKm} km` : "~2 km"}
-            </p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>earnings</p>
           </div>
         </div>
-
-        {/* Items + order value */}
         <div className="flex items-center gap-2 flex-wrap mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
-          <span className="flex items-center gap-1 px-2 py-1 rounded-lg"
-            style={{ background: "var(--elevated)" }}>
+          <span className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: "var(--elevated)" }}>
             🛍️ {order.items?.length || 0} items
           </span>
-          <span className="flex items-center gap-1 px-2 py-1 rounded-lg"
-            style={{ background: "var(--elevated)" }}>
+          <span className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: "var(--elevated)" }}>
             💰 ₹{order.totalPrice} order
           </span>
-          {order.storeId?.phone && (
-            <a href={`tel:${order.storeId.phone}`}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg transition-all hover:scale-105"
-              style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
-              <Phone size={10} /> Call
-            </a>
+          {order.paymentMethod === "cod" && (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b" }}>
+              💵 Collect cash
+            </span>
           )}
         </div>
-
         <button
           onClick={() => onAccept(order._id)}
           disabled={accepting === order._id}
           className="btn btn-brand w-full justify-center py-3 text-sm"
           style={{ boxShadow: "0 4px 16px rgba(255,107,53,0.3)" }}>
           {accepting === order._id
-            ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            : <><Check size={15} /> Accept Delivery · ₹{order.deliveryFee || 30}</>}
+            ? <><Loader2 size={14} className="animate-spin" /> Accepting...</>
+            : <><Check size={15} /> Accept · ₹{order.deliveryFee || 30}</>}
         </button>
       </div>
     </div>
@@ -127,68 +76,102 @@ function OrderAvailableCard({ order, onAccept, accepting }) {
 export default function DeliveryDashboard() {
   const { user, logout } = useAuth();
   const { addToast, clearCart } = useCart();
+  const { on } = useSocket();
   const navigate = useNavigate();
   const pollRef = useRef(null);
 
-  const [available,  setAvailable]  = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const [available, setAvailable] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isOnline,   setIsOnline]   = useState(user?.isAvailable ?? true);
-  const [stats,      setStats]      = useState(DEMO_STATS);
-  const [accepting,  setAccepting]  = useState(null);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [isOnline, setIsOnline] = useState(user?.isAvailable ?? true);
+  const [accepting, setAccepting] = useState(null);
+  const [togglingOnline, setTogglingOnline] = useState(false);
+  const [stats, setStats] = useState({ totalDeliveries: 0, rating: 5, earningsToday: 0, earningsWeek: 0, earningsMonth: 0 });
 
-  useEffect(() => { fetchData(); }, []);
-
-  // Auto-poll for new orders every 20s when online
-  useEffect(() => {
-    if (isOnline) {
-      pollRef.current = setInterval(() => fetchData(true), 20000);
-    } else {
-      clearInterval(pollRef.current);
-    }
-    return () => clearInterval(pollRef.current);
-  }, [isOnline]);
-
-  const fetchData = async (silent = false) => {
+  const fetchAvailable = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const { data } = await api.get("/orders/delivery/available");
+      const { data } = await orderAPI.getAvailable();
       setAvailable(data);
-      setLastRefresh(new Date());
-    } catch {
-      setAvailable(isOnline ? DEMO_AVAILABLE : []);
-      setLastRefresh(new Date());
+    } catch (err) {
+      if (!silent) addToast(err.response?.data?.message || "Failed to load orders", "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [addToast]);
 
-  const toggleOnline = async () => {
-    try { await api.patch("/auth/availability"); } catch {}
-    const next = !isOnline;
-    setIsOnline(next);
-    addToast(next ? "You're now online! 🟢" : "You're now offline", next ? "success" : "info");
-    if (!next) setAvailable([]);
-    else fetchData(true);
-  };
+  const fetchStats = useCallback(async () => {
+    try {
+      const { data } = await orderAPI.getMyDeliveries({ status: "delivered" });
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(now - 7 * 86400000);
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const fee = (d) => d.deliveryFee || 30;
+      setStats({
+        totalDeliveries: data.length,
+        rating: user?.rating || 5.0,
+        earningsToday: data.filter(d => new Date(d.createdAt) >= todayStart).reduce((s, d) => s + fee(d), 0),
+        earningsWeek: data.filter(d => new Date(d.createdAt) >= weekStart).reduce((s, d) => s + fee(d), 0),
+        earningsMonth: data.filter(d => new Date(d.createdAt) >= monthStart).reduce((s, d) => s + fee(d), 0),
+      });
+    } catch {}
+  }, [user?.rating]);
 
-  const acceptDelivery = async (orderId) => {
+  useEffect(() => {
+    fetchAvailable();
+    fetchStats();
+  }, []);
+
+  // Poll every 20s when online
+  useEffect(() => {
+    if (isOnline) {
+      pollRef.current = setInterval(() => fetchAvailable(true), 20000);
+    } else {
+      clearInterval(pollRef.current);
+    }
+    return () => clearInterval(pollRef.current);
+  }, [isOnline, fetchAvailable]);
+
+  // Socket: listen for new delivery available notifications
+  useEffect(() => {
+    const unsub = on("delivery_available", ({ orderId }) => {
+      fetchAvailable(true);
+      addToast("🛵 New delivery available!", "info");
+    });
+    return () => { if (typeof unsub === "function") unsub(); };
+  }, [on, fetchAvailable, addToast]);
+
+  const toggleOnline = useCallback(async () => {
+    setTogglingOnline(true);
+    try {
+      await authAPI.toggleAvailability();
+      const next = !isOnline;
+      setIsOnline(next);
+      addToast(next ? "You're now online! 🟢" : "You're now offline", next ? "success" : "info");
+      if (!next) setAvailable([]);
+      else fetchAvailable();
+    } catch {
+      addToast("Failed to update availability", "error");
+    } finally {
+      setTogglingOnline(false);
+    }
+  }, [isOnline, addToast, fetchAvailable]);
+
+  const acceptDelivery = useCallback(async (orderId) => {
     setAccepting(orderId);
     try {
-      await api.post(`/orders/${orderId}/accept`);
+      await orderAPI.accept(orderId);
       addToast("Delivery accepted! 🎉 Head to the store.", "success");
       navigate("/delivery/active");
-    } catch {
-      // Demo mode
-      addToast("Delivery accepted! 🎉 Head to the store.", "success");
-      navigate("/delivery/active");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to accept delivery", "error");
     } finally {
       setAccepting(null);
     }
-  };
+  }, [addToast, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -213,14 +196,14 @@ export default function DeliveryDashboard() {
               {user?.rating && <> · ⭐ {user.rating}</>}
             </p>
           </div>
-          <button onClick={() => fetchData(true)}
+          <button onClick={() => fetchAvailable(true)}
             className="p-2.5 rounded-xl transition-all hover:scale-110"
             style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {/* Online / Offline Toggle */}
+        {/* Online Toggle */}
         <div className="rounded-2xl p-5 mb-4 transition-all"
           style={{
             background: isOnline
@@ -238,19 +221,17 @@ export default function DeliveryDashboard() {
                 {isOnline ? "🟢 You're Online" : "🔴 You're Offline"}
               </p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {isOnline
-                  ? `Receiving new orders · Last updated ${Math.floor((Date.now() - lastRefresh) / 1000)}s ago`
-                  : "Toggle on to start receiving orders"}
+                {isOnline ? "Receiving new orders · Auto-refreshing every 20s" : "Toggle on to start receiving orders"}
               </p>
             </div>
-            <button onClick={toggleOnline}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all hover:scale-105 active:scale-95"
+            <button onClick={toggleOnline} disabled={togglingOnline}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all hover:scale-105"
               style={{
                 background: isOnline ? "rgba(34,197,94,0.15)" : "var(--elevated)",
                 color: isOnline ? "#22c55e" : "var(--text-muted)",
                 border: `1px solid ${isOnline ? "rgba(34,197,94,0.25)" : "var(--border)"}`,
               }}>
-              {isOnline ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+              {togglingOnline ? <Loader2 size={16} className="animate-spin" /> : isOnline ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
               {isOnline ? "Online" : "Go Online"}
             </button>
           </div>
@@ -259,10 +240,10 @@ export default function DeliveryDashboard() {
         {/* Earnings Stats */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {[
-            { label: "Today",  value: `₹${stats.earningsToday}`,   icon: DollarSign,  color: "var(--brand)",  sub: `${Math.round(stats.earningsToday / 30)} deliveries` },
-            { label: "This Week", value: `₹${stats.earningsWeek}`, icon: TrendingUp,  color: "#22c55e",       sub: "Last 7 days" },
-            { label: "This Month", value: `₹${stats.earningsMonth}`,icon: TrendingUp, color: "#3b82f6",       sub: "Month total" },
-            { label: "Rating",  value: `${stats.rating} ⭐`,        icon: Star,        color: "#f59e0b",       sub: `${stats.totalDeliveries} deliveries` },
+            { label: "Today",        value: `₹${stats.earningsToday}`,  icon: DollarSign,  color: "var(--brand)", sub: "earned today" },
+            { label: "This Week",    value: `₹${stats.earningsWeek}`,   icon: TrendingUp,  color: "#22c55e",      sub: "last 7 days" },
+            { label: "This Month",   value: `₹${stats.earningsMonth}`,  icon: TrendingUp,  color: "#3b82f6",      sub: "month total" },
+            { label: "Rating",       value: `${stats.rating} ⭐`,       icon: Star,        color: "#f59e0b",      sub: `${stats.totalDeliveries} deliveries` },
           ].map(({ label, value, icon: Icon, color, sub }) => (
             <div key={label} className="rounded-2xl p-4 transition-all hover:-translate-y-0.5"
               style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
@@ -281,8 +262,7 @@ export default function DeliveryDashboard() {
           <Link to="/delivery/active"
             className="flex items-center gap-3 p-4 rounded-2xl transition-all hover:scale-[1.02]"
             style={{ background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.2)" }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(255,107,53,0.15)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,107,53,0.15)" }}>
               <Navigation size={16} style={{ color: "var(--brand)" }} />
             </div>
             <div>
@@ -293,8 +273,7 @@ export default function DeliveryDashboard() {
           <Link to="/delivery/history"
             className="flex items-center gap-3 p-4 rounded-2xl transition-all hover:scale-[1.02]"
             style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(59,130,246,0.12)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(59,130,246,0.12)" }}>
               <Package size={16} style={{ color: "#3b82f6" }} />
             </div>
             <div>
@@ -307,9 +286,7 @@ export default function DeliveryDashboard() {
         {/* Available Orders */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-lg" style={{ color: "var(--text-primary)" }}>
-              Available Orders
-            </h2>
+            <h2 className="font-display font-bold text-lg" style={{ color: "var(--text-primary)" }}>Available Orders</h2>
             {isOnline && available.length > 0 && (
               <span className="flex items-center gap-1 tag tag-green text-xs">
                 <Zap size={11} /> {available.length} ready
@@ -318,42 +295,27 @@ export default function DeliveryDashboard() {
           </div>
 
           {!isOnline ? (
-            <div className="text-center py-14 rounded-2xl"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div className="text-center py-14 rounded-2xl" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
               <div className="text-5xl mb-3">💤</div>
               <p className="font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>You're offline</p>
               <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>Go online to see available orders</p>
-              <button onClick={toggleOnline} className="btn btn-brand text-sm">
-                Go Online
-              </button>
+              <button onClick={toggleOnline} className="btn btn-brand text-sm">Go Online</button>
             </div>
           ) : loading ? (
-            <div className="space-y-4">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="rounded-2xl h-44 shimmer" style={{ backgroundColor: "var(--card)" }} />
-              ))}
+            <div className="flex justify-center py-16">
+              <Loader2 size={32} className="animate-spin" style={{ color: "var(--brand)" }} />
             </div>
           ) : available.length === 0 ? (
-            <div className="text-center py-14 rounded-2xl"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div className="text-center py-14 rounded-2xl" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
               <div className="text-5xl mb-3" style={{ animation: "float 3s ease-in-out infinite" }}>🔍</div>
               <p className="font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>No orders right now</p>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                New orders will appear here automatically
-              </p>
-              <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                Auto-refreshing every 20 seconds
-              </p>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>New orders appear here automatically</p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Auto-refreshing every 20 seconds</p>
             </div>
           ) : (
             <div className="space-y-4">
               {available.map(order => (
-                <OrderAvailableCard
-                  key={order._id}
-                  order={order}
-                  onAccept={acceptDelivery}
-                  accepting={accepting}
-                />
+                <OrderAvailableCard key={order._id} order={order} onAccept={acceptDelivery} accepting={accepting} />
               ))}
             </div>
           )}
