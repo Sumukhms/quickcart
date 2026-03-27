@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Clock, Star, ChevronRight, Zap } from "lucide-react";
+import { Clock, ChevronRight, Zap } from "lucide-react";
 
 const categoryEmojis = {
   Groceries: "🛒", Food: "🍛", Snacks: "🍕", Beverages: "🧃", Medicines: "💊", Other: "🏪"
@@ -7,33 +7,33 @@ const categoryEmojis = {
 
 const categoryGradients = {
   Groceries: "from-emerald-500 to-teal-600",
-  Food: "from-orange-500 to-red-500",
-  Snacks: "from-yellow-500 to-orange-500",
+  Food:      "from-orange-500 to-red-500",
+  Snacks:    "from-yellow-500 to-orange-500",
   Beverages: "from-blue-500 to-cyan-500",
   Medicines: "from-red-500 to-rose-600",
-  Other: "from-purple-500 to-violet-600",
+  Other:     "from-purple-500 to-violet-600",
 };
 
-export default function StoreCard({ store }) {
-  const emoji = categoryEmojis[store.category] || "🏪";
+export default function StoreCard({ store, linkPrefix = "/user/store" }) {
+  const emoji    = categoryEmojis[store.category]    || "🏪";
   const gradient = categoryGradients[store.category] || "from-gray-500 to-gray-600";
 
   return (
-    <Link to={`/store/${store._id}`}>
+    <Link to={`${linkPrefix}/${store._id}`}>
       <div className="card-hover relative overflow-hidden cursor-pointer group h-full"
         style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-        
+
         {/* Banner */}
         <div className={`relative h-36 bg-gradient-to-br ${gradient} flex items-center justify-center overflow-hidden`}>
           <div className="text-5xl transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3">
             {emoji}
           </div>
-          
+
           {/* Status badge */}
           <div className={`absolute top-3 right-3 tag ${store.isOpen ? "tag-green" : "tag-red"}`}>
-            {store.isOpen ? (
-              <><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />Open</>
-            ) : "Closed"}
+            {store.isOpen
+              ? <><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />Open</>
+              : "Closed"}
           </div>
 
           {/* Express badge */}
@@ -51,7 +51,7 @@ export default function StoreCard({ store }) {
           {/* Store info */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="font-bold text-base truncate group-hover:text-orange-400 transition-colors" 
+              <h3 className="font-bold text-base truncate group-hover:text-orange-400 transition-colors"
                 style={{ color: "var(--text-primary)" }}>
                 {store.name}
               </h3>
@@ -59,7 +59,7 @@ export default function StoreCard({ store }) {
                 {store.address}
               </p>
             </div>
-            <ChevronRight size={16} className="flex-shrink-0 mt-0.5 transition-transform group-hover:translate-x-1" 
+            <ChevronRight size={16} className="flex-shrink-0 mt-0.5 transition-transform group-hover:translate-x-1"
               style={{ color: "var(--text-muted)" }} />
           </div>
 
@@ -78,14 +78,16 @@ export default function StoreCard({ store }) {
             </span>
 
             {store.minOrder > 0 && (
-              <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
+              <span className="text-xs px-2 py-1 rounded-lg"
+                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
                 Min ₹{store.minOrder}
               </span>
             )}
           </div>
 
           {/* Category tag */}
-          <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+          <div className="mt-3 pt-3 border-t flex items-center justify-between"
+            style={{ borderColor: "var(--border)" }}>
             <span className="tag" style={{ background: "var(--elevated)", color: "var(--text-muted)", fontSize: "0.7rem" }}>
               {store.category}
             </span>

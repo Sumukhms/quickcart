@@ -16,6 +16,7 @@ import UserCart       from "./pages/user/UserCart.jsx";
 import UserOrders     from "./pages/user/UserOrders.jsx";
 import UserTrack      from "./pages/user/UserTrack.jsx";
 import UserProfile    from "./pages/user/UserProfile.jsx";
+import CheckoutPage   from "./pages/Checkoutpage.jsx";
 
 // ── Store Owner pages ─────────────────────────────────────────
 import StoreDashboard from "./pages/store/StoreDashboard.jsx";
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/user/orders"        element={<CustomerRoute><UserOrders /></CustomerRoute>} />
         <Route path="/user/orders/:id"    element={<CustomerRoute><UserTrack /></CustomerRoute>} />
         <Route path="/user/profile"       element={<CustomerRoute><UserProfile /></CustomerRoute>} />
+        <Route path="/checkout"           element={<CustomerRoute><CheckoutPage /></CustomerRoute>} />
 
         {/* ── STORE OWNER ROUTES ───────────────────────── */}
         <Route path="/store/dashboard" element={<StoreRoute><StoreDashboard /></StoreRoute>} />
