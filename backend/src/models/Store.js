@@ -5,7 +5,12 @@ const storeSchema = new mongoose.Schema({
   ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   phone: { type: String, required: true },
   address: { type: String, required: true },
-  category: { type: String, required: true, enum: ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"] },
+  category: {
+    type: String,
+    required: true,
+    enum: ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"],
+  },
+  description: { type: String, default: "" },
   image: { type: String, default: "" },
   rating: { type: Number, default: 0, min: 0, max: 5 },
   totalRatings: { type: Number, default: 0 },
