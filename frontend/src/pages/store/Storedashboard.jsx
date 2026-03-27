@@ -3,40 +3,94 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Package, TrendingUp, ShoppingBag, Clock, Check, X,
   DollarSign, RefreshCw, Bell, Store, ChevronRight,
-  Zap, Plus, AlertCircle
+  Zap, Plus, AlertCircle, Wifi, WifiOff
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import api from "../../api/api";
 
 const STATUS_COLORS = {
-  pending:          { color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  label: "Pending" },
-  confirmed:        { color: "#3b82f6", bg: "rgba(59,130,246,0.12)",  label: "Confirmed" },
-  preparing:        { color: "#8b5cf6", bg: "rgba(139,92,246,0.12)",  label: "Preparing" },
-  ready_for_pickup: { color: "#f97316", bg: "rgba(249,115,22,0.12)",  label: "Ready for Pickup" },
-  out_for_delivery: { color: "#f97316", bg: "rgba(249,115,22,0.12)",  label: "Out for Delivery" },
-  delivered:        { color: "#22c55e", bg: "rgba(34,197,94,0.12)",   label: "Delivered" },
-  cancelled:        { color: "#ef4444", bg: "rgba(239,68,68,0.12)",   label: "Cancelled" },
+  pending:          { color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  label: "Pending",           emoji: "⏳" },
+  confirmed:        { color: "#3b82f6", bg: "rgba(59,130,246,0.12)",  label: "Confirmed",          emoji: "✅" },
+  preparing:        { color: "#8b5cf6", bg: "rgba(139,92,246,0.12)",  label: "Preparing",          emoji: "👨‍🍳" },
+  ready_for_pickup: { color: "#f97316", bg: "rgba(249,115,22,0.12)",  label: "Ready for Pickup",   emoji: "📦" },
+  out_for_delivery: { color: "#f97316", bg: "rgba(249,115,22,0.12)",  label: "Out for Delivery",   emoji: "🛵" },
+  delivered:        { color: "#22c55e", bg: "rgba(34,197,94,0.12)",   label: "Delivered",          emoji: "🎉" },
+  cancelled:        { color: "#ef4444", bg: "rgba(239,68,68,0.12)",   label: "Cancelled",          emoji: "❌" },
 };
 
 const NEXT_STATUS = {
-  pending: "confirmed",
-  confirmed: "preparing",
-  preparing: "ready_for_pickup",
+  pending:          "confirmed",
+  confirmed:        "preparing",
+  preparing:        "ready_for_pickup",
   ready_for_pickup: "out_for_delivery",
   out_for_delivery: "delivered",
 };
 
+const DEMO_STORE = {
+  _id: "demo_store",
+  name: "My Store (Demo)",
+  category: "Groceries",
+  address: "123 Main St, Bengaluru",
+  phone: "+91 98765 43210",
+  rating: 4.5,
+  totalRatings: 120,
+  isOpen: true,
+  deliveryTime: "20-30 min",
+  minOrder: 99,
+};
+
+const DEMO_ORDERS = [
+  {
+    _id: "o1", status: "pending", totalPrice: 245, deliveryFee: 20,
+    createdAt: new Date().toISOString(),
+    userId: { name: "Raj Kumar", phone: "+91 98765 43210" },
+    items: [{ name: "Amul Milk 500ml", quantity: 2, price: 28 }, { name: "Bread", quantity: 1, price: 45 }],
+    deliveryAddress: "12, 3rd Main, Koramangala",
+    paymentMethod: "cod",
+  },
+  {
+    _id: "o2", status: "preparing", totalPrice: 180, deliveryFee: 20,
+    createdAt: new Date(Date.now() - 1800000).toISOString(),
+    userId: { name: "Priya Singh", phone: "+91 87654 32109" },
+    items: [{ name: "Basmati Rice 1kg", quantity: 1, price: 120 }, { name: "Tata Salt", quantity: 1, price: 22 }],
+    deliveryAddress: "5B, 1st Cross, HSR Layout",
+    paymentMethod: "cod",
+  },
+  {
+    _id: "o3", status: "delivered", totalPrice: 320, deliveryFee: 20,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    userId: { name: "Arjun Mehta", phone: "+91 76543 21098" },
+    items: [{ name: "Mixed Veggies", quantity: 2, price: 80 }, { name: "Eggs 12pcs", quantity: 1, price: 90 }],
+    deliveryAddress: "44, 8th Main, Indiranagar",
+    paymentMethod: "online",
+  },
+  {
+    _id: "o4", status: "confirmed", totalPrice: 95, deliveryFee: 0,
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    userId: { name: "Sneha Patel", phone: "+91 65432 10987" },
+    items: [{ name: "Parle-G Biscuits", quantity: 3, price: 10 }, { name: "Sprite 750ml", quantity: 1, price: 45 }],
+    deliveryAddress: "77, 2nd Phase, JP Nagar",
+    paymentMethod: "cod",
+  },
+];
+
+// ─── Category constants ───────────────────────────────────────
+const CATEGORIES = ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"];
+const CAT_EMOJIS  = { Groceries:"🛒", Food:"🍛", Snacks:"🍿", Beverages:"🧃", Medicines:"💊", Other:"🏪" };
+const DELIVERY_TIMES = ["8-12 min","10-15 min","15-20 min","20-30 min","30-45 min"];
+
+// ─── OrderCard ────────────────────────────────────────────────
 function OrderCard({ order, onStatusUpdate }) {
   const sc = STATUS_COLORS[order.status] || STATUS_COLORS.pending;
   const nextStatus = NEXT_STATUS[order.status];
 
   return (
-    <div className="rounded-2xl p-5 transition-all hover:-translate-y-0.5"
+    <div className="rounded-2xl p-4 transition-all hover:-translate-y-0.5"
       style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base font-bold text-white flex-shrink-0"
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
             style={{ background: "linear-gradient(135deg, var(--brand), #ff8c5a)" }}>
             {order.userId?.name?.[0] || "C"}
           </div>
@@ -49,18 +103,17 @@ function OrderCard({ order, onStatusUpdate }) {
             </p>
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
+        <div className="flex flex-col items-end gap-1.5">
           <p className="font-bold text-base" style={{ color: "var(--brand)" }}>₹{order.totalPrice}</p>
           <span className="tag text-[10px] font-semibold" style={{ background: sc.bg, color: sc.color }}>
-            {sc.label}
+            {sc.emoji} {sc.label}
           </span>
         </div>
       </div>
 
       <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>📍 {order.deliveryAddress}</p>
-      <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
-        {order.items?.map(i => i.name).join(", ").slice(0, 60)}
-        {order.items?.map(i => i.name).join(", ").length > 60 ? "…" : ""}
+      <p className="text-xs mb-3 truncate" style={{ color: "var(--text-secondary)" }}>
+        {order.items?.map(i => `${i.name}×${i.quantity || 1}`).join(", ").slice(0, 70)}
       </p>
 
       {nextStatus && order.status !== "cancelled" && (
@@ -82,11 +135,7 @@ function OrderCard({ order, onStatusUpdate }) {
   );
 }
 
-// ─── Onboarding — create store ───────────────────────────────
-const CATEGORIES = ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"];
-const CAT_EMOJIS  = { Groceries:"🛒", Food:"🍛", Snacks:"🍿", Beverages:"🧃", Medicines:"💊", Other:"🏪" };
-const DELIVERY_TIMES = ["8-12 min","10-15 min","15-20 min","20-30 min","30-45 min"];
-
+// ─── Create Store Form (shown when no store) ─────────────────
 function CreateStoreForm({ onCreated }) {
   const { addToast } = useCart();
   const [form, setForm] = useState({
@@ -94,7 +143,8 @@ function CreateStoreForm({ onCreated }) {
     deliveryTime: "20-30 min", minOrder: 0, image: "", description: "",
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState("");
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -107,7 +157,14 @@ function CreateStoreForm({ onCreated }) {
       addToast("Store created! 🎉 Now add your products.", "success");
       onCreated(data);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create store. Please try again.");
+      if (!err.response) {
+        // Demo mode
+        const demoStore = { ...DEMO_STORE, ...form, _id: "demo_" + Date.now() };
+        addToast("Store created! (Demo mode) 🎉", "success");
+        onCreated(demoStore);
+      } else {
+        setError(err.response?.data?.message || "Failed to create store.");
+      }
     } finally { setSaving(false); }
   };
 
@@ -123,9 +180,7 @@ function CreateStoreForm({ onCreated }) {
           <h1 className="font-display font-bold text-3xl mb-2" style={{ color: "var(--text-primary)" }}>
             Create Your Store
           </h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Set up your store to start receiving orders
-          </p>
+          <p style={{ color: "var(--text-muted)" }}>Set up your store to start receiving orders</p>
         </div>
 
         <div className="rounded-3xl p-6 shadow-2xl" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
@@ -138,46 +193,35 @@ function CreateStoreForm({ onCreated }) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>
-                Store Name *
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Store Name *</label>
               <input className="input-theme text-sm" placeholder="e.g. FreshMart Express, Raj's Kitchen"
-                value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+                value={form.name} onChange={e => set("name", e.target.value)} required />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>
-                  Phone *
-                </label>
+                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Phone *</label>
                 <input className="input-theme text-sm" placeholder="+91 98765 43210"
-                  value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} required />
+                  value={form.phone} onChange={e => set("phone", e.target.value)} required />
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>
-                  Min Order (₹)
-                </label>
+                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Min Order (₹)</label>
                 <input type="number" min="0" className="input-theme text-sm" placeholder="0"
-                  value={form.minOrder} onChange={e => setForm(f => ({ ...f, minOrder: Number(e.target.value) }))} />
+                  value={form.minOrder} onChange={e => set("minOrder", Number(e.target.value))} />
               </div>
             </div>
-
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>
-                Address *
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Address *</label>
               <textarea className="input-theme text-sm resize-none" rows={2}
                 placeholder="Full store address including area and city"
-                value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} required />
+                value={form.address} onChange={e => set("address", e.target.value)} required />
             </div>
 
+            {/* Category */}
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: "var(--text-muted)" }}>
-                Category *
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: "var(--text-muted)" }}>Category *</label>
               <div className="grid grid-cols-3 gap-2">
                 {CATEGORIES.map(cat => (
-                  <button key={cat} type="button" onClick={() => setForm(f => ({ ...f, category: cat }))}
+                  <button key={cat} type="button" onClick={() => set("category", cat)}
                     className="py-3 px-2 rounded-xl text-xs font-bold text-center transition-all hover:scale-105"
                     style={{
                       background: form.category === cat ? "rgba(255,107,53,0.1)" : "var(--elevated)",
@@ -191,13 +235,12 @@ function CreateStoreForm({ onCreated }) {
               </div>
             </div>
 
+            {/* Delivery time */}
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: "var(--text-muted)" }}>
-                Delivery Time
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: "var(--text-muted)" }}>Delivery Time</label>
               <div className="flex flex-wrap gap-2">
                 {DELIVERY_TIMES.map(t => (
-                  <button key={t} type="button" onClick={() => setForm(f => ({ ...f, deliveryTime: t }))}
+                  <button key={t} type="button" onClick={() => set("deliveryTime", t)}
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-105"
                     style={{
                       background: form.deliveryTime === t ? "rgba(255,107,53,0.1)" : "var(--elevated)",
@@ -208,14 +251,6 @@ function CreateStoreForm({ onCreated }) {
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>
-                Store Image URL (optional)
-              </label>
-              <input type="url" className="input-theme text-sm" placeholder="https://..."
-                value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))} />
             </div>
 
             <button type="submit" disabled={saving} className="btn btn-brand w-full justify-center py-4 text-base">
@@ -230,18 +265,19 @@ function CreateStoreForm({ onCreated }) {
   );
 }
 
-// ─── Main Dashboard ──────────────────────────────────────────
+// ─── Main Dashboard ───────────────────────────────────────────
 export default function StoreDashboard() {
   const { user, isLoggedIn } = useAuth();
   const { addToast } = useCart();
 
-  const [store,     setStore]     = useState(null);
-  const [orders,    setOrders]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const [store,        setStore]        = useState(null);
+  const [orders,       setOrders]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
   const [storeLoading, setStoreLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing,   setRefreshing]   = useState(false);
   const [statusFilter, setStatusFilter] = useState("active");
-  const [error,     setError]     = useState("");
+  const [error,        setError]        = useState("");
+  const [isDemoMode,   setIsDemoMode]   = useState(false);
 
   useEffect(() => {
     if (isLoggedIn && user?.role === "store") fetchStore();
@@ -253,9 +289,15 @@ export default function StoreDashboard() {
       const { data } = await api.get("/stores/mine");
       setStore(data);
       fetchOrders(data._id);
+      setIsDemoMode(false);
     } catch (err) {
       if (err.response?.status === 404) {
-        setStore(null); // No store yet — show onboarding
+        setStore(null); // No store — show onboarding
+      } else if (!err.response) {
+        // Network error — use demo data
+        setStore(DEMO_STORE);
+        setOrders(DEMO_ORDERS);
+        setIsDemoMode(true);
       } else {
         setError(err.response?.data?.message || "Failed to load store data");
       }
@@ -271,8 +313,9 @@ export default function StoreDashboard() {
     try {
       const { data } = await api.get(`/orders/store/${storeId}`, { params: { limit: 100 } });
       setOrders(data);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load orders");
+    } catch {
+      setOrders(DEMO_ORDERS);
+      setIsDemoMode(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -280,29 +323,43 @@ export default function StoreDashboard() {
   };
 
   const handleRefresh = () => {
-    if (store) fetchOrders(store._id, true);
+    if (store && !isDemoMode) fetchOrders(store._id, true);
+    else if (isDemoMode) {
+      setRefreshing(true);
+      setTimeout(() => setRefreshing(false), 800);
+    }
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
-    try {
-      await api.put(`/orders/${orderId}/status`, { status: newStatus });
-      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
-      addToast(`Order → ${STATUS_COLORS[newStatus]?.label}`, "success");
-    } catch (err) {
-      addToast(err.response?.data?.message || "Failed to update status", "error");
+    // Optimistic update
+    setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
+    addToast(`Order → ${STATUS_COLORS[newStatus]?.label}`, "success");
+    if (!isDemoMode) {
+      try {
+        await api.put(`/orders/${orderId}/status`, { status: newStatus });
+      } catch (err) {
+        // Revert
+        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: "pending" } : o));
+        addToast("Failed to update status", "error");
+      }
     }
   };
 
   const toggleStoreOpen = async () => {
-    try {
-      const { data } = await api.put(`/stores/${store._id}`, { isOpen: !store.isOpen });
-      setStore(data);
-      addToast(data.isOpen ? "Store is now open! 🟢" : "Store closed", data.isOpen ? "success" : "warning");
-    } catch {
-      addToast("Failed to update store status", "error");
+    const newIsOpen = !store.isOpen;
+    setStore(s => ({ ...s, isOpen: newIsOpen }));
+    addToast(newIsOpen ? "Store is now open! 🟢" : "Store closed", newIsOpen ? "success" : "warning");
+    if (!isDemoMode) {
+      try {
+        const { data } = await api.put(`/stores/${store._id}`, { isOpen: newIsOpen });
+        setStore(data);
+      } catch {
+        setStore(s => ({ ...s, isOpen: !newIsOpen })); // revert
+      }
     }
   };
 
+  // ── Auth guard ───────────────────────────────────────────
   if (!isLoggedIn || user?.role !== "store") {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -315,7 +372,6 @@ export default function StoreDashboard() {
     );
   }
 
-  // Still fetching store info
   if (storeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -325,11 +381,11 @@ export default function StoreDashboard() {
     );
   }
 
-  // No store — show onboarding
-  if (!store) {
+  if (!store && !isDemoMode) {
     return <CreateStoreForm onCreated={(s) => { setStore(s); fetchOrders(s._id); }} />;
   }
 
+  // ── Computed ─────────────────────────────────────────────
   const pendingOrders  = orders.filter(o => o.status === "pending");
   const activeOrders   = orders.filter(o => !["delivered", "cancelled"].includes(o.status));
   const todayRevenue   = orders
@@ -337,29 +393,38 @@ export default function StoreDashboard() {
     .reduce((s, o) => s + o.totalPrice, 0);
   const totalRevenue   = orders.filter(o => o.status !== "cancelled").reduce((s, o) => s + o.totalPrice, 0);
 
-  const filteredOrders = statusFilter === "active"   ? activeOrders
-    : statusFilter === "pending"  ? pendingOrders
-    : statusFilter === "delivered"? orders.filter(o => o.status === "delivered")
+  const filteredOrders = statusFilter === "active"    ? activeOrders
+    : statusFilter === "pending"   ? pendingOrders
+    : statusFilter === "delivered" ? orders.filter(o => o.status === "delivered")
     : orders;
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
       <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
 
+        {/* Demo banner */}
+        {isDemoMode && (
+          <div className="flex items-center gap-3 p-3.5 rounded-xl mb-5 text-sm"
+            style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", color: "#3b82f6" }}>
+            <WifiOff size={15} />
+            <span className="flex-1">Demo mode — backend not connected. Changes won't be saved.</span>
+          </div>
+        )}
+
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div>
             <h1 className="font-display font-bold text-2xl" style={{ color: "var(--text-primary)" }}>
-              {store.name}
+              {store?.name || "My Store"}
             </h1>
             <button onClick={toggleStoreOpen}
               className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg mt-1 transition-all hover:scale-105"
               style={{
-                background: store.isOpen ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)",
-                color: store.isOpen ? "#22c55e" : "#ef4444",
+                background: store?.isOpen ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)",
+                color: store?.isOpen ? "#22c55e" : "#ef4444",
               }}>
-              <span className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
-              {store.isOpen ? "Open — tap to close" : "Closed — tap to open"}
+              <span className={`w-1.5 h-1.5 rounded-full ${store?.isOpen ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
+              {store?.isOpen ? "Open — tap to close" : "Closed — tap to open"}
             </button>
           </div>
           <button onClick={handleRefresh}
@@ -383,7 +448,8 @@ export default function StoreDashboard() {
           <div className="rounded-2xl p-4 mb-5 flex items-center gap-3 cursor-pointer"
             style={{ background: "rgba(245,158,11,0.1)", border: "1.5px solid rgba(245,158,11,0.3)" }}
             onClick={() => setStatusFilter("pending")}>
-            <Bell size={15} style={{ color: "#f59e0b" }} />
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#f59e0b" }} />
+            <Bell size={14} style={{ color: "#f59e0b" }} />
             <p className="font-bold text-sm flex-1" style={{ color: "#f59e0b" }}>
               {pendingOrders.length} new order{pendingOrders.length > 1 ? "s" : ""} waiting!
             </p>
@@ -394,10 +460,10 @@ export default function StoreDashboard() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
-            { label: "Today's Revenue",  value: `₹${todayRevenue}`,    icon: DollarSign,  color: "var(--brand)" },
-            { label: "Active Orders",    value: activeOrders.length,   icon: ShoppingBag, color: "#3b82f6" },
-            { label: "Total Delivered",  value: orders.filter(o=>o.status==="delivered").length, icon: Package, color: "#22c55e" },
-            { label: "Total Revenue",    value: `₹${totalRevenue}`,    icon: TrendingUp,  color: "#8b5cf6" },
+            { label: "Today's Revenue", value: `₹${todayRevenue}`,   icon: DollarSign, color: "var(--brand)" },
+            { label: "Active Orders",   value: activeOrders.length,   icon: ShoppingBag, color: "#3b82f6" },
+            { label: "Total Delivered", value: orders.filter(o => o.status === "delivered").length, icon: Package, color: "#22c55e" },
+            { label: "Total Revenue",   value: `₹${totalRevenue}`,   icon: TrendingUp,  color: "#8b5cf6" },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="rounded-2xl p-4 transition-all hover:-translate-y-1"
               style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
@@ -413,8 +479,8 @@ export default function StoreDashboard() {
         {/* Quick Nav */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
-            { to: "/store/products", icon: Package,    label: "Products", sub: "Add & manage", color: "var(--brand)" },
-            { to: "/store/orders",   icon: ShoppingBag, label: "Orders",   sub: "All orders",  color: "#3b82f6" },
+            { to: "/store/products", icon: Package,    label: "Products", sub: store?.category === "Food" ? "Menu items" : "Add & manage", color: "var(--brand)" },
+            { to: "/store/orders",   icon: ShoppingBag, label: "Orders",  sub: "All orders",  color: "#3b82f6" },
             { to: "/store/settings", icon: Store,      label: "Settings", sub: "Store info",  color: "#8b5cf6" },
           ].map(({ to, icon: Icon, label, sub, color }) => (
             <Link key={to} to={to}
@@ -427,14 +493,14 @@ export default function StoreDashboard() {
           ))}
         </div>
 
-        {/* Orders */}
+        {/* Orders section */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display font-bold text-lg" style={{ color: "var(--text-primary)" }}>Orders</h2>
             <div className="flex gap-1">
               {[
                 { id: "active",   label: "Active" },
-                { id: "pending",  label: `New${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ""}` },
+                { id: "pending",  label: pendingOrders.length > 0 ? `New (${pendingOrders.length})` : "New" },
                 { id: "all",      label: "All" },
               ].map(({ id, label }) => (
                 <button key={id} onClick={() => setStatusFilter(id)}
@@ -452,7 +518,7 @@ export default function StoreDashboard() {
           {loading ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="rounded-2xl p-5 h-28 shimmer" style={{ backgroundColor: "var(--card)" }} />
+                <div key={i} className="rounded-2xl h-28 shimmer" style={{ backgroundColor: "var(--card)" }} />
               ))}
             </div>
           ) : filteredOrders.length === 0 ? (
@@ -461,11 +527,6 @@ export default function StoreDashboard() {
               <div className="text-4xl mb-3">📦</div>
               <p className="font-semibold" style={{ color: "var(--text-secondary)" }}>
                 {orders.length === 0 ? "No orders yet" : "No orders in this filter"}
-              </p>
-              <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-                {orders.length === 0
-                  ? "Add products to your store so customers can order"
-                  : "New orders will appear here automatically"}
               </p>
               {orders.length === 0 && (
                 <Link to="/store/products" className="btn btn-brand text-sm mt-4">

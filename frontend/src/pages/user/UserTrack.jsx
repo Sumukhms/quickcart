@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ChevronLeft, MapPin, Phone, Clock, CheckCircle, Package,
-  Truck, RefreshCw, Star, MessageCircle, Navigation, Zap,
+  Truck, RefreshCw, Star, MessageCircle, Zap,
   ShoppingBag, XCircle, User, Store
 } from "lucide-react";
 import api from "../../api/api";
 
+// ─── Step config ─────────────────────────────────────────────
 const STATUS_STEPS = [
   { key: "pending",           label: "Order Placed",      sub: "We received your order",          icon: ShoppingBag, color: "#f59e0b" },
   { key: "confirmed",         label: "Confirmed",         sub: "Store accepted your order",        icon: CheckCircle, color: "#3b82f6" },
@@ -34,21 +35,21 @@ const DEMO_ORDER = {
   storeId: {
     name: "FreshMart Express",
     phone: "+91 98765 43210",
-    address: "Koramangala 5th Block",
+    address: "Koramangala 5th Block, Bengaluru",
     category: "Groceries",
   },
   deliveryAgentId: null,
   items: [
-    { name: "Amul Full Cream Milk", price: 28, quantity: 2, image: "" },
-    { name: "Brown Bread Loaf",     price: 45, quantity: 1, image: "" },
-    { name: "Tata Salt 1kg",        price: 22, quantity: 1, image: "" },
+    { name: "Amul Full Cream Milk", price: 28,  quantity: 2, image: "" },
+    { name: "Brown Bread Loaf",     price: 45,  quantity: 1, image: "" },
+    { name: "Tata Salt 1kg",        price: 22,  quantity: 1, image: "" },
     { name: "Fortune Refined Oil",  price: 145, quantity: 1, image: "" },
   ],
 };
 
 function PulsingDot({ color = "var(--brand)" }) {
   return (
-    <span className="relative inline-flex h-3 w-3">
+    <span className="relative inline-flex h-3 w-3 flex-shrink-0">
       <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
         style={{ background: color }} />
       <span className="relative inline-flex rounded-full h-3 w-3" style={{ background: color }} />
@@ -96,13 +97,13 @@ export default function UserTrack() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
         <div className="flex flex-col items-center gap-4">
-          <div className="relative w-16 h-16">
+          <div className="relative w-14 h-14">
             <div className="absolute inset-0 rounded-full border-2 animate-spin"
               style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }} />
-            <div className="absolute inset-3 rounded-full border-2 animate-spin"
+            <div className="absolute inset-2.5 rounded-full border-2 animate-spin"
               style={{ borderColor: "transparent", borderBottomColor: "#f59e0b", animationDirection: "reverse", animationDuration: "0.7s" }} />
           </div>
-          <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>Loading your order...</p>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading your order...</p>
         </div>
       </div>
     );
@@ -110,12 +111,12 @@ export default function UserTrack() {
 
   if (!order) return null;
 
-  const stepIdx = STATUS_INDEX[order.status] ?? 0;
-  const isCancelled = order.status === "cancelled";
-  const isDelivered = order.status === "delivered";
-  const isActive = !isCancelled && !isDelivered;
-  const currentStep = STATUS_STEPS[stepIdx];
-  const orderTotal = (order.totalPrice || 0) + (order.deliveryFee || 0);
+  const stepIdx      = STATUS_INDEX[order.status] ?? 0;
+  const isCancelled  = order.status === "cancelled";
+  const isDelivered  = order.status === "delivered";
+  const isActive     = !isCancelled && !isDelivered;
+  const currentStep  = STATUS_STEPS[stepIdx];
+  const orderTotal   = (order.totalPrice || 0) + (order.deliveryFee || 0);
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
@@ -124,6 +125,7 @@ export default function UserTrack() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
+            {/* ✅ Fixed: navigate to /user/orders instead of broken path */}
             <button onClick={() => navigate("/user/orders")}
               className="p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95"
               style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
@@ -143,26 +145,25 @@ export default function UserTrack() {
           </button>
         </div>
 
-        {/* Live Status Banner */}
-        {isActive && (
+        {/* Live status banner */}
+        {isActive && currentStep && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
-            style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,107,53,0.05))", border: "1.5px solid rgba(255,107,53,0.25)" }}>
-            <PulsingDot color={currentStep?.color} />
+            style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.04))", border: "1.5px solid rgba(255,107,53,0.22)" }}>
+            <PulsingDot color={currentStep.color} />
             <div className="flex-1">
-              <p className="font-bold" style={{ color: "var(--text-primary)" }}>
-                {currentStep?.label}
-              </p>
+              <p className="font-bold" style={{ color: "var(--text-primary)" }}>{currentStep.label}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {currentStep?.sub} · Est. {order.estimatedTime || "20–30 min"}
+                {currentStep.sub} · Est. {order.estimatedTime || "20–30 min"}
               </p>
             </div>
-            <div className="text-right flex-shrink-0">
+            <div className="text-right">
               <p className="text-xs font-bold" style={{ color: "var(--brand)" }}>LIVE</p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>Auto-refresh</p>
+              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Auto-refresh</p>
             </div>
           </div>
         )}
 
+        {/* Delivered banner */}
         {isDelivered && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
             style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}>
@@ -170,7 +171,7 @@ export default function UserTrack() {
             <div className="flex-1">
               <p className="font-bold" style={{ color: "#22c55e" }}>Order Delivered!</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {new Date(order.updatedAt || order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                Hope you enjoy your order!
               </p>
             </div>
             {!showRating && (
@@ -183,6 +184,7 @@ export default function UserTrack() {
           </div>
         )}
 
+        {/* Cancelled banner */}
         {isCancelled && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
             style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}>
@@ -194,13 +196,13 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Rating Modal */}
+        {/* Rating panel */}
         {showRating && (
           <div className="rounded-3xl p-5 mb-4"
             style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>How was your order?</p>
-            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience</p>
-            <div className="flex justify-center gap-2 mb-4">
+            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience with {order.storeId?.name}</p>
+            <div className="flex justify-center gap-3 mb-4">
               {[1,2,3,4,5].map(s => (
                 <button key={s}
                   onClick={() => setRating(s)}
@@ -214,17 +216,15 @@ export default function UserTrack() {
             <div className="flex gap-2">
               <button onClick={() => setShowRating(false)}
                 className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
-              <button
-                onClick={() => { setShowRating(false); }}
-                className="btn btn-brand flex-1 justify-center text-sm py-2.5"
-                disabled={!rating}>
-                Submit
+              <button onClick={() => setShowRating(false)} disabled={!rating}
+                className="btn btn-brand flex-1 justify-center text-sm py-2.5">
+                Submit Rating
               </button>
             </div>
           </div>
         )}
 
-        {/* Progress Timeline */}
+        {/* Progress timeline */}
         {!isCancelled && (
           <div className="rounded-3xl p-5 mb-4"
             style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
@@ -232,7 +232,7 @@ export default function UserTrack() {
               style={{ color: "var(--text-muted)" }}>Order Progress</h2>
             <div className="space-y-1">
               {STATUS_STEPS.map((step, i) => {
-                const isDone = i <= stepIdx;
+                const isDone    = i <= stepIdx;
                 const isActivStep = i === stepIdx;
                 const Icon = step.icon;
                 return (
@@ -241,10 +241,10 @@ export default function UserTrack() {
                       <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
                         style={{
                           background: isDone
-                            ? isActivStep ? step.color : "rgba(34,197,94,0.12)"
+                            ? isActivStep ? step.color : "rgba(34,197,94,0.1)"
                             : "var(--elevated)",
                           border: `2px solid ${isDone ? isActivStep ? step.color : "rgba(34,197,94,0.3)" : "var(--border)"}`,
-                          boxShadow: isActivStep ? `0 0 20px ${step.color}50` : "none",
+                          boxShadow: isActivStep ? `0 0 18px ${step.color}45` : "none",
                           transform: isActivStep ? "scale(1.1)" : "scale(1)",
                         }}>
                         <Icon size={14} style={{ color: isDone ? isActivStep ? "white" : "#22c55e" : "var(--text-muted)" }} />
@@ -276,7 +276,7 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Delivery Agent */}
+        {/* Delivery agent */}
         {order.deliveryAgentId && (
           <div className="rounded-3xl p-5 mb-4"
             style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
@@ -291,7 +291,7 @@ export default function UserTrack() {
                 <p className="font-bold" style={{ color: "var(--text-primary)" }}>
                   {order.deliveryAgentId?.name || "Delivery Partner"}
                 </p>
-                <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                   <Star size={10} fill="#f59e0b" stroke="none" />
                   <span style={{ color: "#f59e0b" }}>{order.deliveryAgentId?.rating || "4.8"}</span>
                   <span>· {order.deliveryAgentId?.vehicleType || "bike"}</span>
@@ -314,7 +314,7 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Store Info */}
+        {/* Store info */}
         <div className="rounded-3xl p-5 mb-4"
           style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <h2 className="font-bold text-xs uppercase tracking-widest mb-4"
@@ -323,12 +323,8 @@ export default function UserTrack() {
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
               style={{ background: "var(--elevated)" }}>🏪</div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold" style={{ color: "var(--text-primary)" }}>
-                {order.storeId?.name || "Store"}
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {order.storeId?.address || ""}
-              </p>
+              <p className="font-bold" style={{ color: "var(--text-primary)" }}>{order.storeId?.name}</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{order.storeId?.address}</p>
             </div>
             {order.storeId?.phone && (
               <a href={`tel:${order.storeId.phone}`}
@@ -340,7 +336,7 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* Order Items */}
+        {/* Order items */}
         <div className="rounded-3xl overflow-hidden mb-4"
           style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -374,7 +370,7 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* Delivery Address */}
+        {/* Delivery address */}
         <div className="rounded-3xl p-5 mb-4"
           style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <h2 className="font-bold text-xs uppercase tracking-widest mb-4"
@@ -395,7 +391,7 @@ export default function UserTrack() {
                 </p>
               )}
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                Payment: {order.paymentMethod === "cod" ? "💵 Cash on Delivery" : "💳 Online"}
+                {order.paymentMethod === "cod" ? "💵 Cash on Delivery" : "💳 Online Payment"}
               </p>
             </div>
           </div>
@@ -411,8 +407,7 @@ export default function UserTrack() {
             Browse Stores
           </Link>
         ) : (
-          <button
-            onClick={() => fetchOrder(true)}
+          <button onClick={() => fetchOrder(true)}
             className="btn btn-ghost w-full justify-center py-3.5 text-sm">
             <RefreshCw size={15} /> Refresh Status
           </button>

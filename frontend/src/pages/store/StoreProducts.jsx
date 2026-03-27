@@ -3,40 +3,68 @@ import { Link } from "react-router-dom";
 import {
   Plus, Edit3, Trash2, ChevronLeft, Search, Package,
   Check, X, ToggleLeft, ToggleRight, AlertCircle, RefreshCw,
-  Leaf, Flame
+  Leaf, Flame, ChefHat, ShoppingBag
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import api from "../../api/api";
 
-// Default product categories per store type
+// ─── Category maps ───────────────────────────────────────────
 const CATEGORY_MAP = {
-  Food: ["Starters", "Main Course", "Breads", "Rice & Biryani", "Desserts", "Beverages", "Combo Meals", "Soups", "Salads", "Other"],
-  Groceries: ["Dairy", "Bakery", "Staples", "Fruits & Vegetables", "Snacks", "Beverages", "Personal Care", "Cleaning", "Other"],
-  Snacks: ["Chips & Namkeen", "Biscuits & Cookies", "Chocolates", "Nuts & Dry Fruits", "Instant Food", "Other"],
-  Beverages: ["Hot Drinks", "Cold Drinks", "Juices", "Energy Drinks", "Health Drinks", "Water", "Other"],
-  Medicines: ["Pain Relief", "Cold & Flu", "Vitamins", "Digestive", "Skin Care", "Baby Care", "Other"],
-  Other: ["General", "Other"],
+  Food:       ["Starters", "Soups & Salads", "Main Course", "Breads & Rice", "Biryanis", "Desserts", "Beverages", "Combo Meals", "Snacks", "Other"],
+  Groceries:  ["Dairy & Eggs", "Bakery", "Staples & Grains", "Fruits & Vegetables", "Snacks", "Beverages", "Personal Care", "Cleaning", "Frozen", "Other"],
+  Snacks:     ["Chips & Namkeen", "Biscuits & Cookies", "Chocolates", "Nuts & Dry Fruits", "Instant Food", "Popcorn", "Other"],
+  Beverages:  ["Hot Drinks", "Cold Drinks", "Juices", "Energy Drinks", "Health Drinks", "Water & Soda", "Other"],
+  Medicines:  ["Pain Relief", "Cold & Flu", "Vitamins & Supplements", "Digestive", "Skin Care", "Baby Care", "First Aid", "Other"],
+  Other:      ["General", "Other"],
 };
 
+// ─── Demo data (used when backend is unreachable) ────────────
+const DEMO_STORE = {
+  _id: "demo_store_food",
+  name: "My Restaurant (Demo)",
+  category: "Food",
+  address: "12, MG Road, Bengaluru",
+  phone: "+91 98765 43210",
+  rating: 4.6,
+  totalRatings: 312,
+  isOpen: true,
+  deliveryTime: "20-30 min",
+  minOrder: 149,
+  image: "",
+};
+
+const DEMO_PRODUCTS = [
+  { _id: "dp1", name: "Butter Chicken", category: "Main Course", price: 280, originalPrice: 320, unit: "Serves 2", available: true, isVeg: false, spiceLevel: "medium", prepTime: "20 min", image: "", storeId: "demo_store_food", description: "Creamy tomato-based curry with tender chicken pieces" },
+  { _id: "dp2", name: "Paneer Tikka", category: "Starters", price: 220, unit: "6 pieces", available: true, isVeg: true, spiceLevel: "mild", prepTime: "15 min", image: "", storeId: "demo_store_food", description: "Marinated cottage cheese grilled to perfection" },
+  { _id: "dp3", name: "Veg Biryani", category: "Biryanis", price: 180, originalPrice: 200, unit: "Full plate", available: true, isVeg: true, spiceLevel: "medium", prepTime: "25 min", image: "", storeId: "demo_store_food", description: "Aromatic basmati rice with mixed vegetables" },
+  { _id: "dp4", name: "Chicken Biryani", category: "Biryanis", price: 260, unit: "Full plate", available: true, isVeg: false, spiceLevel: "medium", prepTime: "30 min", image: "", storeId: "demo_store_food", description: "Slow-cooked chicken biryani with fragrant spices" },
+  { _id: "dp5", name: "Dal Makhani", category: "Main Course", price: 160, unit: "1 bowl", available: true, isVeg: true, spiceLevel: "mild", prepTime: "20 min", image: "", storeId: "demo_store_food", description: "Slow-cooked black lentils in rich butter gravy" },
+  { _id: "dp6", name: "Gulab Jamun", category: "Desserts", price: 80, unit: "4 pieces", available: true, isVeg: true, spiceLevel: "", prepTime: "5 min", image: "", storeId: "demo_store_food", description: "Soft milk-solid balls soaked in sugar syrup" },
+];
+
+// ─── Detect food-type store ─────────────────────────────────
+const isFoodStore = (category) => category === "Food";
+
+// ─── Product Form Component ──────────────────────────────────
 function ProductForm({ product, store, onSave, onClose }) {
-  const isFood = store?.category === "Food";
-  const categories = CATEGORY_MAP[store?.category] || CATEGORY_MAP.Other;
+  const storeCategory = store?.category || "Other";
+  const isFood = isFoodStore(storeCategory);
+  const categories = CATEGORY_MAP[storeCategory] || CATEGORY_MAP.Other;
 
   const [form, setForm] = useState({
-    name: product?.name || "",
-    description: product?.description || "",
-    price: product?.price || "",
+    name:          product?.name          || "",
+    description:   product?.description   || "",
+    price:         product?.price         || "",
     originalPrice: product?.originalPrice || "",
-    category: product?.category || categories[0],
-    unit: product?.unit || "",
-    image: product?.image || "",
-    available: product?.available ?? true,
-    stock: product?.stock ?? 100,
-    // Food-specific
-    isVeg: product?.isVeg ?? true,
-    spiceLevel: product?.spiceLevel || "",
-    prepTime: product?.prepTime || "",
+    category:      product?.category      || categories[0],
+    unit:          product?.unit          || "",
+    image:         product?.image         || "",
+    available:     product?.available     ?? true,
+    stock:         product?.stock         ?? 100,
+    isVeg:         product?.isVeg         ?? true,
+    spiceLevel:    product?.spiceLevel    || "",
+    prepTime:      product?.prepTime      || "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -56,10 +84,10 @@ function ProductForm({ product, store, onSave, onClose }) {
     try {
       const payload = {
         ...form,
-        price: Number(form.price),
+        price:         Number(form.price),
         originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined,
-        stock: Number(form.stock) || 100,
-        storeId: store._id,
+        stock:         Number(form.stock) || 100,
+        storeId:       store._id,
       };
 
       let saved;
@@ -71,11 +99,17 @@ function ProductForm({ product, store, onSave, onClose }) {
         saved = data;
       }
       onSave(saved, !!product);
-      addToast(product ? "Product updated!" : "Product added!", "success");
+      addToast(product ? "Product updated!" : `${isFood ? "Dish" : "Product"} added! ✓`, "success");
     } catch (err) {
+      // Demo mode – simulate success
+      if (!err.response) {
+        const mockSaved = { ...form, _id: product?._id || `demo_${Date.now()}`, price: Number(form.price), storeId: store._id };
+        onSave(mockSaved, !!product);
+        addToast(product ? "Product updated!" : `${isFood ? "Dish" : "Product"} added! ✓`, "success");
+        return;
+      }
       const msg = err.response?.data?.message || "Failed to save product";
       setError(msg);
-      addToast(msg, "error");
     } finally {
       setSaving(false);
     }
@@ -83,19 +117,26 @@ function ProductForm({ product, store, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4"
-      style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}>
+      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
       <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
         style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
 
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4"
           style={{ borderBottom: "1px solid var(--border)" }}>
-          <div>
-            <h3 className="font-display font-bold text-lg" style={{ color: "var(--text-primary)" }}>
-              {product ? "Edit Product" : "Add New Product"}
-            </h3>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {store?.name} · {store?.category}
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: isFood ? "rgba(249,115,22,0.12)" : "rgba(255,107,53,0.1)" }}>
+              {isFood ? <ChefHat size={16} style={{ color: "#f97316" }} /> : <ShoppingBag size={16} style={{ color: "var(--brand)" }} />}
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-lg" style={{ color: "var(--text-primary)" }}>
+                {product ? `Edit ${isFood ? "Dish" : "Product"}` : `Add ${isFood ? "New Dish" : "New Product"}`}
+              </h3>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {store?.name} · {storeCategory}
+              </p>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl transition-all hover:scale-110"
             style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
@@ -106,78 +147,82 @@ function ProductForm({ product, store, onSave, onClose }) {
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3 overflow-y-auto" style={{ maxHeight: "75vh" }}>
 
           {error && (
-            <div className="p-3 rounded-xl text-sm"
+            <div className="p-3 rounded-xl text-sm flex items-center gap-2"
               style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-              {error}
+              <AlertCircle size={14} /> {error}
             </div>
           )}
 
-          {/* Veg/Non-veg toggle for food stores */}
+          {/* Veg / Non-veg toggle — food stores only */}
           {isFood && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => set("isVeg", true)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  background: form.isVeg ? "rgba(34,197,94,0.1)" : "var(--elevated)",
-                  color: form.isVeg ? "#22c55e" : "var(--text-muted)",
-                  border: `1.5px solid ${form.isVeg ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
-                }}>
-                <Leaf size={14} /> Vegetarian
-              </button>
-              <button
-                type="button"
-                onClick={() => set("isVeg", false)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  background: !form.isVeg ? "rgba(239,68,68,0.1)" : "var(--elevated)",
-                  color: !form.isVeg ? "#ef4444" : "var(--text-muted)",
-                  border: `1.5px solid ${!form.isVeg ? "rgba(239,68,68,0.4)" : "var(--border)"}`,
-                }}>
-                <Flame size={14} /> Non-Veg
-              </button>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider mb-2 block"
+                style={{ color: "var(--text-muted)" }}>Type</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => set("isVeg", true)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
+                  style={{
+                    background: form.isVeg ? "rgba(34,197,94,0.12)" : "var(--elevated)",
+                    color: form.isVeg ? "#22c55e" : "var(--text-muted)",
+                    border: `1.5px solid ${form.isVeg ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
+                  }}>
+                  <Leaf size={14} /> 🟢 Veg
+                </button>
+                <button type="button" onClick={() => set("isVeg", false)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
+                  style={{
+                    background: !form.isVeg ? "rgba(239,68,68,0.1)" : "var(--elevated)",
+                    color: !form.isVeg ? "#ef4444" : "var(--text-muted)",
+                    border: `1.5px solid ${!form.isVeg ? "rgba(239,68,68,0.35)" : "var(--border)"}`,
+                  }}>
+                  <Flame size={14} /> 🔴 Non-Veg
+                </button>
+              </div>
             </div>
           )}
 
+          {/* Name */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
               style={{ color: "var(--text-muted)" }}>
               {isFood ? "Dish Name" : "Product Name"} *
             </label>
             <input className="input-theme text-sm" required
-              placeholder={isFood ? "e.g. Butter Chicken, Veg Biryani" : "e.g. Amul Milk 500ml"}
+              placeholder={isFood ? "e.g. Butter Chicken, Masala Dosa, Veg Biryani" : "e.g. Amul Milk 500ml"}
               value={form.name} onChange={e => set("name", e.target.value)} />
           </div>
 
+          {/* Description */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
               style={{ color: "var(--text-muted)" }}>Description</label>
             <textarea className="input-theme text-sm resize-none" rows={2}
-              placeholder={isFood ? "Ingredients, allergens, serving info..." : "Short product description..."}
+              placeholder={isFood ? "Ingredients, cooking style, serving info..." : "Short product description..."}
               value={form.description} onChange={e => set("description", e.target.value)} />
           </div>
 
+          {/* Price */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
                 style={{ color: "var(--text-muted)" }}>Price ₹ *</label>
               <input type="number" className="input-theme text-sm" required min="0" step="0.5"
                 placeholder="0"
                 value={form.price} onChange={e => set("price", e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
-                style={{ color: "var(--text-muted)" }}>Original ₹ (for discount)</label>
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+                style={{ color: "var(--text-muted)" }}>MRP ₹ (optional)</label>
               <input type="number" className="input-theme text-sm" min="0" step="0.5"
-                placeholder="Optional"
+                placeholder="For discount"
                 value={form.originalPrice} onChange={e => set("originalPrice", e.target.value)} />
             </div>
           </div>
 
+          {/* Category + Unit */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
                 style={{ color: "var(--text-muted)" }}>Category *</label>
               <select className="input-theme text-sm" value={form.category}
                 onChange={e => set("category", e.target.value)}>
@@ -185,32 +230,32 @@ function ProductForm({ product, store, onSave, onClose }) {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
                 style={{ color: "var(--text-muted)" }}>
-                {isFood ? "Serves / Portion" : "Unit / Size"}
+                {isFood ? "Portion / Serves" : "Unit / Size"}
               </label>
               <input className="input-theme text-sm"
-                placeholder={isFood ? "e.g. Serves 2, Half, Full" : "e.g. 500ml, 1kg"}
+                placeholder={isFood ? "e.g. Serves 2, Full, Half" : "e.g. 500ml, 1kg, 6 pcs"}
                 value={form.unit} onChange={e => set("unit", e.target.value)} />
             </div>
           </div>
 
-          {/* Food-specific fields */}
+          {/* Food-specific: spice level + prep time */}
           {isFood && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
                   style={{ color: "var(--text-muted)" }}>Spice Level</label>
                 <select className="input-theme text-sm" value={form.spiceLevel}
                   onChange={e => set("spiceLevel", e.target.value)}>
-                  <option value="">Not applicable</option>
+                  <option value="">Not spicy / N/A</option>
                   <option value="mild">🟢 Mild</option>
                   <option value="medium">🟡 Medium</option>
-                  <option value="hot">🔴 Hot</option>
+                  <option value="hot">🔴 Hot &amp; Spicy</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
                   style={{ color: "var(--text-muted)" }}>Prep Time</label>
                 <input className="input-theme text-sm"
                   placeholder="e.g. 15-20 min"
@@ -219,28 +264,36 @@ function ProductForm({ product, store, onSave, onClose }) {
             </div>
           )}
 
+          {/* Image URL */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
-              style={{ color: "var(--text-muted)" }}>Image URL</label>
+            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+              style={{ color: "var(--text-muted)" }}>Image URL (optional)</label>
             <input type="url" className="input-theme text-sm"
-              placeholder="https://..."
+              placeholder="https://example.com/image.jpg"
               value={form.image} onChange={e => set("image", e.target.value)} />
+            {form.image && (
+              <div className="mt-2 w-16 h-12 rounded-xl overflow-hidden"
+                style={{ border: "1px solid var(--border)" }}>
+                <img src={form.image} alt="preview" className="w-full h-full object-cover"
+                  onError={e => { e.target.style.display = "none"; }} />
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Stock (non-food) + Availability */}
+          <div className={`grid gap-3 ${!isFood ? "grid-cols-2" : "grid-cols-1"}`}>
             {!isFood && (
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
-                  style={{ color: "var(--text-muted)" }}>Stock</label>
+                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "var(--text-muted)" }}>Stock Qty</label>
                 <input type="number" className="input-theme text-sm" min="0"
                   value={form.stock} onChange={e => set("stock", e.target.value)} />
               </div>
             )}
-            <div className={isFood ? "col-span-2" : ""}>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1 block"
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
                 style={{ color: "var(--text-muted)" }}>Availability</label>
-              <button type="button"
-                onClick={() => set("available", !form.available)}
+              <button type="button" onClick={() => set("available", !form.available)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all w-full"
                 style={{
                   background: form.available ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.08)",
@@ -253,6 +306,7 @@ function ProductForm({ product, store, onSave, onClose }) {
             </div>
           </div>
 
+          {/* Actions */}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
               className="btn btn-ghost flex-1 justify-center py-3 text-sm">
@@ -262,7 +316,7 @@ function ProductForm({ product, store, onSave, onClose }) {
               className="btn btn-brand flex-1 justify-center py-3 text-sm">
               {saving
                 ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <><Check size={14} /> {product ? "Save Changes" : "Add Product"}</>}
+                : <><Check size={14} /> {product ? "Save Changes" : isFood ? "Add Dish" : "Add Product"}</>}
             </button>
           </div>
         </form>
@@ -271,6 +325,7 @@ function ProductForm({ product, store, onSave, onClose }) {
   );
 }
 
+// ─── Main Page ───────────────────────────────────────────────
 export default function StoreProducts() {
   const { isLoggedIn } = useAuth();
   const { addToast } = useCart();
@@ -278,6 +333,7 @@ export default function StoreProducts() {
   const [store, setStore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
@@ -293,9 +349,15 @@ export default function StoreProducts() {
       setStore(storeData);
       const { data: productsData } = await api.get(`/products/store/${storeData._id}`);
       setProducts(productsData);
+      setIsDemoMode(false);
     } catch (err) {
       if (err.response?.status === 404) {
         setError("no_store");
+      } else if (!err.response) {
+        // Network error – fall back to demo data
+        setStore(DEMO_STORE);
+        setProducts(DEMO_PRODUCTS);
+        setIsDemoMode(true);
       } else {
         setError(err.response?.data?.message || "Failed to load products");
       }
@@ -315,35 +377,50 @@ export default function StoreProducts() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this product? This cannot be undone.")) return;
+    if (!window.confirm("Delete this item? This cannot be undone.")) return;
+    if (isDemoMode) {
+      setProducts(prev => prev.filter(p => p._id !== id));
+      addToast("Item removed (demo)", "success");
+      return;
+    }
     try {
       await api.delete(`/products/${id}`);
       setProducts(prev => prev.filter(p => p._id !== id));
-      addToast("Product deleted", "success");
+      addToast("Item deleted", "success");
     } catch (err) {
-      addToast(err.response?.data?.message || "Failed to delete product", "error");
+      addToast(err.response?.data?.message || "Failed to delete", "error");
     }
   };
 
   const toggleAvailability = async (product) => {
-    try {
-      const { data } = await api.put(`/products/${product._id}`, { available: !product.available });
-      setProducts(prev => prev.map(p => p._id === product._id ? data : p));
-    } catch {
-      // Optimistic UI fallback
-      setProducts(prev => prev.map(p => p._id === product._id ? { ...p, available: !p.available } : p));
+    const updated = { ...product, available: !product.available };
+    setProducts(prev => prev.map(p => p._id === product._id ? updated : p));
+    if (!isDemoMode) {
+      try {
+        await api.put(`/products/${product._id}`, { available: updated.available });
+      } catch {
+        // revert on fail
+        setProducts(prev => prev.map(p => p._id === product._id ? product : p));
+        addToast("Failed to update availability", "error");
+      }
     }
   };
 
+  // ── Computed values ──────────────────────────────────────
+  const isFood = store ? isFoodStore(store.category) : false;
   const allCats = ["All", ...new Set(products.map(p => p.category))];
   const filtered = products.filter(p => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
     const matchCat = catFilter === "All" || p.category === catFilter;
     return matchSearch && matchCat;
   });
+  const stats = {
+    total: products.length,
+    available: products.filter(p => p.available).length,
+    unavailable: products.filter(p => !p.available).length,
+  };
 
-  const isFood = store?.category === "Food";
-
+  // ── Loading ───────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -356,6 +433,7 @@ export default function StoreProducts() {
     );
   }
 
+  // ── No store ─────────────────────────────────────────────
   if (error === "no_store") {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
@@ -365,16 +443,15 @@ export default function StoreProducts() {
             Create your store first
           </h2>
           <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
-            You need to set up your store before you can add products.
+            Set up your store profile before adding products.
           </p>
-          <Link to="/store/settings" className="btn btn-brand">
-            Create Store
-          </Link>
+          <Link to="/store/settings" className="btn btn-brand">Create Store</Link>
         </div>
       </div>
     );
   }
 
+  // ── General error ─────────────────────────────────────────
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
@@ -392,6 +469,15 @@ export default function StoreProducts() {
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
       <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
 
+        {/* Demo banner */}
+        {isDemoMode && (
+          <div className="rounded-xl p-3.5 mb-5 flex items-center gap-3 text-sm"
+            style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", color: "#3b82f6" }}>
+            <AlertCircle size={15} />
+            <span className="flex-1">Demo mode — backend not connected. Changes won't be saved.</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <Link to="/store/dashboard" className="p-2.5 rounded-xl transition-all hover:scale-110"
@@ -403,7 +489,7 @@ export default function StoreProducts() {
               {isFood ? "Menu" : "Products"}
             </h1>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              {store?.name} · {products.length} {isFood ? "dishes" : "items"}
+              {store?.name} · {stats.total} {isFood ? "dishes" : "items"} · {stats.available} available
             </p>
           </div>
           <div className="flex gap-2">
@@ -419,7 +505,22 @@ export default function StoreProducts() {
           </div>
         </div>
 
-        {/* Search & Filter */}
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[
+            { label: "Total",       value: stats.total,       color: "var(--brand)" },
+            { label: "Available",   value: stats.available,   color: "#22c55e" },
+            { label: "Unavailable", value: stats.unavailable, color: "#f59e0b" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="rounded-2xl p-3 text-center"
+              style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+              <p className="font-bold text-2xl" style={{ color }}>{value}</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Search */}
         <div className="relative mb-4">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
           <input className="input-theme pl-10 text-sm py-2.5"
@@ -427,6 +528,7 @@ export default function StoreProducts() {
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
+        {/* Category filter */}
         {allCats.length > 2 && (
           <div className="flex gap-2 overflow-x-auto pb-1 mb-5 scrollbar-hide">
             {allCats.map(cat => (
@@ -443,7 +545,7 @@ export default function StoreProducts() {
           </div>
         )}
 
-        {/* Products / Menu */}
+        {/* Products grid */}
         {filtered.length === 0 ? (
           <div className="text-center py-20 rounded-2xl"
             style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
@@ -455,25 +557,28 @@ export default function StoreProducts() {
               <button
                 onClick={() => { setEditTarget(null); setShowForm(true); }}
                 className="btn btn-brand text-sm mt-4">
-                <Plus size={14} /> {isFood ? "Add First Dish" : "Add First Product"}
+                <Plus size={14} /> {isFood ? "Add Your First Dish" : "Add First Product"}
               </button>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filtered.map(product => {
-              const discount = product.originalPrice
+              const discount = product.originalPrice && product.originalPrice > product.price
                 ? Math.round((1 - product.price / product.originalPrice) * 100)
                 : null;
+              const spiceColors = { mild: "#22c55e", medium: "#f59e0b", hot: "#ef4444" };
+
               return (
                 <div key={product._id}
                   className="rounded-2xl p-4 flex items-center gap-3 transition-all hover:-translate-y-0.5"
                   style={{
                     backgroundColor: "var(--card)",
                     border: "1px solid var(--border)",
-                    opacity: product.available ? 1 : 0.6,
+                    opacity: product.available ? 1 : 0.55,
                   }}>
-                  {/* Image / icon */}
+
+                  {/* Image */}
                   <div className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center"
                     style={{ background: "var(--elevated)" }}>
                     {product.image ? (
@@ -500,16 +605,22 @@ export default function StoreProducts() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      {product.category}
-                      {product.unit ? ` · ${product.unit}` : ""}
-                      {isFood && product.spiceLevel ? ` · ${product.spiceLevel === "mild" ? "🟢 Mild" : product.spiceLevel === "medium" ? "🟡 Medium" : "🔴 Hot"}` : ""}
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{product.category}</span>
+                      {product.unit && <span className="text-xs" style={{ color: "var(--text-muted)" }}>· {product.unit}</span>}
+                      {isFood && product.spiceLevel && spiceColors[product.spiceLevel] && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold"
+                          style={{ background: spiceColors[product.spiceLevel] + "15", color: spiceColors[product.spiceLevel] }}>
+                          {product.spiceLevel === "mild" ? "🟢 Mild" : product.spiceLevel === "medium" ? "🟡 Medium" : "🔴 Hot"}
+                        </span>
+                      )}
+                      {isFood && product.prepTime && (
+                        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>⏱ {product.prepTime}</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="font-bold text-sm" style={{ color: "var(--brand)" }}>
-                        ₹{product.price}
-                      </span>
-                      {product.originalPrice && (
+                      <span className="font-bold text-sm" style={{ color: "var(--brand)" }}>₹{product.price}</span>
+                      {product.originalPrice && product.originalPrice > product.price && (
                         <span className="text-xs line-through" style={{ color: "var(--text-muted)" }}>
                           ₹{product.originalPrice}
                         </span>
@@ -545,6 +656,7 @@ export default function StoreProducts() {
         )}
       </div>
 
+      {/* Product Form Modal */}
       {showForm && store && (
         <ProductForm
           product={editTarget}

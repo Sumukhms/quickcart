@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronLeft, Phone, MapPin, CheckCircle, Package,
   Truck, Navigation, Store, User, Check, RefreshCw,
-  MessageCircle, AlertCircle
+  MessageCircle, AlertCircle, Clock, DollarSign, ChevronRight
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -13,52 +13,45 @@ const DEMO_ACTIVE = {
   _id: "active1",
   status: "out_for_delivery",
   totalPrice: 245,
-  deliveryFee: 30,
+  deliveryFee: 35,
   deliveryAddress: "12, 3rd Main Road, HSR Layout, Bengaluru – 560102",
-  storeId: { name: "FreshMart Express", address: "Koramangala 5th Block", phone: "+91 98765 43210" },
-  userId:  { name: "Raj Kumar",         address: "HSR Layout",             phone: "+91 87654 32109" },
+  storeId: {
+    name: "FreshMart Express",
+    address: "Koramangala 5th Block, Bengaluru",
+    phone: "+91 98765 43210",
+  },
+  userId: {
+    name: "Raj Kumar",
+    address: "HSR Layout",
+    phone: "+91 87654 32109",
+  },
   items: [
     { name: "Amul Full Cream Milk", quantity: 2, price: 28 },
     { name: "Brown Bread Loaf",     quantity: 1, price: 45 },
     { name: "Fortune Oil 1L",       quantity: 1, price: 145 },
   ],
+  paymentMethod: "cod",
   createdAt: new Date().toISOString(),
 };
 
-function StepBadge({ step, currentStep }) {
-  const steps = ["Picked Up", "On the Way", "Delivered"];
-  return (
-    <div className="flex items-center gap-2">
-      {steps.map((s, i) => (
-        <div key={s} className="flex items-center gap-1">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-            style={{
-              background: i <= currentStep ? "rgba(255,107,53,0.12)" : "var(--elevated)",
-              color: i <= currentStep ? "var(--brand)" : "var(--text-muted)",
-              border: `1px solid ${i <= currentStep ? "rgba(255,107,53,0.25)" : "var(--border)"}`,
-            }}>
-            {i < currentStep ? <Check size={11} /> : null}
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <div className="w-4 h-0.5 rounded-full" style={{ background: i < currentStep ? "var(--brand)" : "var(--border)" }} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
+const STEPS = [
+  { key: "pickup",  label: "Pick Up",      sub: "Go to store & collect order",     icon: Store,    color: "#22c55e" },
+  { key: "transit", label: "On the Way",   sub: "Riding to customer's address",    icon: Truck,    color: "var(--brand)" },
+  { key: "done",    label: "Delivered",    sub: "Hand over to customer",           icon: CheckCircle, color: "#22c55e" },
+];
 
 export default function DeliveryActive() {
   const { user } = useAuth();
   const { addToast } = useCart();
   const navigate = useNavigate();
 
-  const [order,      setOrder]      = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [markingDone,setMarkingDone]= useState(false);
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [markingDone, setMarkingDone] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [pickedUp,   setPickedUp]   = useState(false);
+  const [currentStep, setCurrentStep] = useState(0); // 0=pickup, 1=transit, 2=done
+  const [otp, setOtp] = useState("");
+  const [showOtp, setShowOtp] = useState(false);
 
   useEffect(() => { fetchActive(); }, []);
 
@@ -70,7 +63,15 @@ export default function DeliveryActive() {
       setOrder(data[0] || null);
     } catch {
       setOrder(DEMO_ACTIVE);
-    } finally { setLoading(false); setRefreshing(false); }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const markPickedUp = () => {
+    setCurrentStep(1);
+    addToast("Order picked up! 📦 Head to customer.", "success");
   };
 
   const markDelivered = async () => {
@@ -83,13 +84,14 @@ export default function DeliveryActive() {
     navigate("/delivery/history");
   };
 
-  const currentStep = pickedUp ? 1 : 0;
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
-        <div className="w-8 h-8 border-2 rounded-full animate-spin"
-          style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }} />
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 rounded-full animate-spin"
+            style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }} />
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading delivery...</p>
+        </div>
       </div>
     );
   }
@@ -105,68 +107,112 @@ export default function DeliveryActive() {
             <ChevronLeft size={18} />
           </Link>
           <div className="flex-1">
-            <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>Active Delivery</h1>
+            <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
+              Active Delivery
+            </h1>
             {order && (
               <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
                 #{(order._id || "").slice(-8).toUpperCase()}
               </p>
             )}
           </div>
-          <button onClick={() => fetchActive(true)} className="p-2.5 rounded-xl transition-all hover:scale-110"
+          <button onClick={() => fetchActive(true)}
+            className="p-2.5 rounded-xl transition-all hover:scale-110"
             style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
+        {/* No active delivery */}
         {!order ? (
           <div className="text-center py-20 rounded-3xl"
             style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <div className="text-6xl mb-4" style={{ animation: "float 3s ease-in-out infinite" }}>🛵</div>
             <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>No Active Delivery</h2>
             <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-              Accept an order from your dashboard to start delivering
+              Accept an order from the dashboard to start delivering.
             </p>
-            <Link to="/delivery/dashboard" className="btn btn-brand text-sm">
-              Find Orders
-            </Link>
+            <Link to="/delivery/dashboard" className="btn btn-brand text-sm">Find Orders</Link>
           </div>
         ) : (
           <>
-            {/* Progress Steps */}
-            <div className="rounded-2xl p-4 mb-4 overflow-x-auto"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <StepBadge step={currentStep} currentStep={currentStep} />
-            </div>
-
-            {/* Earnings Banner */}
+            {/* Earnings banner */}
             <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
-              style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,107,53,0.05))", border: "1.5px solid rgba(255,107,53,0.2)" }}>
-              <div className="text-3xl">💰</div>
-              <div>
+              style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,107,53,0.04))", border: "1.5px solid rgba(255,107,53,0.2)" }}>
+              <div className="text-2xl">💰</div>
+              <div className="flex-1">
                 <p className="font-bold" style={{ color: "var(--text-primary)" }}>
-                  ₹{order.deliveryFee || 30} earnings on delivery
+                  ₹{order.deliveryFee || 30} earnings on this delivery
                 </p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>Order value: ₹{order.totalPrice}</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Order value: ₹{order.totalPrice} · {order.paymentMethod === "cod" ? "💵 Cash on delivery" : "💳 Online paid"}
+                </p>
               </div>
             </div>
 
-            {/* Route Card */}
-            <div className="rounded-3xl overflow-hidden mb-4"
-              style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            {/* Step tracker */}
+            <div className="rounded-2xl p-4 mb-4"
+              style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
+                Delivery Progress
+              </p>
+              <div className="flex items-center gap-0">
+                {STEPS.map((step, i) => {
+                  const isDone = i < currentStep;
+                  const isActive = i === currentStep;
+                  const Icon = step.icon;
+                  return (
+                    <div key={step.key} className="flex items-center flex-1">
+                      <div className="flex flex-col items-center gap-1 flex-1">
+                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500"
+                          style={{
+                            background: isDone || isActive ? step.color + "15" : "var(--elevated)",
+                            border: `2px solid ${isDone ? step.color : isActive ? step.color : "var(--border)"}`,
+                            boxShadow: isActive ? `0 0 16px ${step.color}40` : "none",
+                            transform: isActive ? "scale(1.1)" : "scale(1)",
+                          }}>
+                          {isDone ? (
+                            <Check size={15} style={{ color: step.color }} />
+                          ) : (
+                            <Icon size={14} style={{ color: isActive ? step.color : "var(--text-muted)" }} />
+                          )}
+                        </div>
+                        <p className="text-[10px] font-semibold text-center"
+                          style={{ color: isDone || isActive ? "var(--text-primary)" : "var(--text-muted)" }}>
+                          {step.label}
+                        </p>
+                      </div>
+                      {i < STEPS.length - 1 && (
+                        <div className="h-0.5 flex-shrink-0 mx-1 rounded-full transition-all duration-500"
+                          style={{ width: 24, background: i < currentStep ? "#22c55e" : "var(--border)" }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-              {/* Pickup */}
+            {/* Pickup card */}
+            <div className="rounded-3xl overflow-hidden mb-4"
+              style={{ backgroundColor: "var(--card)", border: `1.5px solid ${currentStep === 0 ? "rgba(34,197,94,0.3)" : "var(--border)"}` }}>
+
+              {/* Store / Pickup */}
               <div className="p-5" style={{ borderBottom: "1px solid var(--border)" }}>
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{ background: "rgba(34,197,94,0.12)" }}>
-                    <Store size={15} style={{ color: "#22c55e" }} />
+                    <Store size={16} style={{ color: "#22c55e" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Pickup from</span>
-                      {pickedUp && <Check size={12} style={{ color: "#22c55e" }} />}
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                        Pickup from
+                      </p>
+                      {currentStep > 0 && (
+                        <span className="tag tag-green text-[10px]"><Check size={9} /> Picked up</span>
+                      )}
                     </div>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                    <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>
                       {order.storeId?.name}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
@@ -187,30 +233,56 @@ export default function DeliveryActive() {
                     </button>
                   </div>
                 </div>
-                {!pickedUp && (
-                  <button onClick={() => setPickedUp(true)}
-                    className="btn w-full justify-center py-2.5 text-sm mt-3 transition-all"
-                    style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
-                    <Check size={14} /> Mark as Picked Up
+
+                {/* Items list */}
+                <div className="rounded-xl p-3 mb-3"
+                  style={{ background: "var(--elevated)" }}>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+                    Items to collect
+                  </p>
+                  {order.items?.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm py-1">
+                      <span style={{ color: "var(--text-secondary)" }}>• {item.name}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-md"
+                        style={{ background: "var(--card)", color: "var(--text-muted)" }}>
+                        ×{item.quantity || 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {currentStep === 0 && (
+                  <button onClick={markPickedUp}
+                    className="btn w-full justify-center py-3 text-sm font-bold transition-all"
+                    style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1.5px solid rgba(34,197,94,0.3)" }}>
+                    <Check size={15} /> Confirm Pickup — Items Collected
                   </button>
                 )}
               </div>
 
-              {/* Delivery */}
+              {/* Delivery / Customer */}
               <div className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                     style={{ background: "rgba(255,107,53,0.1)" }}>
-                    <User size={15} style={{ color: "var(--brand)" }} />
+                    <User size={16} style={{ color: "var(--brand)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold uppercase tracking-wider mb-0.5 block" style={{ color: "var(--text-muted)" }}>Deliver to</span>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                    <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                      Deliver to
+                    </p>
+                    <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>
                       {order.userId?.name}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                       {order.deliveryAddress}
                     </p>
+                    {order.paymentMethod === "cod" && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs font-semibold"
+                        style={{ color: "#f59e0b" }}>
+                        <DollarSign size={11} /> Collect ₹{order.totalPrice} in cash
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {order.userId?.phone && (
@@ -229,45 +301,33 @@ export default function DeliveryActive() {
               </div>
             </div>
 
-            {/* Items Summary */}
-            <div className="rounded-3xl overflow-hidden mb-4"
-              style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-              <div className="px-5 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                  Items to Deliver
-                </p>
+            {/* Hint for step 0 */}
+            {currentStep === 0 && (
+              <div className="flex items-center gap-2 text-xs px-4 py-3 rounded-xl mb-4"
+                style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}>
+                <AlertCircle size={14} />
+                Go to the store, collect all items, then tap "Confirm Pickup"
               </div>
-              {(order.items || []).map((item, i) => (
-                <div key={i} className="flex items-center gap-3 px-5 py-3"
-                  style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-                    style={{ background: "var(--elevated)" }}>🛍️</div>
-                  <p className="flex-1 text-sm" style={{ color: "var(--text-secondary)" }}>{item.name}</p>
-                  <span className="text-xs px-2 py-0.5 rounded-md"
-                    style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
-                    ×{item.quantity || 1}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Mark Delivered */}
-            {pickedUp && (
-              <button onClick={markDelivered} disabled={markingDone}
-                className="btn btn-brand w-full justify-center py-4 text-base"
-                style={{ boxShadow: "0 8px 24px rgba(255,107,53,0.35)" }}>
-                {markingDone
-                  ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  : <><CheckCircle size={18} /> Mark as Delivered</>}
-              </button>
             )}
 
-            {!pickedUp && (
-              <div className="flex items-center gap-2 text-xs px-4 py-3 rounded-xl"
-                style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b" }}>
-                <AlertCircle size={14} />
-                Go to the store, pick up the order, then mark it as picked up
-              </div>
+            {/* Mark delivered CTA */}
+            {currentStep === 1 && (
+              <>
+                <div className="flex items-center gap-2 text-xs px-4 py-3 rounded-xl mb-4"
+                  style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
+                  <Truck size={14} />
+                  You're on your way! Tap "Mark Delivered" when you reach the customer.
+                </div>
+                <button
+                  onClick={markDelivered}
+                  disabled={markingDone}
+                  className="btn btn-brand w-full justify-center py-4 text-base font-bold"
+                  style={{ boxShadow: "0 8px 24px rgba(255,107,53,0.35)" }}>
+                  {markingDone
+                    ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><CheckCircle size={18} /> Mark as Delivered</>}
+                </button>
+              </>
             )}
           </>
         )}
