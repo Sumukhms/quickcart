@@ -5,37 +5,69 @@ import Product from "../models/Product.js";
 // ─── CUSTOMER ─────────────────────────────────────────────────
 export const placeOrder = async (req, res) => {
   try {
-    const { deliveryAddress, paymentMethod, notes } = req.body;
-    if (!deliveryAddress) return res.status(400).json({ message: "Delivery address required" });
+    const {
+      items,
+      storeId,
+      totalPrice,
+      deliveryAddress,
+      paymentMethod,
+      notes,
+    } = req.body;
 
-    const cart = await Cart.findOne({ userId: req.user.userId }).populate("items.productId");
-    if (!cart || !cart.items.length) return res.status(400).json({ message: "Cart is empty" });
+    // 🔒 Basic validations
+    if (!deliveryAddress || !deliveryAddress.trim()) {
+      return res.status(400).json({ message: "Delivery address required" });
+    }
 
-    let totalPrice = 0;
-    const orderItems = cart.items.map((item) => {
-      const p = item.productId;
-      totalPrice += p.price * item.quantity;
-      return { productId: p._id, name: p.name, price: p.price, quantity: item.quantity, image: p.image };
-    });
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: "Cart is empty" });
+    }
 
+    if (!storeId) {
+      return res.status(400).json({ message: "Store ID is required" });
+    }
+
+    if (!totalPrice || totalPrice <= 0) {
+      return res.status(400).json({ message: "Invalid total price" });
+    }
+
+    // 🧾 Create order directly from frontend payload
     const order = await Order.create({
       userId: req.user.userId,
-      storeId: cart.storeId,
-      items: orderItems,
+      storeId,
+      items,
       totalPrice,
       deliveryAddress,
       paymentMethod: paymentMethod || "cod",
       notes,
-      statusHistory: [{ status: "pending", timestamp: new Date(), updatedBy: req.user.userId }],
+      statusHistory: [
+        {
+          status: "pending",
+          timestamp: new Date(),
+          updatedBy: req.user.userId,
+        },
+      ],
     });
 
-    await Cart.findOneAndUpdate({ userId: req.user.userId }, { items: [], storeId: null });
+    // 🧹 Optional: clear DB cart (if exists)
+    await Cart.findOneAndUpdate(
+      { userId: req.user.userId },
+      { items: [], storeId: null }
+    );
 
-    // Emit real-time notification to store
-    req.io?.to(`store_${cart.storeId}`).emit("new_order", { orderId: order._id, order });
+    // 🔔 Notify store (real-time)
+    req.io?.to(`store_${storeId}`).emit("new_order", {
+      orderId: order._id,
+      order,
+    });
 
+    // ✅ Success response
     res.status(201).json(order);
-  } catch (e) { res.status(500).json({ message: e.message }); }
+
+  } catch (e) {
+    console.error("Place Order Error:", e);
+    res.status(500).json({ message: "Server error while placing order" });
+  }
 };
 
 export const getMyOrders = async (req, res) => {

@@ -16,7 +16,7 @@ import UserCart       from "./pages/user/UserCart.jsx";
 import UserOrders     from "./pages/user/UserOrders.jsx";
 import UserTrack      from "./pages/user/UserTrack.jsx";
 import UserProfile    from "./pages/user/UserProfile.jsx";
-import CheckoutPage   from "./pages/Checkoutpage.jsx";
+import CheckoutPage   from "./pages/user/Checkoutpage.jsx";
 
 // ── Store Owner pages ─────────────────────────────────────────
 import StoreDashboard from "./pages/store/StoreDashboard.jsx";
