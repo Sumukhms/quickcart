@@ -1,6 +1,35 @@
 import Order from "../models/Order.js";
-import Cart from "../models/Cart.js";
-import Product from "../models/Product.js";
+import Cart  from "../models/Cart.js";
+import { applyCoupon } from "./couponController.js";
+
+// ─── Flow helpers (inlined — keep in sync with shared/orderFlows.js) ──
+const FOOD_CATEGORIES = ["Food"];
+
+function getFlowType(storeCategory) {
+  return FOOD_CATEGORIES.includes(storeCategory) ? "food" : "grocery";
+}
+
+const FLOW_SEQUENCES = {
+  food:    ["pending", "confirmed", "preparing", "ready_for_pickup", "out_for_delivery", "delivered"],
+  grocery: ["pending", "confirmed", "packing", "out_for_delivery", "delivered"],
+};
+
+// Statuses that unlock delivery partner assignment
+const DELIVERY_TRIGGER_STATUSES = ["ready_for_pickup", "packing"];
+
+function getNextStatus(currentStatus, storeCategory) {
+  const seq = FLOW_SEQUENCES[getFlowType(storeCategory)];
+  const idx = seq.indexOf(currentStatus);
+  if (idx === -1 || idx === seq.length - 1) return null;
+  return seq[idx + 1];
+}
+
+function isValidTransition(fromStatus, toStatus, storeCategory) {
+  if (toStatus === "cancelled") {
+    return !["delivered", "cancelled"].includes(fromStatus);
+  }
+  return getNextStatus(fromStatus, storeCategory) === toStatus;
+}
 
 // ─── CUSTOMER ─────────────────────────────────────────────────
 export const placeOrder = async (req, res) => {
@@ -12,26 +41,14 @@ export const placeOrder = async (req, res) => {
       deliveryAddress,
       paymentMethod,
       notes,
+      couponCode,
     } = req.body;
 
-    // 🔒 Basic validations
-    if (!deliveryAddress || !deliveryAddress.trim()) {
-      return res.status(400).json({ message: "Delivery address required" });
-    }
+    if (!deliveryAddress?.trim())       return res.status(400).json({ message: "Delivery address required" });
+    if (!items || items.length === 0)   return res.status(400).json({ message: "Cart is empty" });
+    if (!storeId)                       return res.status(400).json({ message: "Store ID is required" });
+    if (!totalPrice || totalPrice <= 0) return res.status(400).json({ message: "Invalid total price" });
 
-    if (!items || items.length === 0) {
-      return res.status(400).json({ message: "Cart is empty" });
-    }
-
-    if (!storeId) {
-      return res.status(400).json({ message: "Store ID is required" });
-    }
-
-    if (!totalPrice || totalPrice <= 0) {
-      return res.status(400).json({ message: "Invalid total price" });
-    }
-
-    // 🧾 Create order directly from frontend payload
     const order = await Order.create({
       userId: req.user.userId,
       storeId,
@@ -40,30 +57,20 @@ export const placeOrder = async (req, res) => {
       deliveryAddress,
       paymentMethod: paymentMethod || "cod",
       notes,
-      statusHistory: [
-        {
-          status: "pending",
-          timestamp: new Date(),
-          updatedBy: req.user.userId,
-        },
-      ],
+      statusHistory: [{ status: "pending", timestamp: new Date(), updatedBy: req.user.userId }],
     });
 
-    // 🧹 Optional: clear DB cart (if exists)
-    await Cart.findOneAndUpdate(
-      { userId: req.user.userId },
-      { items: [], storeId: null }
-    );
+    await Cart.findOneAndUpdate({ userId: req.user.userId }, { items: [], storeId: null });
 
-    // 🔔 Notify store (real-time)
-    req.io?.to(`store_${storeId}`).emit("new_order", {
-      orderId: order._id,
-      order,
-    });
+    req.io?.to(`store_${storeId}`).emit("new_order", { orderId: order._id, order });
 
-    // ✅ Success response
+    // Increment coupon usage AFTER order is safely persisted
+    if (couponCode?.trim()) {
+      try { await applyCoupon(couponCode.trim().toUpperCase()); }
+      catch (e) { console.warn("Coupon usage increment failed:", e.message); }
+    }
+
     res.status(201).json(order);
-
   } catch (e) {
     console.error("Place Order Error:", e);
     res.status(500).json({ message: "Server error while placing order" });
@@ -107,69 +114,132 @@ export const getStoreOrders = async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
+/**
+ * updateOrderStatus — category-aware transition validation.
+ *
+ * The store's category is read from the populated storeId so we
+ * know which flow (food vs grocery) applies, then we check that
+ * the requested "toStatus" is exactly the next valid step.
+ */
 export const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-    const validStatuses = ["pending", "confirmed", "preparing", "ready_for_pickup", "out_for_delivery", "delivered", "cancelled"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
-    }
+    const { status: toStatus } = req.body;
 
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      {
-        status,
-        $push: { statusHistory: { status, timestamp: new Date(), updatedBy: req.user.userId } }
-      },
-      { new: true }
-    ).populate("userId", "name phone");
-
+    // Fetch order with store category
+    const order = await Order.findById(req.params.id)
+      .populate("storeId", "name category");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    // Real-time notifications
-    req.io?.to(`order_${order._id}`).emit("order_status_update", { status, orderId: order._id, order });
-    req.io?.to(`store_${order.storeId}`).emit("order_updated", { orderId: order._id, status });
+    const storeCategory = order.storeId?.category || "Other";
 
-    // When ready for pickup, notify all available delivery agents
-    if (status === "ready_for_pickup") {
-      req.io?.emit("delivery_available", { orderId: order._id, address: order.deliveryAddress, storeId: order.storeId });
+    // All statuses that exist in any flow
+    const allKnownStatuses = [
+      "pending", "confirmed", "preparing", "packing",
+      "ready_for_pickup", "out_for_delivery", "delivered", "cancelled",
+    ];
+    if (!allKnownStatuses.includes(toStatus)) {
+      return res.status(400).json({ message: `Unknown status: "${toStatus}"` });
     }
 
-    res.json(order);
+    // Validate transition for this store's category
+    if (!isValidTransition(order.status, toStatus, storeCategory)) {
+      const nextAllowed = getNextStatus(order.status, storeCategory);
+      return res.status(400).json({
+        message:
+          `Invalid status transition for ${storeCategory} orders: ` +
+          `"${order.status}" → "${toStatus}". ` +
+          `Expected next: "${nextAllowed || "none (already terminal)"}"`,
+        currentStatus:  order.status,
+        allowedNext:    nextAllowed,
+        storeCategory,
+      });
+    }
+
+    const updated = await Order.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: toStatus,
+        $push: {
+          statusHistory: { status: toStatus, timestamp: new Date(), updatedBy: req.user.userId },
+        },
+      },
+      { returnDocument: "after" }
+    ).populate("userId", "name phone");
+
+    // Real-time: customer + store room
+    req.io?.to(`order_${updated._id}`).emit("order_status_update", {
+      status: toStatus, orderId: updated._id, order: updated,
+    });
+    req.io?.to(`store_${updated.storeId}`).emit("order_updated", {
+      orderId: updated._id, status: toStatus,
+    });
+
+    // Notify delivery partners on any delivery-trigger status
+    // (food → "ready_for_pickup", grocery → "packing")
+    if (DELIVERY_TRIGGER_STATUSES.includes(toStatus)) {
+      req.io?.emit("delivery_available", {
+        orderId:       updated._id,
+        address:       updated.deliveryAddress,
+        storeId:       updated.storeId,
+        triggerStatus: toStatus,
+      });
+    }
+
+    res.json(updated);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
 // ─── DELIVERY PARTNER ─────────────────────────────────────────
+
+/**
+ * getAvailableOrders
+ * Queries both trigger statuses so food and grocery orders
+ * both surface in the delivery partner's feed.
+ */
 export const getAvailableOrders = async (req, res) => {
   try {
-    // Orders that are ready for pickup and have no delivery agent
     const orders = await Order.find({
-      status: "ready_for_pickup",
+      status:          { $in: DELIVERY_TRIGGER_STATUSES },
       deliveryAgentId: null,
     })
-      .populate("storeId", "name address phone")
+      .populate("storeId", "name address phone category")
       .populate("userId", "name phone address")
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
+/**
+ * acceptDelivery
+ * Accepts from either trigger status (ready_for_pickup / packing).
+ */
 export const acceptDelivery = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
-    if (order.deliveryAgentId) return res.status(400).json({ message: "Order already assigned to a delivery partner" });
-    if (order.status !== "ready_for_pickup") return res.status(400).json({ message: "Order not ready for pickup" });
+    if (order.deliveryAgentId) {
+      return res.status(400).json({ message: "Order already assigned to a delivery partner" });
+    }
+    if (!DELIVERY_TRIGGER_STATUSES.includes(order.status)) {
+      return res.status(400).json({
+        message: `Order is not ready for delivery pickup (status: "${order.status}")`,
+      });
+    }
 
-    order.deliveryAgentId = req.user.userId;
-    order.status = "out_for_delivery";
+    order.deliveryAgentId     = req.user.userId;
+    order.status              = "out_for_delivery";
     order.isAcceptedByDelivery = true;
-    order.statusHistory.push({ status: "out_for_delivery", timestamp: new Date(), updatedBy: req.user.userId });
+    order.statusHistory.push({
+      status: "out_for_delivery", timestamp: new Date(), updatedBy: req.user.userId,
+    });
     await order.save();
 
-    // Notify customer and store
-    req.io?.to(`order_${order._id}`).emit("order_status_update", { status: "out_for_delivery", orderId: order._id });
-    req.io?.to(`store_${order.storeId}`).emit("delivery_accepted", { orderId: order._id, agentId: req.user.userId });
+    req.io?.to(`order_${order._id}`).emit("order_status_update", {
+      status: "out_for_delivery", orderId: order._id,
+    });
+    req.io?.to(`store_${order.storeId}`).emit("delivery_accepted", {
+      orderId: order._id, agentId: req.user.userId,
+    });
 
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -182,7 +252,7 @@ export const getMyDeliveries = async (req, res) => {
     if (status) filter.status = status;
 
     const orders = await Order.find(filter)
-      .populate("storeId", "name address phone")
+      .populate("storeId", "name address phone category")
       .populate("userId", "name phone address")
       .sort({ createdAt: -1 });
     res.json(orders);
@@ -201,7 +271,9 @@ export const markDelivered = async (req, res) => {
     order.statusHistory.push({ status: "delivered", timestamp: new Date(), updatedBy: req.user.userId });
     await order.save();
 
-    req.io?.to(`order_${order._id}`).emit("order_status_update", { status: "delivered", orderId: order._id });
+    req.io?.to(`order_${order._id}`).emit("order_status_update", {
+      status: "delivered", orderId: order._id,
+    });
 
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -213,7 +285,7 @@ export const updateDeliveryLocation = async (req, res) => {
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { deliveryLocation: { lat, lng } },
-      { new: true }
+      { returnDocument: "after" }
     );
     req.io?.to(`order_${order._id}`).emit("location_update", { lat, lng, orderId: order._id });
     res.json({ success: true });

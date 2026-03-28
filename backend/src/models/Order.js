@@ -1,25 +1,34 @@
 import mongoose from "mongoose";
 
 const orderSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  storeId: { type: mongoose.Schema.Types.ObjectId, ref: "Store", required: true },
+  userId:          { type: mongoose.Schema.Types.ObjectId, ref: "User",  required: true },
+  storeId:         { type: mongoose.Schema.Types.ObjectId, ref: "Store", required: true },
   deliveryAgentId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
   items: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
-    name: { type: String, required: true },
-    price: { type: Number, required: true },
-    quantity: { type: Number, required: true },
-    image: { type: String },
+    name:      { type: String,  required: true },
+    price:     { type: Number,  required: true },
+    quantity:  { type: Number,  required: true },
+    image:     { type: String },
   }],
 
-  totalPrice: { type: Number, required: true },
-  deliveryFee: { type: Number, default: 20 },
+  totalPrice:      { type: Number, required: true },
+  deliveryFee:     { type: Number, default: 20 },
   deliveryAddress: { type: String, required: true },
 
   status: {
     type: String,
-    enum: ["pending", "confirmed", "preparing", "ready_for_pickup", "out_for_delivery", "delivered", "cancelled"],
+    enum: [
+      "pending",
+      "confirmed",
+      "preparing",          // food flow only
+      "packing",            // ← NEW — grocery flow
+      "ready_for_pickup",   // food flow only
+      "out_for_delivery",
+      "delivered",
+      "cancelled",
+    ],
     default: "pending",
   },
 
@@ -32,14 +41,13 @@ const orderSchema = new mongoose.Schema({
     lng: { type: Number },
   },
 
-  // Timestamps for each status change
   statusHistory: [{
-    status: String,
+    status:    String,
     timestamp: { type: Date, default: Date.now },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   }],
 
-  notes: { type: String },
+  notes:                { type: String },
   isAcceptedByDelivery: { type: Boolean, default: false },
 
 }, { timestamps: true });

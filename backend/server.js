@@ -10,6 +10,8 @@ import productRoutes from "./src/routes/productRoutes.js";
 import cartRoutes    from "./src/routes/cartRoutes.js";
 import orderRoutes   from "./src/routes/orderRoutes.js";
 import couponRoutes  from "./src/routes/couponRoutes.js";
+// ── NEW: rating route ──────────────────────────────────────────
+import ratingRoutes  from "./src/routes/ratingRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -38,6 +40,8 @@ app.use("/api/products", productRoutes);
 app.use("/api/cart",     cartRoutes);
 app.use("/api/orders",   orderRoutes);
 app.use("/api/coupons",  couponRoutes);
+// ── NEW ────────────────────────────────────────────────────────
+app.use("/api/ratings",  ratingRoutes);
 
 app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", roles: ["customer", "store", "delivery"] }));
 

@@ -1,52 +1,70 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
-  ChevronLeft, MapPin, Phone, Clock, CheckCircle, Package,
-  Truck, RefreshCw, Star, MessageCircle, Zap, ShoppingBag,
-  XCircle, AlertCircle, Loader2
+  ChevronLeft, MapPin, Phone, CheckCircle, Package,
+  Truck, RefreshCw, Star, Zap, ShoppingBag,
+  XCircle, AlertCircle, Loader2, ShoppingCart,
 } from "lucide-react";
 import { orderAPI } from "../../api/api";
+import api from "../../api/api";
 import { useSocket } from "../../context/SocketContext";
+import { useCart } from "../../context/CartContext";
+import {
+  getTimelineSteps,
+  getStatusMessage,
+  getStatusIndex,
+  STATUS_VISUAL,
+} from "../../utils/orderFlows";
 
-const STATUS_STEPS = [
-  { key: "pending",           label: "Order Placed",      sub: "We received your order",         icon: ShoppingBag,  color: "#f59e0b" },
-  { key: "confirmed",         label: "Confirmed",         sub: "Store accepted your order",       icon: CheckCircle,  color: "#3b82f6" },
-  { key: "preparing",         label: "Preparing",         sub: "Your items are being packed",     icon: Package,      color: "#8b5cf6" },
-  { key: "ready_for_pickup",  label: "Ready for Pickup",  sub: "Looking for a delivery partner",  icon: Zap,          color: "#f97316" },
-  { key: "out_for_delivery",  label: "Out for Delivery",  sub: "Rider is heading to you",         icon: Truck,        color: "#ff6b35" },
-  { key: "delivered",         label: "Delivered",         sub: "Enjoy your order! 🎉",            icon: CheckCircle,  color: "#22c55e" },
-];
-
-const STATUS_INDEX = {
-  pending: 0, confirmed: 1, preparing: 2,
-  ready_for_pickup: 3, out_for_delivery: 4, delivered: 5, cancelled: -1,
+// ─── Icon map — keyed by status ───────────────────────────────
+// We keep icons here in the component (lucide imports) and merge
+// them with the data-only timeline from the utility.
+const STATUS_ICONS = {
+  pending:          ShoppingBag,
+  confirmed:        CheckCircle,
+  preparing:        Package,       // food only
+  packing:          ShoppingCart,  // grocery only ← NEW
+  ready_for_pickup: Zap,           // food only
+  out_for_delivery: Truck,
+  delivered:        CheckCircle,
 };
 
 function PulsingDot({ color }) {
   return (
     <span className="relative inline-flex h-3 w-3 flex-shrink-0">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: color }} />
-      <span className="relative inline-flex rounded-full h-3 w-3" style={{ background: color }} />
+      <span
+        className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+        style={{ background: color }}
+      />
+      <span
+        className="relative inline-flex rounded-full h-3 w-3"
+        style={{ background: color }}
+      />
     </span>
   );
 }
 
 export default function UserTrack() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const { id }          = useParams();
+  const navigate        = useNavigate();
   const { joinOrderRoom, on } = useSocket();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [showRating, setShowRating] = useState(false);
+  const { addToast }    = useCart();
+
+  const [order,            setOrder]            = useState(null);
+  const [loading,          setLoading]          = useState(true);
+  const [refreshing,       setRefreshing]       = useState(false);
+  const [error,            setError]            = useState(null);
+  const [rating,           setRating]           = useState(0);
+  const [hoverRating,      setHoverRating]      = useState(0);
+  const [showRating,       setShowRating]       = useState(false);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingSubmitted,  setRatingSubmitted]  = useState(false);
   const intervalRef = useRef(null);
 
+  // ── Fetch order ──────────────────────────────────────────────
   const fetchOrder = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    else setRefreshing(true);
+    else         setRefreshing(true);
     setError(null);
     try {
       const { data } = await orderAPI.getById(id);
@@ -61,7 +79,7 @@ export default function UserTrack() {
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
-  // Join socket room for live updates
+  // ── Socket: live updates ─────────────────────────────────────
   useEffect(() => {
     if (id) joinOrderRoom(id);
     const unsub = on("order_status_update", ({ orderId, status }) => {
@@ -73,16 +91,33 @@ export default function UserTrack() {
     return () => { if (typeof unsub === "function") unsub(); };
   }, [id, joinOrderRoom, on]);
 
-  // Polling fallback (every 20s for active orders)
+  // ── Polling fallback (every 20 s while active) ───────────────
   useEffect(() => {
     if (!order || ["delivered", "cancelled"].includes(order.status)) {
       clearInterval(intervalRef.current);
       return;
     }
-    intervalRef.current = setInterval(() => fetchOrder(true), 20000);
+    intervalRef.current = setInterval(() => fetchOrder(true), 20_000);
     return () => clearInterval(intervalRef.current);
   }, [order?.status, fetchOrder]);
 
+  // ── Submit rating ────────────────────────────────────────────
+  const handleSubmitRating = useCallback(async () => {
+    if (!rating || !order?.storeId?._id) return;
+    setSubmittingRating(true);
+    try {
+      await api.post("/ratings/rate", { storeId: order.storeId._id, rating });
+      setRatingSubmitted(true);
+      setShowRating(false);
+      addToast(`Thanks for rating ${order.storeId?.name}! ⭐`, "success");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to submit rating.", "error");
+    } finally {
+      setSubmittingRating(false);
+    }
+  }, [rating, order, addToast]);
+
+  // ── Loading / error states ───────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -91,7 +126,8 @@ export default function UserTrack() {
             <div className="absolute inset-0 rounded-full border-2 animate-spin"
               style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }} />
             <div className="absolute inset-2.5 rounded-full border-2 animate-spin"
-              style={{ borderColor: "transparent", borderBottomColor: "#f59e0b", animationDirection: "reverse", animationDuration: "0.7s" }} />
+              style={{ borderColor: "transparent", borderBottomColor: "#f59e0b",
+                       animationDirection: "reverse", animationDuration: "0.7s" }} />
           </div>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading order...</p>
         </div>
@@ -117,148 +153,275 @@ export default function UserTrack() {
 
   if (!order) return null;
 
-  const stepIdx = STATUS_INDEX[order.status] ?? 0;
-  const isCancelled = order.status === "cancelled";
-  const isDelivered = order.status === "delivered";
-  const isActive = !isCancelled && !isDelivered;
-  const currentStep = STATUS_STEPS[stepIdx];
-  const orderTotal = (order.totalPrice || 0) + (order.deliveryFee || 0);
+  // ── Derived values ───────────────────────────────────────────
+  const storeCategory = order.storeId?.category || "Other";
+  const isCancelled   = order.status === "cancelled";
+  const isDelivered   = order.status === "delivered";
+  const isActive      = !isCancelled && !isDelivered;
+  const orderTotal    = (order.totalPrice || 0) + (order.deliveryFee || 0);
+
+  // Build timeline: data from utility + icons from STATUS_ICONS map
+  const timelineSteps = getTimelineSteps(storeCategory).map(step => ({
+    ...step,
+    icon:  STATUS_ICONS[step.key] || Package,
+    color: STATUS_VISUAL[step.key]?.color || "var(--brand)",
+  }));
+
+  // Index of current status in this order's specific flow
+  const stepIdx = getStatusIndex(order.status, storeCategory);
+
+  // Current step config for the live banner
+  const currentStepData = stepIdx >= 0 ? timelineSteps[stepIdx] : null;
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
 
-        {/* Header */}
+        {/* ── Header ────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/user/orders")}
+            <button
+              onClick={() => navigate("/user/orders")}
               className="p-2.5 rounded-xl transition-all hover:scale-110"
-              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+            >
               <ChevronLeft size={18} />
             </button>
             <div>
-              <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>Track Order</h1>
+              <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
+                Track Order
+              </h1>
               <p className="text-xs font-mono mt-0.5" style={{ color: "var(--text-muted)" }}>
                 #{(order._id || "").slice(-8).toUpperCase()}
               </p>
             </div>
           </div>
-          <button onClick={() => fetchOrder(true)} disabled={refreshing}
+          <button
+            onClick={() => fetchOrder(true)}
+            disabled={refreshing}
             className="p-2.5 rounded-xl transition-all hover:scale-110"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+          >
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {/* Live status banner */}
-        {isActive && currentStep && (
-          <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
-            style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.04))", border: "1.5px solid rgba(255,107,53,0.22)" }}>
-            <PulsingDot color={currentStep.color} />
+        {/* ── Live status banner ────────────────────────────── */}
+        {isActive && currentStepData && (
+          <div
+            className="rounded-2xl p-4 mb-4 flex items-center gap-4"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.04))",
+              border:     "1.5px solid rgba(255,107,53,0.22)",
+            }}
+          >
+            <PulsingDot color={currentStepData.color} />
             <div className="flex-1">
-              <p className="font-bold" style={{ color: "var(--text-primary)" }}>{currentStep.label}</p>
+              <p className="font-bold" style={{ color: "var(--text-primary)" }}>
+                {currentStepData.label}
+              </p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                {currentStep.sub} · Est. {order.estimatedTime || "20–30 min"}
+                {currentStepData.sub} · Est. {order.estimatedTime || "20–30 min"}
               </p>
             </div>
-            <div className="text-right">
+            <div className="text-right flex-shrink-0">
               <p className="text-xs font-bold" style={{ color: "var(--brand)" }}>LIVE</p>
               <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Auto-refresh</p>
             </div>
           </div>
         )}
 
+        {/* ── Delivered banner ──────────────────────────────── */}
         {isDelivered && (
-          <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
-            style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}>
+          <div
+            className="rounded-2xl p-4 mb-4 flex items-center gap-4"
+            style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}
+          >
             <div className="text-3xl">🎉</div>
             <div className="flex-1">
-              <p className="font-bold" style={{ color: "#22c55e" }}>Order Delivered!</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Hope you enjoy your order!</p>
+              <p className="font-bold" style={{ color: "#22c55e" }}>
+                {getStatusMessage("delivered", storeCategory).label}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                {getStatusMessage("delivered", storeCategory).sub}
+              </p>
             </div>
-            {!showRating && (
-              <button onClick={() => setShowRating(true)}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl"
-                style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
+            {!showRating && !ratingSubmitted && (
+              <button
+                onClick={() => setShowRating(true)}
+                className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl flex-shrink-0"
+                style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+              >
                 <Star size={12} /> Rate
               </button>
+            )}
+            {ratingSubmitted && (
+              <span
+                className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-xl flex-shrink-0"
+                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}
+              >
+                ⭐ Rated
+              </span>
             )}
           </div>
         )}
 
+        {/* ── Cancelled banner ──────────────────────────────── */}
         {isCancelled && (
-          <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
-            style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}>
+          <div
+            className="rounded-2xl p-4 mb-4 flex items-center gap-3"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}
+          >
             <XCircle size={20} style={{ color: "#ef4444" }} />
             <div>
               <p className="font-bold" style={{ color: "#ef4444" }}>Order Cancelled</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Refund processed in 3–5 business days</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                Refund processed in 3–5 business days
+              </p>
             </div>
           </div>
         )}
 
-        {/* Rating panel */}
-        {showRating && (
-          <div className="rounded-3xl p-5 mb-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-            <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>How was your order?</p>
-            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience</p>
-            <div className="flex justify-center gap-3 mb-4">
-              {[1,2,3,4,5].map(s => (
-                <button key={s} onClick={() => setRating(s)}
-                  onMouseEnter={() => setHoverRating(s)} onMouseLeave={() => setHoverRating(0)}
-                  className="text-3xl transition-transform hover:scale-125">
+        {/* ── Rating panel ──────────────────────────────────── */}
+        {showRating && !ratingSubmitted && (
+          <div
+            className="rounded-3xl p-5 mb-4"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+          >
+            <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
+              How was your order from {order.storeId?.name}?
+            </p>
+            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>
+              Rate your experience (1–5 stars)
+            </p>
+            <div className="flex justify-center gap-3 mb-3">
+              {[1, 2, 3, 4, 5].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setRating(s)}
+                  onMouseEnter={() => setHoverRating(s)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  className="text-3xl transition-transform hover:scale-125"
+                >
                   {s <= (hoverRating || rating) ? "⭐" : "☆"}
                 </button>
               ))}
             </div>
+            {rating > 0 && (
+              <p className="text-center text-xs mb-3 font-semibold" style={{ color: "var(--text-muted)" }}>
+                {["", "Poor", "Fair", "Good", "Great", "Excellent!"][rating]}
+              </p>
+            )}
             <div className="flex gap-2">
-              <button onClick={() => setShowRating(false)} className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
-              <button onClick={() => { addToast?.("Thank you for your rating! ⭐", "success"); setShowRating(false); }}
-                disabled={!rating} className="btn btn-brand flex-1 justify-center text-sm py-2.5">
-                Submit Rating
+              <button
+                onClick={() => { setShowRating(false); setRating(0); }}
+                className="btn btn-ghost flex-1 justify-center text-sm py-2.5"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleSubmitRating}
+                disabled={!rating || submittingRating}
+                className="btn btn-brand flex-1 justify-center text-sm py-2.5"
+              >
+                {submittingRating
+                  ? <><Loader2 size={14} className="animate-spin" /> Submitting...</>
+                  : "Submit Rating"}
               </button>
             </div>
           </div>
         )}
 
-        {/* Progress timeline */}
+        {/* ── Progress timeline ─────────────────────────────── */}
+        {/* Renders 6 steps for food, 5 steps for grocery */}
         {!isCancelled && (
-          <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest mb-5" style={{ color: "var(--text-muted)" }}>Order Progress</h2>
+          <div
+            className="rounded-3xl p-5 mb-4"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2
+                className="font-bold text-xs uppercase tracking-widest"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Order Progress
+              </h2>
+              {/* Flow type badge */}
+              <span
+                className="text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
+                style={{
+                  background: storeCategory === "Food"
+                    ? "rgba(249,115,22,0.1)" : "rgba(6,182,212,0.1)",
+                  color: storeCategory === "Food" ? "#f97316" : "#06b6d4",
+                }}
+              >
+                {storeCategory === "Food" ? "🍛 Food flow" : "📦 Grocery flow"}
+              </span>
+            </div>
+
             <div className="space-y-1">
-              {STATUS_STEPS.map((step, i) => {
-                const isDone = i <= stepIdx;
-                const isActivStep = i === stepIdx;
-                const Icon = step.icon;
+              {timelineSteps.map((step, i) => {
+                const isDone      = i <= stepIdx;
+                const isActiveStep = i === stepIdx;
+                const Icon        = step.icon;
+
                 return (
                   <div key={step.key} className="flex items-start gap-4">
+                    {/* Icon column */}
                     <div className="flex flex-col items-center" style={{ width: 36, flexShrink: 0 }}>
-                      <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
+                      <div
+                        className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
                         style={{
-                          background: isDone ? isActivStep ? step.color : "rgba(34,197,94,0.1)" : "var(--elevated)",
-                          border: `2px solid ${isDone ? isActivStep ? step.color : "rgba(34,197,94,0.3)" : "var(--border)"}`,
-                          boxShadow: isActivStep ? `0 0 18px ${step.color}45` : "none",
-                          transform: isActivStep ? "scale(1.1)" : "scale(1)",
-                        }}>
-                        <Icon size={14} style={{ color: isDone ? isActivStep ? "white" : "#22c55e" : "var(--text-muted)" }} />
+                          background:  isDone
+                            ? isActiveStep ? step.color          : "rgba(34,197,94,0.1)"
+                            : "var(--elevated)",
+                          border: `2px solid ${
+                            isDone
+                              ? isActiveStep ? step.color        : "rgba(34,197,94,0.3)"
+                              : "var(--border)"
+                          }`,
+                          boxShadow: isActiveStep ? `0 0 18px ${step.color}45` : "none",
+                          transform:  isActiveStep ? "scale(1.1)"               : "scale(1)",
+                        }}
+                      >
+                        <Icon
+                          size={14}
+                          style={{
+                            color: isDone
+                              ? isActiveStep ? "white" : "#22c55e"
+                              : "var(--text-muted)",
+                          }}
+                        />
                       </div>
-                      {i < STATUS_STEPS.length - 1 && (
-                        <div className="w-0.5 h-8 mt-1 rounded-full transition-all duration-700"
-                          style={{ background: i < stepIdx ? "rgba(34,197,94,0.35)" : "var(--border)" }} />
+                      {i < timelineSteps.length - 1 && (
+                        <div
+                          className="w-0.5 h-8 mt-1 rounded-full transition-all duration-700"
+                          style={{ background: i < stepIdx ? "rgba(34,197,94,0.35)" : "var(--border)" }}
+                        />
                       )}
                     </div>
-                    <div className="pt-2 pb-4 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm" style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}>
+
+                    {/* Text column */}
+                    <div className="pt-2 pb-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p
+                          className="font-semibold text-sm"
+                          style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}
+                        >
                           {step.label}
                         </p>
-                        {isActivStep && (
-                          <span className="tag text-[10px] py-0.5 px-2" style={{ background: step.color + "20", color: step.color }}>
+                        {isActiveStep && (
+                          <span
+                            className="tag text-[10px] py-0.5 px-2 flex-shrink-0"
+                            style={{ background: step.color + "20", color: step.color }}
+                          >
                             Current
                           </span>
                         )}
                       </div>
-                      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{step.sub}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        {step.sub}
+                      </p>
                     </div>
                   </div>
                 );
@@ -267,13 +430,25 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Delivery agent */}
+        {/* ── Delivery agent ────────────────────────────────── */}
         {order.deliveryAgentId && (
-          <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Delivery Partner</h2>
+          <div
+            className="rounded-3xl p-5 mb-4"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+          >
+            <h2
+              className="font-bold text-xs uppercase tracking-widest mb-4"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Delivery Partner
+            </h2>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>🛵</div>
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}
+              >
+                🛵
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold" style={{ color: "var(--text-primary)" }}>
                   {order.deliveryAgentId?.name || "Delivery Partner"}
@@ -285,9 +460,11 @@ export default function UserTrack() {
                 </div>
               </div>
               {order.deliveryAgentId?.phone && (
-                <a href={`tel:${order.deliveryAgentId.phone}`}
+                <a
+                  href={`tel:${order.deliveryAgentId.phone}`}
                   className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-                  style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
+                  style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}
+                >
                   <Phone size={16} />
                 </a>
               )}
@@ -295,65 +472,134 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Store info */}
-        <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-          <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Store</h2>
+        {/* ── Store info ────────────────────────────────────── */}
+        <div
+          className="rounded-3xl p-5 mb-4"
+          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+        >
+          <h2
+            className="font-bold text-xs uppercase tracking-widest mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Store
+          </h2>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: "var(--elevated)" }}>🏪</div>
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: "var(--elevated)" }}
+            >
+              🏪
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold" style={{ color: "var(--text-primary)" }}>{order.storeId?.name}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{order.storeId?.address}</p>
+              <p className="font-bold" style={{ color: "var(--text-primary)" }}>
+                {order.storeId?.name}
+              </p>
+              <div
+                className="flex items-center gap-1.5 text-xs mt-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <span>{order.storeId?.category}</span>
+                {order.storeId?.address && (
+                  <>
+                    <span>·</span>
+                    <span className="truncate">{order.storeId.address}</span>
+                  </>
+                )}
+              </div>
             </div>
             {order.storeId?.phone && (
-              <a href={`tel:${order.storeId.phone}`}
+              <a
+                href={`tel:${order.storeId.phone}`}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-                style={{ background: "rgba(255,107,53,0.1)", color: "var(--brand)" }}>
+                style={{ background: "rgba(255,107,53,0.1)", color: "var(--brand)" }}
+              >
                 <Phone size={16} />
               </a>
             )}
           </div>
         </div>
 
-        {/* Order items */}
-        <div className="rounded-3xl overflow-hidden mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+        {/* ── Order items ───────────────────────────────────── */}
+        <div
+          className="rounded-3xl overflow-hidden mb-4"
+          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+        >
           <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+            <h2
+              className="font-bold text-xs uppercase tracking-widest"
+              style={{ color: "var(--text-muted)" }}
+            >
               Items ({order.items?.length || 0})
             </h2>
           </div>
           {(order.items || []).map((item, i) => (
-            <div key={i} className="flex items-center gap-3 px-5 py-3.5"
-              style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-              <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 img-fallback text-sm"
-                style={{ background: "var(--elevated)" }}>
-                {item.image ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" /> : <span>🛍️</span>}
+            <div
+              key={i}
+              className="flex items-center gap-3 px-5 py-3.5"
+              style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
+            >
+              <div
+                className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 img-fallback text-sm"
+                style={{ background: "var(--elevated)" }}
+              >
+                {item.image
+                  ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  : <span>🛍️</span>
+                }
               </div>
               <p className="flex-1 text-sm" style={{ color: "var(--text-secondary)" }}>{item.name}</p>
-              <span className="text-xs px-2 py-0.5 rounded-md mr-2" style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>×{item.quantity || 1}</span>
-              <p className="text-sm font-bold w-16 text-right" style={{ color: "var(--text-primary)" }}>₹{(item.price || 0) * (item.quantity || 1)}</p>
+              <span
+                className="text-xs px-2 py-0.5 rounded-md mr-2"
+                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
+              >
+                ×{item.quantity || 1}
+              </span>
+              <p
+                className="text-sm font-bold w-16 text-right"
+                style={{ color: "var(--text-primary)" }}
+              >
+                ₹{(item.price || 0) * (item.quantity || 1)}
+              </p>
             </div>
           ))}
-          <div className="px-5 py-4 flex justify-between font-bold"
-            style={{ borderTop: "1px solid var(--border)", background: "var(--elevated)" }}>
+          <div
+            className="px-5 py-4 flex justify-between font-bold"
+            style={{ borderTop: "1px solid var(--border)", background: "var(--elevated)" }}
+          >
             <span style={{ color: "var(--text-secondary)" }}>Total Paid</span>
             <span style={{ color: "var(--brand)", fontSize: "1.1rem" }}>₹{orderTotal.toFixed(0)}</span>
           </div>
         </div>
 
-        {/* Delivery address */}
-        <div className="rounded-3xl p-5 mb-4" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-          <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Delivery Address</h2>
+        {/* ── Delivery address ──────────────────────────────── */}
+        <div
+          className="rounded-3xl p-5 mb-4"
+          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+        >
+          <h2
+            className="font-bold text-xs uppercase tracking-widest mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Delivery Address
+          </h2>
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,107,53,0.1)" }}>
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(255,107,53,0.1)" }}
+            >
               <MapPin size={15} style={{ color: "var(--brand)" }} />
             </div>
             <div>
-              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{order.deliveryAddress}</p>
+              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                {order.deliveryAddress}
+              </p>
               {order.notes && (
-                <p className="text-xs mt-1.5 px-2 py-1 rounded-lg inline-block"
-                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>📝 {order.notes}</p>
+                <p
+                  className="text-xs mt-1.5 px-2 py-1 rounded-lg inline-block"
+                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
+                >
+                  📝 {order.notes}
+                </p>
               )}
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                 {order.paymentMethod === "cod" ? "💵 Cash on Delivery" : "💳 Online Payment"}
@@ -362,18 +608,28 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* CTA */}
+        {/* ── CTA ───────────────────────────────────────────── */}
         {isDelivered ? (
-          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">Order Again 🔄</Link>
+          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
+            Order Again 🔄
+          </Link>
         ) : isCancelled ? (
-          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">Browse Stores</Link>
+          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
+            Browse Stores
+          </Link>
         ) : (
-          <button onClick={() => fetchOrder(true)} disabled={refreshing}
-            className="btn btn-ghost w-full justify-center py-3.5 text-sm">
-            {refreshing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+          <button
+            onClick={() => fetchOrder(true)}
+            disabled={refreshing}
+            className="btn btn-ghost w-full justify-center py-3.5 text-sm"
+          >
+            {refreshing
+              ? <Loader2 size={15} className="animate-spin" />
+              : <RefreshCw size={15} />}
             Refresh Status
           </button>
         )}
+
       </div>
     </div>
   );
