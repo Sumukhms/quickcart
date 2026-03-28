@@ -72,6 +72,7 @@ export const orderAPI = {
   accept: (id) => api.post(`/orders/${id}/accept`),
   markDelivered: (id) => api.post(`/orders/${id}/delivered`),
   updateLocation: (id, lat, lng) => api.put(`/orders/${id}/location`, { lat, lng }),
+  cancel: (id) => api.post(`/orders/${id}/cancel`),
 };
 
 // ─── Coupons ───────────────────────────────────────────────────

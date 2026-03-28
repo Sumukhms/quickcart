@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ChevronLeft, MapPin, Phone, CheckCircle, Package,
   Truck, RefreshCw, Star, Zap, ShoppingBag,
-  XCircle, AlertCircle, Loader2, ShoppingCart,
+  XCircle, AlertCircle, Loader2, ShoppingCart, Ban,
 } from "lucide-react";
 import { orderAPI } from "../../api/api";
 import api from "../../api/api";
@@ -16,44 +16,41 @@ import {
   STATUS_VISUAL,
 } from "../../utils/orderFlows";
 
-// ─── Icon map — keyed by status ───────────────────────────────
-// We keep icons here in the component (lucide imports) and merge
-// them with the data-only timeline from the utility.
 const STATUS_ICONS = {
   pending:          ShoppingBag,
   confirmed:        CheckCircle,
-  preparing:        Package,       // food only
-  packing:          ShoppingCart,  // grocery only ← NEW
-  ready_for_pickup: Zap,           // food only
+  preparing:        Package,
+  packing:          ShoppingCart,
+  ready_for_pickup: Zap,
   out_for_delivery: Truck,
   delivered:        CheckCircle,
 };
 
+// Orders the customer can still cancel
+const CANCELLABLE = ["pending", "confirmed"];
+
 function PulsingDot({ color }) {
   return (
     <span className="relative inline-flex h-3 w-3 flex-shrink-0">
-      <span
-        className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
-        style={{ background: color }}
-      />
-      <span
-        className="relative inline-flex rounded-full h-3 w-3"
-        style={{ background: color }}
-      />
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+        style={{ background: color }} />
+      <span className="relative inline-flex rounded-full h-3 w-3"
+        style={{ background: color }} />
     </span>
   );
 }
 
 export default function UserTrack() {
-  const { id }          = useParams();
-  const navigate        = useNavigate();
+  const { id }               = useParams();
+  const navigate             = useNavigate();
   const { joinOrderRoom, on } = useSocket();
-  const { addToast }    = useCart();
+  const { addToast }         = useCart();
 
   const [order,            setOrder]            = useState(null);
   const [loading,          setLoading]          = useState(true);
   const [refreshing,       setRefreshing]       = useState(false);
   const [error,            setError]            = useState(null);
+  const [cancelling,       setCancelling]       = useState(false);   // ← NEW
   const [rating,           setRating]           = useState(0);
   const [hoverRating,      setHoverRating]      = useState(0);
   const [showRating,       setShowRating]       = useState(false);
@@ -91,7 +88,7 @@ export default function UserTrack() {
     return () => { if (typeof unsub === "function") unsub(); };
   }, [id, joinOrderRoom, on]);
 
-  // ── Polling fallback (every 20 s while active) ───────────────
+  // ── Polling fallback ─────────────────────────────────────────
   useEffect(() => {
     if (!order || ["delivered", "cancelled"].includes(order.status)) {
       clearInterval(intervalRef.current);
@@ -101,12 +98,39 @@ export default function UserTrack() {
     return () => clearInterval(intervalRef.current);
   }, [order?.status, fetchOrder]);
 
-  // ── Submit rating ────────────────────────────────────────────
+  // ── Feature 1: Cancel order ──────────────────────────────────
+  const handleCancel = useCallback(async () => {
+    if (!order) return;
+    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+    setCancelling(true);
+    try {
+      await orderAPI.cancel(order._id);
+      setOrder(prev => ({
+        ...prev,
+        status: "cancelled",
+        statusHistory: [
+          ...(prev.statusHistory || []),
+          { status: "cancelled", timestamp: new Date().toISOString() },
+        ],
+      }));
+      addToast("Order cancelled successfully", "info");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to cancel order", "error");
+    } finally {
+      setCancelling(false);
+    }
+  }, [order, addToast]);
+
+  // ── Feature 3: Submit rating (with orderId fix) ───────────────
   const handleSubmitRating = useCallback(async () => {
     if (!rating || !order?.storeId?._id) return;
     setSubmittingRating(true);
     try {
-      await api.post("/ratings/rate", { storeId: order.storeId._id, rating });
+      await api.post("/ratings/rate", {
+        storeId: order.storeId._id,
+        rating,
+        orderId: order._id,          // ← FIX: pass orderId to enforce one-rating-per-order
+      });
       setRatingSubmitted(true);
       setShowRating(false);
       addToast(`Thanks for rating ${order.storeId?.name}! ⭐`, "success");
@@ -117,7 +141,7 @@ export default function UserTrack() {
     }
   }, [rating, order, addToast]);
 
-  // ── Loading / error states ───────────────────────────────────
+  // ── Loading / error guards ───────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -158,19 +182,16 @@ export default function UserTrack() {
   const isCancelled   = order.status === "cancelled";
   const isDelivered   = order.status === "delivered";
   const isActive      = !isCancelled && !isDelivered;
+  const canCancel     = CANCELLABLE.includes(order.status);
   const orderTotal    = (order.totalPrice || 0) + (order.deliveryFee || 0);
 
-  // Build timeline: data from utility + icons from STATUS_ICONS map
   const timelineSteps = getTimelineSteps(storeCategory).map(step => ({
     ...step,
     icon:  STATUS_ICONS[step.key] || Package,
     color: STATUS_VISUAL[step.key]?.color || "var(--brand)",
   }));
 
-  // Index of current status in this order's specific flow
-  const stepIdx = getStatusIndex(order.status, storeCategory);
-
-  // Current step config for the live banner
+  const stepIdx         = getStatusIndex(order.status, storeCategory);
   const currentStepData = stepIdx >= 0 ? timelineSteps[stepIdx] : null;
 
   return (
@@ -183,14 +204,11 @@ export default function UserTrack() {
             <button
               onClick={() => navigate("/user/orders")}
               className="p-2.5 rounded-xl transition-all hover:scale-110"
-              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-            >
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
               <ChevronLeft size={18} />
             </button>
             <div>
-              <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
-                Track Order
-              </h1>
+              <h1 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>Track Order</h1>
               <p className="text-xs font-mono mt-0.5" style={{ color: "var(--text-muted)" }}>
                 #{(order._id || "").slice(-8).toUpperCase()}
               </p>
@@ -200,26 +218,18 @@ export default function UserTrack() {
             onClick={() => fetchOrder(true)}
             disabled={refreshing}
             className="p-2.5 rounded-xl transition-all hover:scale-110"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-          >
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
         {/* ── Live status banner ────────────────────────────── */}
         {isActive && currentStepData && (
-          <div
-            className="rounded-2xl p-4 mb-4 flex items-center gap-4"
-            style={{
-              background: "linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.04))",
-              border:     "1.5px solid rgba(255,107,53,0.22)",
-            }}
-          >
+          <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
+            style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.04))", border: "1.5px solid rgba(255,107,53,0.22)" }}>
             <PulsingDot color={currentStepData.color} />
             <div className="flex-1">
-              <p className="font-bold" style={{ color: "var(--text-primary)" }}>
-                {currentStepData.label}
-              </p>
+              <p className="font-bold" style={{ color: "var(--text-primary)" }}>{currentStepData.label}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                 {currentStepData.sub} · Est. {order.estimatedTime || "20–30 min"}
               </p>
@@ -231,12 +241,32 @@ export default function UserTrack() {
           </div>
         )}
 
+        {/* ── Feature 1: Cancel button ──────────────────────── */}
+        {canCancel && (
+          <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-4"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1.5px solid rgba(245,158,11,0.25)" }}>
+            <div>
+              <p className="font-semibold text-sm" style={{ color: "#f59e0b" }}>Want to cancel?</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                You can cancel while the order is still {order.status}
+              </p>
+            </div>
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl flex-shrink-0 transition-all hover:scale-105"
+              style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}>
+              {cancelling
+                ? <Loader2 size={13} className="animate-spin" />
+                : <><Ban size={13} /> Cancel Order</>}
+            </button>
+          </div>
+        )}
+
         {/* ── Delivered banner ──────────────────────────────── */}
         {isDelivered && (
-          <div
-            className="rounded-2xl p-4 mb-4 flex items-center gap-4"
-            style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}
-          >
+          <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
+            style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}>
             <div className="text-3xl">🎉</div>
             <div className="flex-1">
               <p className="font-bold" style={{ color: "#22c55e" }}>
@@ -247,19 +277,15 @@ export default function UserTrack() {
               </p>
             </div>
             {!showRating && !ratingSubmitted && (
-              <button
-                onClick={() => setShowRating(true)}
+              <button onClick={() => setShowRating(true)}
                 className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl flex-shrink-0"
-                style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}
-              >
+                style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
                 <Star size={12} /> Rate
               </button>
             )}
             {ratingSubmitted && (
-              <span
-                className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-xl flex-shrink-0"
-                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}
-              >
+              <span className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-xl flex-shrink-0"
+                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
                 ⭐ Rated
               </span>
             )}
@@ -268,26 +294,22 @@ export default function UserTrack() {
 
         {/* ── Cancelled banner ──────────────────────────────── */}
         {isCancelled && (
-          <div
-            className="rounded-2xl p-4 mb-4 flex items-center gap-3"
-            style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}
-          >
+          <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}>
             <XCircle size={20} style={{ color: "#ef4444" }} />
             <div>
               <p className="font-bold" style={{ color: "#ef4444" }}>Order Cancelled</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                Refund processed in 3–5 business days
+                Refund processed in 3–5 business days (if applicable)
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Rating panel ──────────────────────────────────── */}
+        {/* ── Feature 3: Rating panel ────────────────────────── */}
         {showRating && !ratingSubmitted && (
-          <div
-            className="rounded-3xl p-5 mb-4"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-          >
+          <div className="rounded-3xl p-5 mb-4"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
               How was your order from {order.storeId?.name}?
             </p>
@@ -296,13 +318,11 @@ export default function UserTrack() {
             </p>
             <div className="flex justify-center gap-3 mb-3">
               {[1, 2, 3, 4, 5].map(s => (
-                <button
-                  key={s}
+                <button key={s}
                   onClick={() => setRating(s)}
                   onMouseEnter={() => setHoverRating(s)}
                   onMouseLeave={() => setHoverRating(0)}
-                  className="text-3xl transition-transform hover:scale-125"
-                >
+                  className="text-3xl transition-transform hover:scale-125">
                   {s <= (hoverRating || rating) ? "⭐" : "☆"}
                 </button>
               ))}
@@ -313,17 +333,14 @@ export default function UserTrack() {
               </p>
             )}
             <div className="flex gap-2">
-              <button
-                onClick={() => { setShowRating(false); setRating(0); }}
-                className="btn btn-ghost flex-1 justify-center text-sm py-2.5"
-              >
+              <button onClick={() => { setShowRating(false); setRating(0); }}
+                className="btn btn-ghost flex-1 justify-center text-sm py-2.5">
                 Skip
               </button>
               <button
                 onClick={handleSubmitRating}
                 disabled={!rating || submittingRating}
-                className="btn btn-brand flex-1 justify-center text-sm py-2.5"
-              >
+                className="btn btn-brand flex-1 justify-center text-sm py-2.5">
                 {submittingRating
                   ? <><Loader2 size={14} className="animate-spin" /> Submitting...</>
                   : "Submit Rating"}
@@ -333,95 +350,58 @@ export default function UserTrack() {
         )}
 
         {/* ── Progress timeline ─────────────────────────────── */}
-        {/* Renders 6 steps for food, 5 steps for grocery */}
         {!isCancelled && (
-          <div
-            className="rounded-3xl p-5 mb-4"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
-          >
+          <div className="rounded-3xl p-5 mb-4"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
             <div className="flex items-center justify-between mb-5">
-              <h2
-                className="font-bold text-xs uppercase tracking-widest"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Order Progress
               </h2>
-              {/* Flow type badge */}
-              <span
-                className="text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
+              <span className="text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
                 style={{
-                  background: storeCategory === "Food"
-                    ? "rgba(249,115,22,0.1)" : "rgba(6,182,212,0.1)",
-                  color: storeCategory === "Food" ? "#f97316" : "#06b6d4",
-                }}
-              >
+                  background: storeCategory === "Food" ? "rgba(249,115,22,0.1)" : "rgba(6,182,212,0.1)",
+                  color:      storeCategory === "Food" ? "#f97316"               : "#06b6d4",
+                }}>
                 {storeCategory === "Food" ? "🍛 Food flow" : "📦 Grocery flow"}
               </span>
             </div>
 
             <div className="space-y-1">
               {timelineSteps.map((step, i) => {
-                const isDone      = i <= stepIdx;
+                const isDone       = i <= stepIdx;
                 const isActiveStep = i === stepIdx;
-                const Icon        = step.icon;
-
+                const Icon         = step.icon;
                 return (
                   <div key={step.key} className="flex items-start gap-4">
-                    {/* Icon column */}
                     <div className="flex flex-col items-center" style={{ width: 36, flexShrink: 0 }}>
-                      <div
-                        className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
+                      <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
                         style={{
-                          background:  isDone
-                            ? isActiveStep ? step.color          : "rgba(34,197,94,0.1)"
-                            : "var(--elevated)",
-                          border: `2px solid ${
-                            isDone
-                              ? isActiveStep ? step.color        : "rgba(34,197,94,0.3)"
-                              : "var(--border)"
-                          }`,
+                          background:  isDone ? (isActiveStep ? step.color : "rgba(34,197,94,0.1)") : "var(--elevated)",
+                          border: `2px solid ${isDone ? (isActiveStep ? step.color : "rgba(34,197,94,0.3)") : "var(--border)"}`,
                           boxShadow: isActiveStep ? `0 0 18px ${step.color}45` : "none",
-                          transform:  isActiveStep ? "scale(1.1)"               : "scale(1)",
-                        }}
-                      >
-                        <Icon
-                          size={14}
-                          style={{
-                            color: isDone
-                              ? isActiveStep ? "white" : "#22c55e"
-                              : "var(--text-muted)",
-                          }}
-                        />
+                          transform:  isActiveStep ? "scale(1.1)" : "scale(1)",
+                        }}>
+                        <Icon size={14} style={{ color: isDone ? (isActiveStep ? "white" : "#22c55e") : "var(--text-muted)" }} />
                       </div>
                       {i < timelineSteps.length - 1 && (
-                        <div
-                          className="w-0.5 h-8 mt-1 rounded-full transition-all duration-700"
-                          style={{ background: i < stepIdx ? "rgba(34,197,94,0.35)" : "var(--border)" }}
-                        />
+                        <div className="w-0.5 h-8 mt-1 rounded-full transition-all duration-700"
+                          style={{ background: i < stepIdx ? "rgba(34,197,94,0.35)" : "var(--border)" }} />
                       )}
                     </div>
-
-                    {/* Text column */}
                     <div className="pt-2 pb-4 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p
-                          className="font-semibold text-sm"
-                          style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}
-                        >
+                        <p className="font-semibold text-sm"
+                          style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}>
                           {step.label}
                         </p>
                         {isActiveStep && (
-                          <span
-                            className="tag text-[10px] py-0.5 px-2 flex-shrink-0"
-                            style={{ background: step.color + "20", color: step.color }}
-                          >
+                          <span className="tag text-[10px] py-0.5 px-2 flex-shrink-0"
+                            style={{ background: step.color + "20", color: step.color }}>
                             Current
                           </span>
                         )}
                       </div>
-                      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                        {step.sub}
-                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{step.sub}</p>
                     </div>
                   </div>
                 );
@@ -432,23 +412,14 @@ export default function UserTrack() {
 
         {/* ── Delivery agent ────────────────────────────────── */}
         {order.deliveryAgentId && (
-          <div
-            className="rounded-3xl p-5 mb-4"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
-          >
-            <h2
-              className="font-bold text-xs uppercase tracking-widest mb-4"
-              style={{ color: "var(--text-muted)" }}
-            >
+          <div className="rounded-3xl p-5 mb-4"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
               Delivery Partner
             </h2>
             <div className="flex items-center gap-4">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}
-              >
-                🛵
-              </div>
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>🛵</div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold" style={{ color: "var(--text-primary)" }}>
                   {order.deliveryAgentId?.name || "Delivery Partner"}
@@ -460,11 +431,9 @@ export default function UserTrack() {
                 </div>
               </div>
               {order.deliveryAgentId?.phone && (
-                <a
-                  href={`tel:${order.deliveryAgentId.phone}`}
+                <a href={`tel:${order.deliveryAgentId.phone}`}
                   className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-                  style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}
-                >
+                  style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
                   <Phone size={16} />
                 </a>
               )}
@@ -473,46 +442,23 @@ export default function UserTrack() {
         )}
 
         {/* ── Store info ────────────────────────────────────── */}
-        <div
-          className="rounded-3xl p-5 mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
-        >
-          <h2
-            className="font-bold text-xs uppercase tracking-widest mb-4"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Store
-          </h2>
+        <div className="rounded-3xl p-5 mb-4"
+          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Store</h2>
           <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: "var(--elevated)" }}
-            >
-              🏪
-            </div>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: "var(--elevated)" }}>🏪</div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold" style={{ color: "var(--text-primary)" }}>
-                {order.storeId?.name}
-              </p>
-              <div
-                className="flex items-center gap-1.5 text-xs mt-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <p className="font-bold" style={{ color: "var(--text-primary)" }}>{order.storeId?.name}</p>
+              <div className="flex items-center gap-1.5 text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                 <span>{order.storeId?.category}</span>
-                {order.storeId?.address && (
-                  <>
-                    <span>·</span>
-                    <span className="truncate">{order.storeId.address}</span>
-                  </>
-                )}
+                {order.storeId?.address && <><span>·</span><span className="truncate">{order.storeId.address}</span></>}
               </div>
             </div>
             {order.storeId?.phone && (
-              <a
-                href={`tel:${order.storeId.phone}`}
+              <a href={`tel:${order.storeId.phone}`}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:scale-110"
-                style={{ background: "rgba(255,107,53,0.1)", color: "var(--brand)" }}
-              >
+                style={{ background: "rgba(255,107,53,0.1)", color: "var(--brand)" }}>
                 <Phone size={16} />
               </a>
             )}
@@ -520,84 +466,53 @@ export default function UserTrack() {
         </div>
 
         {/* ── Order items ───────────────────────────────────── */}
-        <div
-          className="rounded-3xl overflow-hidden mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
-        >
+        <div className="rounded-3xl overflow-hidden mb-4"
+          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <h2
-              className="font-bold text-xs uppercase tracking-widest"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
               Items ({order.items?.length || 0})
             </h2>
           </div>
           {(order.items || []).map((item, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 px-5 py-3.5"
-              style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
-            >
-              <div
-                className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 img-fallback text-sm"
-                style={{ background: "var(--elevated)" }}
-              >
-                {item.image
-                  ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                  : <span>🛍️</span>
-                }
+            <div key={i} className="flex items-center gap-3 px-5 py-3.5"
+              style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+              <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 img-fallback text-sm"
+                style={{ background: "var(--elevated)" }}>
+                {item.image ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" /> : <span>🛍️</span>}
               </div>
               <p className="flex-1 text-sm" style={{ color: "var(--text-secondary)" }}>{item.name}</p>
-              <span
-                className="text-xs px-2 py-0.5 rounded-md mr-2"
-                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
-              >
+              <span className="text-xs px-2 py-0.5 rounded-md mr-2"
+                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
                 ×{item.quantity || 1}
               </span>
-              <p
-                className="text-sm font-bold w-16 text-right"
-                style={{ color: "var(--text-primary)" }}
-              >
+              <p className="text-sm font-bold w-16 text-right" style={{ color: "var(--text-primary)" }}>
                 ₹{(item.price || 0) * (item.quantity || 1)}
               </p>
             </div>
           ))}
-          <div
-            className="px-5 py-4 flex justify-between font-bold"
-            style={{ borderTop: "1px solid var(--border)", background: "var(--elevated)" }}
-          >
+          <div className="px-5 py-4 flex justify-between font-bold"
+            style={{ borderTop: "1px solid var(--border)", background: "var(--elevated)" }}>
             <span style={{ color: "var(--text-secondary)" }}>Total Paid</span>
             <span style={{ color: "var(--brand)", fontSize: "1.1rem" }}>₹{orderTotal.toFixed(0)}</span>
           </div>
         </div>
 
         {/* ── Delivery address ──────────────────────────────── */}
-        <div
-          className="rounded-3xl p-5 mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
-        >
-          <h2
-            className="font-bold text-xs uppercase tracking-widest mb-4"
-            style={{ color: "var(--text-muted)" }}
-          >
+        <div className="rounded-3xl p-5 mb-4"
+          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
             Delivery Address
           </h2>
           <div className="flex items-start gap-3">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,107,53,0.1)" }}
-            >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(255,107,53,0.1)" }}>
               <MapPin size={15} style={{ color: "var(--brand)" }} />
             </div>
             <div>
-              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {order.deliveryAddress}
-              </p>
+              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{order.deliveryAddress}</p>
               {order.notes && (
-                <p
-                  className="text-xs mt-1.5 px-2 py-1 rounded-lg inline-block"
-                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
-                >
+                <p className="text-xs mt-1.5 px-2 py-1 rounded-lg inline-block"
+                  style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
                   📝 {order.notes}
                 </p>
               )}
@@ -608,7 +523,7 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* ── CTA ───────────────────────────────────────────── */}
+        {/* ── Bottom CTA ─────────────────────────────────────── */}
         {isDelivered ? (
           <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
             Order Again 🔄
@@ -618,14 +533,9 @@ export default function UserTrack() {
             Browse Stores
           </Link>
         ) : (
-          <button
-            onClick={() => fetchOrder(true)}
-            disabled={refreshing}
-            className="btn btn-ghost w-full justify-center py-3.5 text-sm"
-          >
-            {refreshing
-              ? <Loader2 size={15} className="animate-spin" />
-              : <RefreshCw size={15} />}
+          <button onClick={() => fetchOrder(true)} disabled={refreshing}
+            className="btn btn-ghost w-full justify-center py-3.5 text-sm">
+            {refreshing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
             Refresh Status
           </button>
         )}

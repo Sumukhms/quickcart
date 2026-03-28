@@ -291,3 +291,44 @@ export const updateDeliveryLocation = async (req, res) => {
     res.json({ success: true });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
+
+// ─── Add this export to the bottom of orderController.js ─────
+
+export const cancelOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Only the customer who placed the order can cancel
+    if (order.userId.toString() !== req.user.userId) {
+      return res.status(403).json({ message: "Not your order" });
+    }
+
+    const cancellable = ["pending", "confirmed"];
+    if (!cancellable.includes(order.status)) {
+      return res.status(400).json({
+        message: `Cannot cancel — order is already "${order.status}". Only pending or confirmed orders can be cancelled.`,
+      });
+    }
+
+    order.status = "cancelled";
+    order.statusHistory.push({
+      status:    "cancelled",
+      timestamp: new Date(),
+      updatedBy: req.user.userId,
+    });
+    await order.save();
+
+    // Notify customer + store in real time
+    req.io?.to(`order_${order._id}`).emit("order_status_update", {
+      status: "cancelled", orderId: order._id,
+    });
+    req.io?.to(`store_${order.storeId}`).emit("order_updated", {
+      orderId: order._id, status: "cancelled",
+    });
+
+    res.json(order);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
