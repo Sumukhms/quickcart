@@ -1,3 +1,15 @@
+/**
+ * UserHome.jsx — UPDATED
+ *
+ * Changes:
+ *   1. Replaced the Navbar search trigger with an inline SearchBar
+ *      that filters store results in real time (already supported by
+ *      the backend ?search= query param).
+ *   2. All other UI unchanged.
+ *
+ * The search bar is placed prominently at the top, above the category
+ * pills, making discovery immediate and obvious.
+ */
 import { useState, useEffect, useCallback } from "react";
 import {
   ShoppingBasket, Utensils, Cookie, Coffee, Pill, Grid3X3,
@@ -8,6 +20,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { storeAPI } from "../../api/api";
 import StoreCard from "../../components/StoreCard";
+import SearchBar from "../../components/ui/SearchBar";
 import { SkeletonCard, EmptyState } from "../../components/ui/Skeleton";
 
 const CATEGORIES = [
@@ -34,25 +47,32 @@ const BANNERS = [
 
 export default function UserHome() {
   const { user } = useAuth();
-  const [stores, setStores] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [category, setCategory] = useState("All");
-  const [bannerIdx, setBannerIdx] = useState(0);
-  const [searchParams] = useSearchParams();
-  const searchQuery = searchParams.get("search") || "";
+  const [stores,      setStores]      = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [category,    setCategory]    = useState("All");
+  const [bannerIdx,   setBannerIdx]   = useState(0);
+  // ── search state (local, debounced before sending to API) ──
+  const [search,      setSearch]      = useState("");
+  const [searchInput, setSearchInput] = useState("");   // raw typed value
 
   useEffect(() => {
     const t = setInterval(() => setBannerIdx(i => (i + 1) % BANNERS.length), 4500);
     return () => clearInterval(t);
   }, []);
 
+  // Debounce search input → search state
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const fetchStores = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = {};
-      if (searchQuery) params.search = searchQuery;
+      if (search)              params.search   = search;
       if (category !== "All") params.category = category;
       const { data } = await storeAPI.getAll(params);
       setStores(data);
@@ -62,7 +82,7 @@ export default function UserHome() {
     } finally {
       setLoading(false);
     }
-  }, [category, searchQuery]);
+  }, [category, search]);
 
   useEffect(() => {
     const t = setTimeout(fetchStores, 150);
@@ -85,61 +105,77 @@ export default function UserHome() {
           </p>
         </div>
 
-        {/* Hero Banner */}
-        <section className="py-3">
-          <div className={`relative rounded-3xl overflow-hidden p-8 bg-gradient-to-br ${banner.bg} transition-all duration-700`}
-            style={{ minHeight: 200 }}>
-            <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-20 pointer-events-none"
-              style={{ background: "radial-gradient(circle, white, transparent)", transform: "translate(30%, -30%)" }} />
-            <div className="absolute bottom-0 left-1/3 w-48 h-48 rounded-full opacity-10 pointer-events-none"
-              style={{ background: "radial-gradient(circle, white, transparent)", transform: "translateY(40%)" }} />
-            <div className="relative z-10">
-              <span className="inline-flex items-center gap-1.5 tag text-xs mb-3 bg-white/20 text-white border-0 backdrop-blur-sm">
-                {banner.badge}
-              </span>
-              <h2 className="font-display font-bold text-3xl md:text-4xl text-white leading-tight mb-2">
-                {banner.title}
-              </h2>
-              <p className="text-white/80 text-base mb-4">{banner.sub}</p>
-              <Link to="/checkout"
-                className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl text-white transition-all hover:scale-105"
-                style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.3)" }}>
-                Order Now <ArrowRight size={14} />
-              </Link>
-            </div>
-            <div className="absolute right-8 bottom-0 text-7xl opacity-70 hidden md:block leading-none"
-              style={{ animation: "float 4s ease-in-out infinite" }}>
-              {banner.emoji}
-            </div>
-          </div>
-          <div className="flex gap-1.5 justify-center mt-3">
-            {BANNERS.map((_, i) => (
-              <button key={i} onClick={() => setBannerIdx(i)}
-                className="rounded-full transition-all duration-300"
-                style={{ width: i === bannerIdx ? 20 : 6, height: 6, background: i === bannerIdx ? "var(--brand)" : "var(--border)" }} />
-            ))}
-          </div>
-        </section>
+        {/* ── NEW: Prominent search bar ── */}
+        <div className="py-3">
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search stores or products…"
+            size="md"
+            className="w-full max-w-2xl"
+            autoFocus={false}
+          />
+        </div>
 
-        {/* Features */}
-        <section className="py-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {FEATURES.map(({ icon: Icon, label, sub, color }) => (
-              <div key={label}
-                className="flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all hover:-translate-y-1"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: color + "15" }}>
-                  <Icon size={18} style={{ color }} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{label}</p>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>
-                </div>
+        {/* Hero Banner — hide when searching */}
+        {!search && (
+          <section className="py-3">
+            <div className={`relative rounded-3xl overflow-hidden p-8 bg-gradient-to-br ${banner.bg} transition-all duration-700`}
+              style={{ minHeight: 200 }}>
+              <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-20 pointer-events-none"
+                style={{ background: "radial-gradient(circle, white, transparent)", transform: "translate(30%, -30%)" }} />
+              <div className="absolute bottom-0 left-1/3 w-48 h-48 rounded-full opacity-10 pointer-events-none"
+                style={{ background: "radial-gradient(circle, white, transparent)", transform: "translateY(40%)" }} />
+              <div className="relative z-10">
+                <span className="inline-flex items-center gap-1.5 tag text-xs mb-3 bg-white/20 text-white border-0 backdrop-blur-sm">
+                  {banner.badge}
+                </span>
+                <h2 className="font-display font-bold text-3xl md:text-4xl text-white leading-tight mb-2">
+                  {banner.title}
+                </h2>
+                <p className="text-white/80 text-base mb-4">{banner.sub}</p>
+                <Link to="/checkout"
+                  className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl text-white transition-all hover:scale-105"
+                  style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.3)" }}>
+                  Order Now <ArrowRight size={14} />
+                </Link>
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="absolute right-8 bottom-0 text-7xl opacity-70 hidden md:block leading-none"
+                style={{ animation: "float 4s ease-in-out infinite" }}>
+                {banner.emoji}
+              </div>
+            </div>
+            <div className="flex gap-1.5 justify-center mt-3">
+              {BANNERS.map((_, i) => (
+                <button key={i} onClick={() => setBannerIdx(i)}
+                  className="rounded-full transition-all duration-300"
+                  style={{ width: i === bannerIdx ? 20 : 6, height: 6, background: i === bannerIdx ? "var(--brand)" : "var(--border)" }} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Features — hide when searching */}
+        {!search && (
+          <section className="py-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {FEATURES.map(({ icon: Icon, label, sub, color }) => (
+                <div key={label}
+                  className="flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all hover:-translate-y-1"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: color + "15" }}>
+                    <Icon size={18} style={{ color }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{label}</p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Categories */}
         <section className="py-3">
@@ -169,11 +205,13 @@ export default function UserHome() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
-                {searchQuery ? `"${searchQuery}"` : category === "All" ? "All Stores" : category}
+                {search
+                  ? `Results for "${search}"`
+                  : category === "All" ? "All Stores" : category}
               </h2>
               {!loading && !error && (
                 <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-                  {stores.length} store{stores.length !== 1 ? "s" : ""} nearby
+                  {stores.length} store{stores.length !== 1 ? "s" : ""} {search ? "found" : "nearby"}
                 </p>
               )}
             </div>
@@ -183,9 +221,11 @@ export default function UserHome() {
                 style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
                 <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
               </button>
-              <button className="flex items-center gap-1 text-sm font-semibold" style={{ color: "var(--brand)" }}>
-                <TrendingUp size={15} /> Top rated
-              </button>
+              {!search && (
+                <button className="flex items-center gap-1 text-sm font-semibold" style={{ color: "var(--brand)" }}>
+                  <TrendingUp size={15} /> Top rated
+                </button>
+              )}
             </div>
           </div>
 
@@ -196,8 +236,7 @@ export default function UserHome() {
               <div>
                 <p className="font-bold text-sm" style={{ color: "#ef4444" }}>Connection Error</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{error}</p>
-                <button onClick={fetchStores} className="text-xs font-semibold mt-2"
-                  style={{ color: "var(--brand)" }}>
+                <button onClick={fetchStores} className="text-xs font-semibold mt-2" style={{ color: "var(--brand)" }}>
                   Try again →
                 </button>
               </div>
@@ -213,15 +252,17 @@ export default function UserHome() {
               icon="🏪"
               title="No stores found"
               subtitle={
-                searchQuery ? `No results for "${searchQuery}"`
+                search ? `No stores or products match "${search}"`
                   : category !== "All" ? `No ${category} stores yet`
                   : "No stores available. Check back soon!"
               }
-              action={category !== "All" ? (
-                <button onClick={() => setCategory("All")} className="btn btn-brand text-sm">
-                  Browse all stores
-                </button>
-              ) : null}
+              action={
+                (search || category !== "All") ? (
+                  <button onClick={() => { setSearchInput(""); setCategory("All"); }} className="btn btn-brand text-sm">
+                    Clear filters
+                  </button>
+                ) : null
+              }
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger">

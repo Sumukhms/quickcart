@@ -1,5 +1,13 @@
-import { Link } from "react-router-dom";
+/**
+ * StoreCard — UPDATED
+ *
+ * Changes:
+ *   1. Added FavoriteButton (❤️) in the top-right of the banner
+ *   2. All other UI unchanged
+ */
+import { Link }         from "react-router-dom";
 import { Clock, ChevronRight, Zap } from "lucide-react";
+import FavoriteButton   from "./ui/FavoriteButton";
 
 const categoryEmojis = {
   Groceries: "🛒", Food: "🍛", Snacks: "🍕", Beverages: "🧃", Medicines: "💊", Other: "🏪"
@@ -45,6 +53,11 @@ export default function StoreCard({ store, linkPrefix = "/user/store" }) {
 
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+
+          {/* ── NEW: Favorite button ── */}
+          <div className="absolute bottom-3 right-3" onClick={(e) => e.preventDefault()}>
+            <FavoriteButton storeId={store._id} size={15} />
+          </div>
         </div>
 
         <div className="p-4">

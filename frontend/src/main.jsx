@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
-import { ThemeProvider } from './context/ThemeContext.jsx'
-import { AuthProvider } from './context/AuthContext.jsx'
-import { CartProvider } from './context/CartContext.jsx'
-import { SocketProvider } from './context/SocketContext.jsx'
+import { ThemeProvider }    from './context/ThemeContext.jsx'
+import { AuthProvider }     from './context/AuthContext.jsx'
+import { CartProvider }     from './context/CartContext.jsx'
+import { SocketProvider }   from './context/SocketContext.jsx'
+// ── NEW ─────────────────────────────────────────────────────────
+import { FavoriteProvider } from './context/FavoriteContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -14,9 +16,11 @@ createRoot(document.getElementById('root')).render(
       <ThemeProvider>
         <AuthProvider>
           <CartProvider>
-            <SocketProvider>
-              <App />
-            </SocketProvider>
+            <FavoriteProvider>
+              <SocketProvider>
+                <App />
+              </SocketProvider>
+            </FavoriteProvider>
           </CartProvider>
         </AuthProvider>
       </ThemeProvider>

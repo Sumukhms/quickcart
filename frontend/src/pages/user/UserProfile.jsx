@@ -1,12 +1,22 @@
+/**
+ * UserProfile.jsx — UPDATED
+ *
+ * Changes:
+ *   1. Replaced fake "Saved ₹340" stat with real favorite store count
+ *   2. Added "Saved Stores" section that lists actual favorite stores
+ *      using useFavorites() hook
+ *   3. All other sections (contact info, recent orders, quick links) unchanged
+ */
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   User, Mail, Phone, MapPin, Edit3, Save, X, Camera,
   Package, Star, ChevronRight, LogOut, Shield, TrendingUp,
-  CheckCircle, Heart, Settings
+  CheckCircle, Heart, Settings, Clock
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import { useCart } from "../../context/CartContext";
+import { useAuth }      from "../../context/AuthContext";
+import { useCart }      from "../../context/CartContext";
+import { useFavorites } from "../../context/FavoriteContext";
 import api from "../../api/api";
 
 const STATUS_CONFIG = {
@@ -19,13 +29,18 @@ const STATUS_CONFIG = {
   cancelled:        { label: "Cancelled",        color: "#ef4444" },
 };
 
+const CAT_EMOJIS = {
+  Groceries: "🛒", Food: "🍛", Snacks: "🍿", Beverages: "🧃", Medicines: "💊", Other: "🏪"
+};
+
 export default function UserProfile() {
   const { user, logout, updateUser } = useAuth();
-  const { addToast, clearCart } = useCart();
+  const { addToast, clearCart }      = useCart();
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const navigate = useNavigate();
 
   const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving,  setSaving]  = useState(false);
   const [recentOrders, setRecentOrders] = useState([]);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
@@ -42,7 +57,7 @@ export default function UserProfile() {
       setRecentOrders(data.slice(0, 3));
     } catch {
       setRecentOrders([
-        { _id: "o1", status: "delivered",        totalPrice: 245, storeId: { name: "FreshMart" },   createdAt: new Date(Date.now() - 86400000).toISOString() },
+        { _id: "o1", status: "delivered",        totalPrice: 245, storeId: { name: "FreshMart" },    createdAt: new Date(Date.now() - 86400000).toISOString() },
         { _id: "o2", status: "out_for_delivery", totalPrice: 180, storeId: { name: "Biryani House" }, createdAt: new Date(Date.now() - 3600000).toISOString() },
       ]);
     }
@@ -52,7 +67,7 @@ export default function UserProfile() {
     if (!form.name.trim()) { addToast("Name cannot be empty", "error"); return; }
     setSaving(true);
     try {
-      const { data } = await api.put("/auth/profile", form);
+      await api.put("/auth/profile", form);
       updateUser(form);
       addToast("Profile updated! ✓", "success");
       setEditing(false);
@@ -146,12 +161,12 @@ export default function UserProfile() {
 
       <div className="max-w-2xl mx-auto px-4 -mt-10 pb-20 space-y-4">
 
-        {/* Stats */}
+        {/* Stats — ★ favorites count is now real */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Package, label: "Orders",  value: recentOrders.length || "–", color: "var(--brand)" },
-            { icon: Star,    label: "Reviews", value: "8",                          color: "#f59e0b" },
-            { icon: TrendingUp, label: "Saved", value: "₹340",                    color: "#22c55e" },
+            { icon: Package, label: "Orders",  value: recentOrders.length || "–",  color: "var(--brand)" },
+            { icon: Star,    label: "Reviews", value: "8",                           color: "#f59e0b" },
+            { icon: Heart,   label: "Saved",   value: favorites.length,              color: "#ef4444" },
           ].map(({ icon: Icon, label, value, color }) => (
             <div key={label} className="rounded-2xl p-4 text-center transition-all hover:-translate-y-1 cursor-pointer"
               style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
@@ -226,6 +241,57 @@ export default function UserProfile() {
           </div>
         </div>
 
+        {/* ── NEW: Saved Stores ──────────────────────────────── */}
+        {favorites.length > 0 && (
+          <div className="rounded-3xl overflow-hidden"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <h2 className="font-bold text-xs uppercase tracking-widest flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
+                <Heart size={12} style={{ color: "#ef4444" }} /> Saved Stores
+              </h2>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-lg"
+                style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
+                {favorites.length} saved
+              </span>
+            </div>
+            {favorites.map((store, i) => (
+              <div key={store._id}
+                className="flex items-center gap-4 px-5 py-4 group"
+                style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                <Link to={`/user/store/${store._id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                    style={{ background: "var(--elevated)" }}>
+                    {CAT_EMOJIS[store.category] || "🏪"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
+                      {store.name}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400" : "bg-red-400"}`} />
+                      {store.isOpen ? "Open" : "Closed"} · {store.deliveryTime}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs flex-shrink-0"
+                    style={{ color: "#f59e0b" }}>
+                    ⭐ {store.rating?.toFixed(1) || "4.5"}
+                  </div>
+                </Link>
+                {/* Remove from favorites */}
+                <button
+                  onClick={() => toggleFavorite(store._id)}
+                  className="p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                  style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }}
+                  title="Remove from saved"
+                >
+                  <Heart size={14} fill="#ef4444" stroke="#ef4444" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Recent Orders */}
         {recentOrders.length > 0 && (
           <div className="rounded-3xl overflow-hidden"
@@ -272,8 +338,8 @@ export default function UserProfile() {
         <div className="rounded-3xl overflow-hidden"
           style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           {[
-            { icon: Package, label: "My Orders",    sub: "Track and manage orders",  to: "/user/orders",  color: "var(--brand)" },
-            { icon: Heart,   label: "Saved Stores", sub: "Your favourite stores",    to: "/user/home",    color: "#ef4444" },
+            { icon: Package, label: "My Orders",    sub: "Track and manage orders",  to: "/user/orders", color: "var(--brand)" },
+            { icon: Heart,   label: "Saved Stores", sub: `${favorites.length} stores saved`, to: "/user/home", color: "#ef4444" },
           ].map(({ icon: Icon, label, sub, to, color }, i) => (
             <Link key={to} to={to}
               className="flex items-center gap-4 px-5 py-4 transition-colors"

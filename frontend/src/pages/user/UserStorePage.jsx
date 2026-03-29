@@ -2,20 +2,21 @@
  * UserStorePage — UPDATED
  *
  * Changes:
- *   1. Replaced inline search input with <SearchBar> component
- *   2. Search + category filter now clearly co-located
- *   3. ProductCard already handles stock from the updated component
- *
- * Everything else (store hero, sticky strip, grouping) is unchanged.
+ *   1. FavoriteButton (badge variant) in store hero
+ *   2. Veg/Non-Veg filter toggle — shown only for food stores
+ *   3. SearchBar already existed — verified it's wired correctly
+ *   4. All other UI unchanged
  */
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link }                  from "react-router-dom";
 import {
   ArrowLeft, Star, Clock, MapPin, Phone, AlertCircle, RefreshCw,
+  Leaf, Flame,
 } from "lucide-react";
 import { storeAPI, productAPI }       from "../../api/api";
 import ProductCard                    from "../../components/store/ProductCard";
 import SearchBar                      from "../../components/ui/SearchBar";
+import FavoriteButton                 from "../../components/ui/FavoriteButton";
 import { PageLoader, EmptyState }     from "../../components/ui/Skeleton";
 
 const CAT_GRADIENT = {
@@ -31,6 +32,13 @@ const CAT_EMOJI = {
   Beverages: "🧃", Medicines: "💊", Other: "🏪",
 };
 
+// Veg filter options
+const VEG_OPTIONS = [
+  { id: "all",     label: "All",     icon: null },
+  { id: "veg",     label: "Veg",     icon: Leaf,  color: "#22c55e" },
+  { id: "nonveg",  label: "Non-Veg", icon: Flame, color: "#ef4444" },
+];
+
 export default function UserStorePage() {
   const { id } = useParams();
   const [store,          setStore]          = useState(null);
@@ -39,6 +47,8 @@ export default function UserStorePage() {
   const [error,          setError]          = useState(null);
   const [search,         setSearch]         = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  // ── NEW: veg filter ──
+  const [vegFilter,      setVegFilter]      = useState("all"); // "all" | "veg" | "nonveg"
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -85,7 +95,14 @@ export default function UserStorePage() {
   const filtered = products.filter((p) => {
     const matchCat    = activeCategory === "All" || p.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+    // ── NEW: veg/non-veg filter (only relevant for food stores) ──
+    const matchVeg =
+      !isFood || vegFilter === "all"
+        ? true
+        : vegFilter === "veg"
+        ? p.isVeg === true
+        : p.isVeg === false;
+    return matchCat && matchSearch && matchVeg;
   });
 
   const grouped = filtered.reduce((acc, p) => {
@@ -140,6 +157,10 @@ export default function UserStorePage() {
                   <MapPin size={13} /> {store.address}
                 </span>
               </div>
+              {/* ── NEW: Favorite button in hero ── */}
+              <div className="mt-3">
+                <FavoriteButton storeId={store._id} variant="badge" />
+              </div>
             </div>
           </div>
         </div>
@@ -192,13 +213,62 @@ export default function UserStorePage() {
       {/* Products section */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-20">
 
-        {/* ── NEW: SearchBar component replaces inline input ── */}
-        <SearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder={isFood ? `Search ${store.name}'s menu…` : "Search products…"}
-          className="max-w-md mb-6"
-        />
+        {/* Search + Veg filter row */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder={isFood ? `Search ${store.name}'s menu…` : "Search products…"}
+            className="flex-1 min-w-[200px] max-w-md"
+          />
+
+          {/* ── NEW: Veg / Non-veg toggle (food stores only) ── */}
+          {isFood && (
+            <div className="flex items-center gap-1 p-1 rounded-xl flex-shrink-0"
+              style={{ background: "var(--elevated)", border: "1px solid var(--border)" }}>
+              {VEG_OPTIONS.map(({ id, label, icon: Icon, color }) => {
+                const active = vegFilter === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setVegFilter(id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    style={{
+                      background: active
+                        ? id === "veg"
+                          ? "rgba(34,197,94,0.15)"
+                          : id === "nonveg"
+                          ? "rgba(239,68,68,0.12)"
+                          : "var(--card)"
+                        : "transparent",
+                      color: active
+                        ? id === "veg"
+                          ? "#22c55e"
+                          : id === "nonveg"
+                          ? "#ef4444"
+                          : "var(--text-primary)"
+                        : "var(--text-muted)",
+                      border: active
+                        ? `1px solid ${
+                            id === "veg"
+                              ? "rgba(34,197,94,0.3)"
+                              : id === "nonveg"
+                              ? "rgba(239,68,68,0.25)"
+                              : "var(--border)"
+                          }`
+                        : "1px solid transparent",
+                    }}
+                  >
+                    {Icon && <Icon size={11} />}
+                    {id === "veg" && "🟢 "}
+                    {id === "nonveg" && "🔴 "}
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {!store.isOpen && (
           <div className="flex items-center gap-2 p-4 rounded-2xl mb-5 text-sm"
@@ -218,9 +288,13 @@ export default function UserStorePage() {
           <EmptyState
             icon="🔍"
             title="No items found"
-            subtitle="Try a different search or category"
+            subtitle={
+              vegFilter !== "all"
+                ? `No ${vegFilter === "veg" ? "vegetarian" : "non-vegetarian"} items match your search`
+                : "Try a different search or category"
+            }
             action={
-              <button onClick={() => { setSearch(""); setActiveCategory("All"); }} className="btn btn-brand text-sm">
+              <button onClick={() => { setSearch(""); setActiveCategory("All"); setVegFilter("all"); }} className="btn btn-brand text-sm">
                 Clear filters
               </button>
             }
@@ -228,12 +302,11 @@ export default function UserStorePage() {
         ) : (
           Object.entries(grouped).map(([cat, prods]) => (
             <div key={cat} className="mb-10">
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <h3 className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>{cat}</h3>
                 <span className="tag text-xs" style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
                   {prods.length}
                 </span>
-                {/* Count available vs out-of-stock */}
                 {prods.some((p) => !p.available || p.stock === 0) && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                     style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444" }}>

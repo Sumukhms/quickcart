@@ -2,12 +2,8 @@
  * User model — UPDATED
  *
  * Changes:
- *   1. Added `addresses` array (up to 5 saved address strings)
- *   2. Kept `address` field for backward-compat (used as default)
- *
- * The `addresses` array stores strings. The first element is treated
- * as the default address. The legacy `address` field is still read
- * during login/profile responses for existing users.
+ *   1. Added `favoriteStores` array (ObjectId refs to Store)
+ *   2. Kept all existing fields unchanged
  */
 import mongoose from "mongoose";
 
@@ -33,6 +29,9 @@ const userSchema = new mongoose.Schema(
         message: "Maximum 5 addresses allowed",
       },
     },
+    // ── NEW: favorite stores ───────────────────────────────
+    favoriteStores: [{ type: mongoose.Schema.Types.ObjectId, ref: "Store" }],
+
     avatar: { type: String, default: "" },
 
     // Delivery partner specific

@@ -2,9 +2,8 @@
  * api.js — UPDATED
  *
  * Changes:
- *   1. authAPI gets three new address methods:
- *      addAddress, removeAddress, setDefaultAddress
- *   2. Everything else unchanged.
+ *   1. authAPI gets three new address methods
+ *   2. NEW: favoriteAPI — toggle and get favorites
  */
 import axios from "axios";
 
@@ -39,7 +38,6 @@ export const authAPI = {
   getProfile:        ()        => api.get("/auth/profile"),
   updateProfile:     (data)    => api.put("/auth/profile", data),
   toggleAvailability: ()       => api.patch("/auth/availability"),
-  // ── NEW: address management ──
   addAddress:        (address) => api.post("/auth/addresses", { address }),
   removeAddress:     (index)   => api.delete(`/auth/addresses/${index}`),
   setDefaultAddress: (index)   => api.patch(`/auth/addresses/${index}/default`),
@@ -96,4 +94,10 @@ export const couponAPI = {
 export const ratingAPI = {
   submit: (storeId, rating, orderId) =>
     api.post("/ratings/rate", { storeId, rating, orderId }),
+};
+
+// ─── Favorites ────────────────────────────────────────────────
+export const favoriteAPI = {
+  toggle:  (storeId) => api.post("/favorites/toggle", { storeId }),
+  getAll:  ()        => api.get("/favorites"),
 };
