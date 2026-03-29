@@ -1,9 +1,22 @@
+/**
+ * UserStorePage — UPDATED
+ *
+ * Changes:
+ *   1. Replaced inline search input with <SearchBar> component
+ *   2. Search + category filter now clearly co-located
+ *   3. ProductCard already handles stock from the updated component
+ *
+ * Everything else (store hero, sticky strip, grouping) is unchanged.
+ */
 import { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Star, Clock, MapPin, Phone, Search, AlertCircle, RefreshCw } from "lucide-react";
-import { storeAPI, productAPI } from "../../api/api";
-import ProductCard from "../../components/store/ProductCard";
-import { SkeletonProductCard, PageLoader, EmptyState } from "../../components/ui/Skeleton";
+import { useParams, Link }                  from "react-router-dom";
+import {
+  ArrowLeft, Star, Clock, MapPin, Phone, AlertCircle, RefreshCw,
+} from "lucide-react";
+import { storeAPI, productAPI }       from "../../api/api";
+import ProductCard                    from "../../components/store/ProductCard";
+import SearchBar                      from "../../components/ui/SearchBar";
+import { PageLoader, EmptyState }     from "../../components/ui/Skeleton";
 
 const CAT_GRADIENT = {
   Groceries: "from-emerald-600 to-teal-700",
@@ -20,11 +33,11 @@ const CAT_EMOJI = {
 
 export default function UserStorePage() {
   const { id } = useParams();
-  const [store, setStore] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
+  const [store,          setStore]          = useState(null);
+  const [products,       setProducts]       = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState(null);
+  const [search,         setSearch]         = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
   const fetchData = useCallback(async () => {
@@ -56,9 +69,7 @@ export default function UserStorePage() {
           <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>Store not found</h2>
           <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>{error}</p>
           <div className="flex gap-3 justify-center">
-            <button onClick={fetchData} className="btn btn-brand text-sm">
-              <RefreshCw size={14} /> Retry
-            </button>
+            <button onClick={fetchData} className="btn btn-brand text-sm"><RefreshCw size={14} /> Retry</button>
             <Link to="/user/home" className="btn btn-ghost text-sm">← Back</Link>
           </div>
         </div>
@@ -68,11 +79,11 @@ export default function UserStorePage() {
 
   if (!store) return null;
 
-  const isFood = store.category === "Food";
-  const categories = ["All", ...new Set(products.map(p => p.category))];
+  const isFood     = store.category === "Food";
+  const categories = ["All", ...new Set(products.map((p) => p.category))];
 
-  const filtered = products.filter(p => {
-    const matchCat = activeCategory === "All" || p.category === activeCategory;
+  const filtered = products.filter((p) => {
+    const matchCat    = activeCategory === "All" || p.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
@@ -89,6 +100,7 @@ export default function UserStorePage() {
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
+
       {/* Store Hero */}
       <div className={`relative bg-gradient-to-br ${grad} pt-4 pb-16`}>
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
@@ -100,7 +112,8 @@ export default function UserStorePage() {
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0 shadow-2xl"
               style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)" }}>
               {store.image
-                ? <img src={store.image} alt={store.name} className="w-full h-full object-cover rounded-2xl" onError={e => { e.target.style.display="none"; e.target.parentNode.textContent = emoji; }} />
+                ? <img src={store.image} alt={store.name} className="w-full h-full object-cover rounded-2xl"
+                    onError={(e) => { e.target.style.display = "none"; e.target.parentNode.textContent = emoji; }} />
                 : emoji}
             </div>
             <div className="flex-1 min-w-0">
@@ -132,7 +145,7 @@ export default function UserStorePage() {
         </div>
       </div>
 
-      {/* Sticky strip */}
+      {/* Sticky meta + category strip */}
       <div className="sticky top-16 z-30 shadow-md"
         style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
@@ -156,14 +169,16 @@ export default function UserStorePage() {
               </a>
             )}
           </div>
+
+          {/* Category filter tabs */}
           {categories.length > 1 && (
             <div className="flex gap-2 pb-3 overflow-x-auto scrollbar-hide">
-              {categories.map(cat => (
+              {categories.map((cat) => (
                 <button key={cat} onClick={() => setActiveCategory(cat)}
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold flex-shrink-0 transition-all"
                   style={{
                     background: activeCategory === cat ? "var(--brand)" : "var(--elevated)",
-                    color: activeCategory === cat ? "white" : "var(--text-secondary)",
+                    color:      activeCategory === cat ? "white"         : "var(--text-secondary)",
                     border: `1px solid ${activeCategory === cat ? "var(--brand)" : "var(--border)"}`,
                   }}>
                   {cat}
@@ -174,14 +189,16 @@ export default function UserStorePage() {
         </div>
       </div>
 
-      {/* Products */}
+      {/* Products section */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-20">
-        <div className="relative max-w-md mb-6">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-          <input className="input-theme pl-10 py-2.5 text-sm"
-            placeholder={isFood ? `Search ${store.name}'s menu…` : `Search products…`}
-            value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
+
+        {/* ── NEW: SearchBar component replaces inline input ── */}
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder={isFood ? `Search ${store.name}'s menu…` : "Search products…"}
+          className="max-w-md mb-6"
+        />
 
         {!store.isOpen && (
           <div className="flex items-center gap-2 p-4 rounded-2xl mb-5 text-sm"
@@ -203,8 +220,9 @@ export default function UserStorePage() {
             title="No items found"
             subtitle="Try a different search or category"
             action={
-              <button onClick={() => { setSearch(""); setActiveCategory("All"); }}
-                className="btn btn-brand text-sm">Clear filters</button>
+              <button onClick={() => { setSearch(""); setActiveCategory("All"); }} className="btn btn-brand text-sm">
+                Clear filters
+              </button>
             }
           />
         ) : (
@@ -215,6 +233,13 @@ export default function UserStorePage() {
                 <span className="tag text-xs" style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
                   {prods.length}
                 </span>
+                {/* Count available vs out-of-stock */}
+                {prods.some((p) => !p.available || p.stock === 0) && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444" }}>
+                    {prods.filter((p) => !p.available || p.stock === 0).length} unavailable
+                  </span>
+                )}
                 {isFood && (
                   <div className="flex items-center gap-2 ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
                     <span>🟢 Veg</span><span>🔴 Non-veg</span>
@@ -222,7 +247,7 @@ export default function UserStorePage() {
                 )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 stagger">
-                {prods.map(p => (
+                {prods.map((p) => (
                   <ProductCard key={p._id} product={p} store={store} isFood={isFood} />
                 ))}
               </div>

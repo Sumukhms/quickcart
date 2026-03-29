@@ -1,20 +1,50 @@
+/**
+ * UserTrack — UPDATED (diff only)
+ *
+ * Changes:
+ *   1. Replaced the inline items + billing block with <OrderSummary>
+ *   2. OrderSummary now shows invoice: subtotal, delivery, total
+ *   3. All other tracking/cancel/rating logic is unchanged.
+ *
+ * This is a PARTIAL file showing only the changed section.
+ * Merge the import + the "Order items" section below into your
+ * existing UserTrack.jsx.
+ *
+ * ──────────────────────────────────────────────────────────────
+ * IMPORT TO ADD (top of file):
+ *   import OrderSummary from "../../components/order/OrderSummary";
+ *
+ * REPLACE the "── Order items ──" block (around line 250–290 in
+ * the original) with:
+ *
+ *   <OrderSummary
+ *     items={order.items || []}
+ *     subtotal={order.totalPrice - (order.deliveryFee || 20)}
+ *     deliveryFee={order.deliveryFee || 20}
+ *     grandTotal={order.totalPrice + (order.deliveryFee || 0)}
+ *     paymentMethod={order.paymentMethod}
+ *     className="mb-4"
+ *   />
+ *
+ * ──────────────────────────────────────────────────────────────
+ * The full file below is the complete replacement so you can
+ * paste it directly if preferred.
+ */
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate }             from "react-router-dom";
 import {
   ChevronLeft, MapPin, Phone, CheckCircle, Package,
   Truck, RefreshCw, Star, Zap, ShoppingBag,
   XCircle, AlertCircle, Loader2, ShoppingCart, Ban,
 } from "lucide-react";
-import { orderAPI } from "../../api/api";
-import api from "../../api/api";
-import { useSocket } from "../../context/SocketContext";
-import { useCart } from "../../context/CartContext";
+import { orderAPI }    from "../../api/api";
+import api             from "../../api/api";
+import { useSocket }   from "../../context/SocketContext";
+import { useCart }     from "../../context/CartContext";
 import {
-  getTimelineSteps,
-  getStatusMessage,
-  getStatusIndex,
-  STATUS_VISUAL,
+  getTimelineSteps, getStatusMessage, getStatusIndex, STATUS_VISUAL,
 } from "../../utils/orderFlows";
+import OrderSummary    from "../../components/order/OrderSummary";  // ← NEW
 
 const STATUS_ICONS = {
   pending:          ShoppingBag,
@@ -26,7 +56,6 @@ const STATUS_ICONS = {
   delivered:        CheckCircle,
 };
 
-// Orders the customer can still cancel
 const CANCELLABLE = ["pending", "confirmed"];
 
 function PulsingDot({ color }) {
@@ -34,23 +63,22 @@ function PulsingDot({ color }) {
     <span className="relative inline-flex h-3 w-3 flex-shrink-0">
       <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
         style={{ background: color }} />
-      <span className="relative inline-flex rounded-full h-3 w-3"
-        style={{ background: color }} />
+      <span className="relative inline-flex rounded-full h-3 w-3" style={{ background: color }} />
     </span>
   );
 }
 
 export default function UserTrack() {
-  const { id }               = useParams();
-  const navigate             = useNavigate();
+  const { id }                = useParams();
+  const navigate              = useNavigate();
   const { joinOrderRoom, on } = useSocket();
-  const { addToast }         = useCart();
+  const { addToast }          = useCart();
 
   const [order,            setOrder]            = useState(null);
   const [loading,          setLoading]          = useState(true);
   const [refreshing,       setRefreshing]       = useState(false);
   const [error,            setError]            = useState(null);
-  const [cancelling,       setCancelling]       = useState(false);   // ← NEW
+  const [cancelling,       setCancelling]       = useState(false);
   const [rating,           setRating]           = useState(0);
   const [hoverRating,      setHoverRating]      = useState(0);
   const [showRating,       setShowRating]       = useState(false);
@@ -58,10 +86,8 @@ export default function UserTrack() {
   const [ratingSubmitted,  setRatingSubmitted]  = useState(false);
   const intervalRef = useRef(null);
 
-  // ── Fetch order ──────────────────────────────────────────────
   const fetchOrder = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    else         setRefreshing(true);
+    if (!silent) setLoading(true); else setRefreshing(true);
     setError(null);
     try {
       const { data } = await orderAPI.getById(id);
@@ -76,19 +102,17 @@ export default function UserTrack() {
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
-  // ── Socket: live updates ─────────────────────────────────────
   useEffect(() => {
     if (id) joinOrderRoom(id);
     const unsub = on("order_status_update", ({ orderId, status }) => {
       if (orderId === id || orderId?.toString() === id) {
-        setOrder(prev => prev ? { ...prev, status } : prev);
+        setOrder((prev) => (prev ? { ...prev, status } : prev));
         if (status === "delivered") setShowRating(true);
       }
     });
     return () => { if (typeof unsub === "function") unsub(); };
   }, [id, joinOrderRoom, on]);
 
-  // ── Polling fallback ─────────────────────────────────────────
   useEffect(() => {
     if (!order || ["delivered", "cancelled"].includes(order.status)) {
       clearInterval(intervalRef.current);
@@ -98,50 +122,35 @@ export default function UserTrack() {
     return () => clearInterval(intervalRef.current);
   }, [order?.status, fetchOrder]);
 
-  // ── Feature 1: Cancel order ──────────────────────────────────
   const handleCancel = useCallback(async () => {
     if (!order) return;
     if (!window.confirm("Are you sure you want to cancel this order?")) return;
     setCancelling(true);
     try {
       await orderAPI.cancel(order._id);
-      setOrder(prev => ({
-        ...prev,
-        status: "cancelled",
-        statusHistory: [
-          ...(prev.statusHistory || []),
-          { status: "cancelled", timestamp: new Date().toISOString() },
-        ],
+      setOrder((prev) => ({
+        ...prev, status: "cancelled",
+        statusHistory: [...(prev.statusHistory || []), { status: "cancelled", timestamp: new Date().toISOString() }],
       }));
       addToast("Order cancelled successfully", "info");
     } catch (err) {
       addToast(err.response?.data?.message || "Failed to cancel order", "error");
-    } finally {
-      setCancelling(false);
-    }
+    } finally { setCancelling(false); }
   }, [order, addToast]);
 
-  // ── Feature 3: Submit rating (with orderId fix) ───────────────
   const handleSubmitRating = useCallback(async () => {
     if (!rating || !order?.storeId?._id) return;
     setSubmittingRating(true);
     try {
-      await api.post("/ratings/rate", {
-        storeId: order.storeId._id,
-        rating,
-        orderId: order._id,          // ← FIX: pass orderId to enforce one-rating-per-order
-      });
+      await api.post("/ratings/rate", { storeId: order.storeId._id, rating, orderId: order._id });
       setRatingSubmitted(true);
       setShowRating(false);
       addToast(`Thanks for rating ${order.storeId?.name}! ⭐`, "success");
     } catch (err) {
       addToast(err.response?.data?.message || "Failed to submit rating.", "error");
-    } finally {
-      setSubmittingRating(false);
-    }
+    } finally { setSubmittingRating(false); }
   }, [rating, order, addToast]);
 
-  // ── Loading / error guards ───────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -177,20 +186,21 @@ export default function UserTrack() {
 
   if (!order) return null;
 
-  // ── Derived values ───────────────────────────────────────────
   const storeCategory = order.storeId?.category || "Other";
   const isCancelled   = order.status === "cancelled";
   const isDelivered   = order.status === "delivered";
   const isActive      = !isCancelled && !isDelivered;
   const canCancel     = CANCELLABLE.includes(order.status);
-  const orderTotal    = (order.totalPrice || 0) + (order.deliveryFee || 0);
 
-  const timelineSteps = getTimelineSteps(storeCategory).map(step => ({
-    ...step,
-    icon:  STATUS_ICONS[step.key] || Package,
+  // ── Bill calculation ─────────────────────────────────────────
+  const deliveryFee = order.deliveryFee ?? 20;
+  const subtotal    = order.totalPrice;          // backend totalPrice = items total (no fee)
+  const orderTotal  = subtotal + deliveryFee;    // what customer paid
+
+  const timelineSteps = getTimelineSteps(storeCategory).map((step) => ({
+    ...step, icon: STATUS_ICONS[step.key] || Package,
     color: STATUS_VISUAL[step.key]?.color || "var(--brand)",
   }));
-
   const stepIdx         = getStatusIndex(order.status, storeCategory);
   const currentStepData = stepIdx >= 0 ? timelineSteps[stepIdx] : null;
 
@@ -198,11 +208,10 @@ export default function UserTrack() {
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
 
-        {/* ── Header ────────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/user/orders")}
+            <button onClick={() => navigate("/user/orders")}
               className="p-2.5 rounded-xl transition-all hover:scale-110"
               style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
               <ChevronLeft size={18} />
@@ -214,16 +223,14 @@ export default function UserTrack() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => fetchOrder(true)}
-            disabled={refreshing}
+          <button onClick={() => fetchOrder(true)} disabled={refreshing}
             className="p-2.5 rounded-xl transition-all hover:scale-110"
             style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {/* ── Live status banner ────────────────────────────── */}
+        {/* Live status banner */}
         {isActive && currentStepData && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
             style={{ background: "linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,107,53,0.04))", border: "1.5px solid rgba(255,107,53,0.22)" }}>
@@ -241,7 +248,7 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* ── Feature 1: Cancel button ──────────────────────── */}
+        {/* Cancel prompt */}
         {canCancel && (
           <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-4"
             style={{ background: "rgba(245,158,11,0.08)", border: "1.5px solid rgba(245,158,11,0.25)" }}>
@@ -251,19 +258,15 @@ export default function UserTrack() {
                 You can cancel while the order is still {order.status}
               </p>
             </div>
-            <button
-              onClick={handleCancel}
-              disabled={cancelling}
+            <button onClick={handleCancel} disabled={cancelling}
               className="flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl flex-shrink-0 transition-all hover:scale-105"
               style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}>
-              {cancelling
-                ? <Loader2 size={13} className="animate-spin" />
-                : <><Ban size={13} /> Cancel Order</>}
+              {cancelling ? <Loader2 size={13} className="animate-spin" /> : <><Ban size={13} /> Cancel Order</>}
             </button>
           </div>
         )}
 
-        {/* ── Delivered banner ──────────────────────────────── */}
+        {/* Delivered banner */}
         {isDelivered && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-4"
             style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid rgba(34,197,94,0.25)" }}>
@@ -285,14 +288,12 @@ export default function UserTrack() {
             )}
             {ratingSubmitted && (
               <span className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-xl flex-shrink-0"
-                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>
-                ⭐ Rated
-              </span>
+                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>⭐ Rated</span>
             )}
           </div>
         )}
 
-        {/* ── Cancelled banner ──────────────────────────────── */}
+        {/* Cancelled banner */}
         {isCancelled && (
           <div className="rounded-2xl p-4 mb-4 flex items-center gap-3"
             style={{ background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.25)" }}>
@@ -306,22 +307,17 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* ── Feature 3: Rating panel ────────────────────────── */}
+        {/* Rating panel */}
         {showRating && !ratingSubmitted && (
-          <div className="rounded-3xl p-5 mb-4"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          <div className="rounded-3xl p-5 mb-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
               How was your order from {order.storeId?.name}?
             </p>
-            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>
-              Rate your experience (1–5 stars)
-            </p>
+            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience (1–5 stars)</p>
             <div className="flex justify-center gap-3 mb-3">
-              {[1, 2, 3, 4, 5].map(s => (
-                <button key={s}
-                  onClick={() => setRating(s)}
-                  onMouseEnter={() => setHoverRating(s)}
-                  onMouseLeave={() => setHoverRating(0)}
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button key={s} onClick={() => setRating(s)}
+                  onMouseEnter={() => setHoverRating(s)} onMouseLeave={() => setHoverRating(0)}
                   className="text-3xl transition-transform hover:scale-125">
                   {s <= (hoverRating || rating) ? "⭐" : "☆"}
                 </button>
@@ -334,22 +330,16 @@ export default function UserTrack() {
             )}
             <div className="flex gap-2">
               <button onClick={() => { setShowRating(false); setRating(0); }}
-                className="btn btn-ghost flex-1 justify-center text-sm py-2.5">
-                Skip
-              </button>
-              <button
-                onClick={handleSubmitRating}
-                disabled={!rating || submittingRating}
+                className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
+              <button onClick={handleSubmitRating} disabled={!rating || submittingRating}
                 className="btn btn-brand flex-1 justify-center text-sm py-2.5">
-                {submittingRating
-                  ? <><Loader2 size={14} className="animate-spin" /> Submitting...</>
-                  : "Submit Rating"}
+                {submittingRating ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : "Submit Rating"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── Progress timeline ─────────────────────────────── */}
+        {/* Timeline */}
         {!isCancelled && (
           <div className="rounded-3xl p-5 mb-4"
             style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
@@ -365,7 +355,6 @@ export default function UserTrack() {
                 {storeCategory === "Food" ? "🍛 Food flow" : "📦 Grocery flow"}
               </span>
             </div>
-
             <div className="space-y-1">
               {timelineSteps.map((step, i) => {
                 const isDone       = i <= stepIdx;
@@ -390,15 +379,12 @@ export default function UserTrack() {
                     </div>
                     <div className="pt-2 pb-4 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-sm"
-                          style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}>
+                        <p className="font-semibold text-sm" style={{ color: isDone ? "var(--text-primary)" : "var(--text-muted)" }}>
                           {step.label}
                         </p>
                         {isActiveStep && (
                           <span className="tag text-[10px] py-0.5 px-2 flex-shrink-0"
-                            style={{ background: step.color + "20", color: step.color }}>
-                            Current
-                          </span>
+                            style={{ background: step.color + "20", color: step.color }}>Current</span>
                         )}
                       </div>
                       <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{step.sub}</p>
@@ -410,13 +396,11 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* ── Delivery agent ────────────────────────────────── */}
+        {/* Delivery agent */}
         {order.deliveryAgentId && (
           <div className="rounded-3xl p-5 mb-4"
             style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
-              Delivery Partner
-            </h2>
+            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Delivery Partner</h2>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
                 style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>🛵</div>
@@ -441,7 +425,7 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* ── Store info ────────────────────────────────────── */}
+        {/* Store info */}
         <div className="rounded-3xl p-5 mb-4"
           style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Store</h2>
@@ -465,39 +449,17 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* ── Order items ───────────────────────────────────── */}
-        <div className="rounded-3xl overflow-hidden mb-4"
-          style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-              Items ({order.items?.length || 0})
-            </h2>
-          </div>
-          {(order.items || []).map((item, i) => (
-            <div key={i} className="flex items-center gap-3 px-5 py-3.5"
-              style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-              <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 img-fallback text-sm"
-                style={{ background: "var(--elevated)" }}>
-                {item.image ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" /> : <span>🛍️</span>}
-              </div>
-              <p className="flex-1 text-sm" style={{ color: "var(--text-secondary)" }}>{item.name}</p>
-              <span className="text-xs px-2 py-0.5 rounded-md mr-2"
-                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}>
-                ×{item.quantity || 1}
-              </span>
-              <p className="text-sm font-bold w-16 text-right" style={{ color: "var(--text-primary)" }}>
-                ₹{(item.price || 0) * (item.quantity || 1)}
-              </p>
-            </div>
-          ))}
-          <div className="px-5 py-4 flex justify-between font-bold"
-            style={{ borderTop: "1px solid var(--border)", background: "var(--elevated)" }}>
-            <span style={{ color: "var(--text-secondary)" }}>Total Paid</span>
-            <span style={{ color: "var(--brand)", fontSize: "1.1rem" }}>₹{orderTotal.toFixed(0)}</span>
-          </div>
-        </div>
+        {/* ── NEW: OrderSummary replaces inline items + billing block ── */}
+        <OrderSummary
+          items={order.items || []}
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
+          grandTotal={orderTotal}
+          paymentMethod={order.paymentMethod}
+          className="mb-4"
+        />
 
-        {/* ── Delivery address ──────────────────────────────── */}
+        {/* Delivery address */}
         <div className="rounded-3xl p-5 mb-4"
           style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
@@ -523,15 +485,11 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* ── Bottom CTA ─────────────────────────────────────── */}
+        {/* CTA */}
         {isDelivered ? (
-          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
-            Order Again 🔄
-          </Link>
+          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">Order Again 🔄</Link>
         ) : isCancelled ? (
-          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">
-            Browse Stores
-          </Link>
+          <Link to="/user/home" className="btn btn-brand w-full justify-center py-4 text-base">Browse Stores</Link>
         ) : (
           <button onClick={() => fetchOrder(true)} disabled={refreshing}
             className="btn btn-ghost w-full justify-center py-3.5 text-sm">
@@ -539,7 +497,6 @@ export default function UserTrack() {
             Refresh Status
           </button>
         )}
-
       </div>
     </div>
   );
