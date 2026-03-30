@@ -1,15 +1,3 @@
-/**
- * SearchBar — reusable search input component
- *
- * Props:
- *   value        {string}   controlled value
- *   onChange     {fn}       called with new string value
- *   placeholder  {string}   input placeholder text
- *   className    {string}   extra CSS classes for wrapper
- *   onClear      {fn}       optional — called when X is clicked
- *   autoFocus    {bool}     auto-focus on mount
- *   size         {string}   "sm" | "md" (default "md")
- */
 import { Search, X } from "lucide-react";
 import { useRef } from "react";
 
@@ -30,23 +18,27 @@ export default function SearchBar({
     inputRef.current?.focus();
   };
 
-  const padding = size === "sm" ? "py-2 pl-9 pr-8 text-xs" : "py-2.5 pl-10 pr-9 text-sm";
+  // Use explicit left padding large enough to clear the icon (icon is at left-3.5 = 14px, icon width ~15px, so pl-10 = 40px is safe)
+  const padding = size === "sm"
+    ? "py-2 pl-10 pr-8 text-xs"
+    : "py-2.5 pl-11 pr-9 text-sm";
   const iconSize = size === "sm" ? 13 : 15;
 
   return (
     <div className={`relative ${className}`}>
       <Search
         size={iconSize}
-        className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+        className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10"
         style={{ color: "var(--text-muted)" }}
       />
       <input
         ref={inputRef}
         type="text"
         className={`input-theme ${padding} w-full`}
+        style={{ paddingLeft: size === "sm" ? "2.25rem" : "2.5rem" }}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         autoFocus={autoFocus}
       />
       {value && (

@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext";
  *   <ProtectedRoute role="customer">          → customer only
  *   <ProtectedRoute role="store">             → store owner only
  *   <ProtectedRoute role="delivery">          → delivery partner only
+ *   <ProtectedRoute role="admin">             → admin only
  */
 export default function ProtectedRoute({ children, role }) {
   const { isLoggedIn, user, homeRoute } = useAuth();
@@ -38,4 +39,8 @@ export function StoreRoute({ children }) {
 
 export function DeliveryRoute({ children }) {
   return <ProtectedRoute role="delivery">{children}</ProtectedRoute>;
+}
+
+export function AdminRoute({ children }) {
+  return <ProtectedRoute role="admin">{children}</ProtectedRoute>;
 }

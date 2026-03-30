@@ -7,12 +7,12 @@ import ToastContainer from "./components/Toast.jsx";
 import { LoginPage, RegisterPage } from "./pages/AuthPages.jsx";
 
 // Route guards
-import { CustomerRoute, StoreRoute, DeliveryRoute } from "./routes/ProtectedRoute.jsx";
+import ProtectedRoute, { CustomerRoute, StoreRoute, DeliveryRoute } from "./routes/ProtectedRoute.jsx";
 
-//── Admin pages ────────────────────────────────────────────
+// Admin pages
 import AdminPanel from "./pages/admin/AdminPanel.jsx";
 
-// ── Customer pages ────────────────────────────────────────────
+// Customer pages
 import UserHome       from "./pages/user/UserHome.jsx";
 import UserStorePage  from "./pages/user/UserStorePage.jsx";
 import UserCart       from "./pages/user/UserCart.jsx";
@@ -21,13 +21,13 @@ import UserTrack      from "./pages/user/UserTrack.jsx";
 import UserProfile    from "./pages/user/UserProfile.jsx";
 import CheckoutPage   from "./pages/user/Checkoutpage.jsx";
 
-// ── Store Owner pages ─────────────────────────────────────────
+// Store Owner pages
 import StoreDashboard from "./pages/store/StoreDashboard.jsx";
 import StoreProducts  from "./pages/store/StoreProducts.jsx";
 import StoreOrders    from "./pages/store/StoreOrders.jsx";
 import StoreSettings  from "./pages/store/StoreSettings.jsx";
 
-// ── Delivery Partner pages ────────────────────────────────────
+// Delivery Partner pages
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard.jsx";
 import DeliveryActive    from "./pages/delivery/DeliveryActive.jsx";
 import DeliveryHistory   from "./pages/delivery/DeliveryHistory.jsx";
@@ -35,6 +35,14 @@ import DeliveryHistory   from "./pages/delivery/DeliveryHistory.jsx";
 function RootRedirect() {
   const { isLoggedIn, homeRoute } = useAuth();
   return <Navigate to={isLoggedIn ? homeRoute : "/login"} replace />;
+}
+
+// Admin-only route guard
+function AdminRoute({ children }) {
+  const { isLoggedIn, user } = useAuth();
+  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (user?.role !== "admin") return <Navigate to="/" replace />;
+  return children;
 }
 
 export default function App() {
@@ -50,7 +58,7 @@ export default function App() {
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* ── CUSTOMER ROUTES ──────────────────────────── */}
+        {/* CUSTOMER ROUTES */}
         <Route path="/user/home"          element={<CustomerRoute><UserHome /></CustomerRoute>} />
         <Route path="/user/store/:id"     element={<CustomerRoute><UserStorePage /></CustomerRoute>} />
         <Route path="/user/cart"          element={<CustomerRoute><UserCart /></CustomerRoute>} />
@@ -59,20 +67,20 @@ export default function App() {
         <Route path="/user/profile"       element={<CustomerRoute><UserProfile /></CustomerRoute>} />
         <Route path="/checkout"           element={<CustomerRoute><CheckoutPage /></CustomerRoute>} />
 
-        {/* ── STORE OWNER ROUTES ───────────────────────── */}
+        {/* STORE OWNER ROUTES */}
         <Route path="/store/dashboard" element={<StoreRoute><StoreDashboard /></StoreRoute>} />
         <Route path="/store/products"  element={<StoreRoute><StoreProducts /></StoreRoute>} />
         <Route path="/store/orders"    element={<StoreRoute><StoreOrders /></StoreRoute>} />
         <Route path="/store/settings"  element={<StoreRoute><StoreSettings /></StoreRoute>} />
 
-        {/* ── DELIVERY PARTNER ROUTES ──────────────────── */}
+        {/* DELIVERY PARTNER ROUTES */}
         <Route path="/delivery/dashboard" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
         <Route path="/delivery/active"    element={<DeliveryRoute><DeliveryActive /></DeliveryRoute>} />
         <Route path="/delivery/history"   element={<DeliveryRoute><DeliveryHistory /></DeliveryRoute>} />
 
-        // Add admin route:
-        <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
-        
+        {/* ADMIN ROUTES */}
+        <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+
         {/* Catch-all */}
         <Route path="*" element={<RootRedirect />} />
       </Routes>

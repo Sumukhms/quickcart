@@ -1,12 +1,3 @@
-/**
- * UserProfile.jsx — UPDATED
- *
- * Changes:
- *   1. Replaced fake "Saved ₹340" stat with real favorite store count
- *   2. Added "Saved Stores" section that lists actual favorite stores
- *      using useFavorites() hook
- *   3. All other sections (contact info, recent orders, quick links) unchanged
- */
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -22,12 +13,7 @@ import {
   Star,
   ChevronRight,
   LogOut,
-  Shield,
-  TrendingUp,
-  CheckCircle,
   Heart,
-  Settings,
-  Clock,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -35,42 +21,34 @@ import { useFavorites } from "../../context/FavoriteContext";
 import api from "../../api/api";
 
 const STATUS_CONFIG = {
-  pending: { label: "Pending", color: "#f59e0b" },
-  confirmed: { label: "Confirmed", color: "#3b82f6" },
-  preparing: { label: "Preparing", color: "#8b5cf6" },
-  ready_for_pickup: { label: "Ready", color: "#f97316" },
-  out_for_delivery: { label: "On the way", color: "#f97316" },
-  delivered: { label: "Delivered", color: "#22c55e" },
-  cancelled: { label: "Cancelled", color: "#ef4444" },
+  pending:          { label: "Pending",         color: "#f59e0b" },
+  confirmed:        { label: "Confirmed",        color: "#3b82f6" },
+  preparing:        { label: "Preparing",        color: "#8b5cf6" },
+  ready_for_pickup: { label: "Ready",            color: "#f97316" },
+  out_for_delivery: { label: "On the way",       color: "#f97316" },
+  delivered:        { label: "Delivered",        color: "#22c55e" },
+  cancelled:        { label: "Cancelled",        color: "#ef4444" },
 };
 
 const CAT_EMOJIS = {
-  Groceries: "🛒",
-  Food: "🍛",
-  Snacks: "🍿",
-  Beverages: "🧃",
-  Medicines: "💊",
-  Other: "🏪",
+  Groceries: "🛒", Food: "🍛", Snacks: "🍿",
+  Beverages: "🧃", Medicines: "💊", Other: "🏪",
 };
 
 export default function UserProfile() {
   const { user, logout, updateUser } = useAuth();
-  const { addToast, clearCart } = useCart();
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { addToast, clearCart }      = useCart();
+  const { favorites, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
 
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [editing,      setEditing]      = useState(false);
+  const [saving,       setSaving]       = useState(false);
   const [recentOrders, setRecentOrders] = useState([]);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
   useEffect(() => {
     if (user) {
-      setForm({
-        name: user.name || "",
-        phone: user.phone || "",
-        address: user.address || "",
-      });
+      setForm({ name: user.name || "", phone: user.phone || "", address: user.address || "" });
     }
     fetchRecentOrders();
   }, [user]);
@@ -80,30 +58,12 @@ export default function UserProfile() {
       const { data } = await api.get("/orders/my");
       setRecentOrders(data.slice(0, 3));
     } catch {
-      setRecentOrders([
-        {
-          _id: "o1",
-          status: "delivered",
-          totalPrice: 245,
-          storeId: { name: "FreshMart" },
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          _id: "o2",
-          status: "out_for_delivery",
-          totalPrice: 180,
-          storeId: { name: "Biryani House" },
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-        },
-      ]);
+      setRecentOrders([]);
     }
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      addToast("Name cannot be empty", "error");
-      return;
-    }
+    if (!form.name.trim()) { addToast("Name cannot be empty", "error"); return; }
     setSaving(true);
     try {
       await api.put("/auth/profile", form);
@@ -112,156 +72,95 @@ export default function UserProfile() {
       setEditing(false);
     } catch {
       addToast("Failed to update profile", "error");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const handleLogout = () => {
-    logout();
-    clearCart();
+    logout(); clearCart();
     addToast("Signed out successfully", "info");
     navigate("/login");
   };
 
-  const initials =
-    user?.name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "U";
+  const initials = user?.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "U";
 
   return (
-    <div
-      className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
-    >
-      {/* Hero Header */}
+    <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
+
+      {/* ── Hero header — fixed height, no negative margin child ── */}
       <div
         className="relative overflow-hidden"
         style={{
-          background:
-            "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)",
+          background: "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)",
+          paddingBottom: "2rem",
         }}
       >
-        <div
-          className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-25 pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, var(--brand), transparent)",
-            transform: "translate(35%, -35%)",
-          }}
-        />
-        <div
-          className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-10 pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, #ff8c5a, transparent)",
-            transform: "translate(-30%, 30%)",
-          }}
-        />
+        {/* Background glows */}
+        <div className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-25 pointer-events-none"
+          style={{ background: "radial-gradient(circle, var(--brand), transparent)", transform: "translate(35%, -35%)" }} />
+        <div className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-10 pointer-events-none"
+          style={{ background: "radial-gradient(circle, #ff8c5a, transparent)", transform: "translate(-30%, 30%)" }} />
 
-        <div className="max-w-2xl mx-auto px-4 pt-5 pb-14">
+        <div className="max-w-2xl mx-auto px-4 pt-6 pb-4">
           <div className="flex items-center gap-5">
+
+            {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div
                 className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-display font-black text-2xl shadow-2xl"
-                style={{
-                  background: "linear-gradient(135deg, var(--brand), #ff8c5a)",
-                  boxShadow: "0 0 30px rgba(255,107,53,0.45)",
-                }}
+                style={{ background: "linear-gradient(135deg, var(--brand), #ff8c5a)", boxShadow: "0 0 30px rgba(255,107,53,0.45)" }}
               >
                 {initials}
               </div>
-              <button
-                className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-xl flex items-center justify-center shadow-lg transition-all hover:scale-110"
-                style={{ background: "var(--brand)" }}
-              >
+              <button className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-xl flex items-center justify-center shadow-lg"
+                style={{ background: "var(--brand)" }}>
                 <Camera size={13} style={{ color: "white" }} />
               </button>
             </div>
 
+            {/* Name + role */}
             <div className="flex-1 min-w-0">
               {editing ? (
                 <input
                   className="input-theme text-xl font-bold mb-2 py-2"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  style={{
-                    maxWidth: 260,
-                    background: "rgba(255,255,255,0.1)",
-                    borderColor: "rgba(255,255,255,0.2)",
-                    color: "white",
-                  }}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  style={{ maxWidth: 260, background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)", color: "white" }}
                 />
               ) : (
-                <h1 className="font-display font-bold text-2xl text-white mb-1">
-                  {user?.name}
-                </h1>
+                <h1 className="font-display font-bold text-2xl text-white mb-1">{user?.name}</h1>
               )}
               <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className="tag text-xs font-semibold"
-                  style={{
-                    background: "rgba(34,197,94,0.2)",
-                    color: "#4ade80",
-                  }}
-                >
+                <span className="tag text-xs font-semibold" style={{ background: "rgba(34,197,94,0.2)", color: "#4ade80" }}>
                   👤 Customer
                 </span>
-                <span
-                  className="flex items-center gap-1 text-xs"
-                  style={{ color: "rgba(255,255,255,0.4)" }}
-                >
-                  <CheckCircle size={11} /> Verified
+                <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  ✓ Verified
                 </span>
               </div>
             </div>
 
+            {/* Edit / Save buttons */}
             <div className="flex gap-2 flex-shrink-0">
               {editing ? (
                 <>
                   <button
-                    onClick={() => {
-                      setEditing(false);
-                      setForm({
-                        name: user.name || "",
-                        phone: user.phone || "",
-                        address: user.address || "",
-                      });
-                    }}
+                    onClick={() => { setEditing(false); setForm({ name: user.name || "", phone: user.phone || "", address: user.address || "" }); }}
                     className="p-2.5 rounded-xl text-white/50 hover:text-white transition-colors"
-                    style={{
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                    }}
-                  >
+                    style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}>
                     <X size={15} />
                   </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
+                  <button onClick={handleSave} disabled={saving}
                     className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
-                    style={{ background: "var(--brand)", color: "white" }}
-                  >
-                    {saving ? (
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Save size={13} /> Save
-                      </>
-                    )}
+                    style={{ background: "var(--brand)", color: "white" }}>
+                    {saving
+                      ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      : <><Save size={13} /> Save</>}
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => setEditing(true)}
+                <button onClick={() => setEditing(true)}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
-                  style={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                  }}
-                >
+                  style={{ background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }}>
                   <Edit3 size={13} /> Edit
                 </button>
               )}
@@ -270,126 +169,58 @@ export default function UserProfile() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 -mt-10 pb-20 space-y-4">
-        {/* Stats — ★ favorites count is now real */}
+      {/* ── Page body — normal flow, no overlap ── */}
+      <div className="max-w-2xl mx-auto px-4 py-5 pb-20 space-y-4">
+
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            {
-              icon: Package,
-              label: "Orders",
-              value: recentOrders.length || "–",
-              color: "var(--brand)",
-            },
-            { icon: Star, label: "Reviews", value: "8", color: "#f59e0b" },
-            {
-              icon: Heart,
-              label: "Saved",
-              value: favorites.length,
-              color: "#ef4444",
-            },
+            { icon: Package, label: "Orders",  value: recentOrders.length || "–", color: "var(--brand)" },
+            { icon: Star,    label: "Reviews", value: "8",                         color: "#f59e0b" },
+            { icon: Heart,   label: "Saved",   value: favorites.length,            color: "#ef4444" },
           ].map(({ icon: Icon, label, value, color }) => (
-            <div
-              key={label}
-              className="rounded-2xl p-4 text-center transition-all hover:-translate-y-1 cursor-pointer"
-              style={{
-                backgroundColor: "var(--card)",
-                border: "1px solid var(--border)",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-              }}
-            >
+            <div key={label}
+              className="rounded-2xl p-4 text-center transition-all hover:-translate-y-1"
+              style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
               <Icon size={18} className="mx-auto mb-2" style={{ color }} />
-              <p
-                className="font-display font-bold text-xl"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {value}
-              </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {label}
-              </p>
+              <p className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>{value}</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
             </div>
           ))}
         </div>
 
         {/* Contact Info */}
-        <div
-          className="rounded-3xl overflow-hidden"
-          style={{
-            backgroundColor: "var(--card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <div
-            className="px-5 py-4"
-            style={{ borderBottom: "1px solid var(--border)" }}
-          >
-            <h2
-              className="font-bold text-xs uppercase tracking-widest"
-              style={{ color: "var(--text-muted)" }}
-            >
+        <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
               Contact Information
             </h2>
           </div>
 
           {/* Email */}
           <div className="flex items-center gap-4 px-5 py-4">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,107,53,0.1)" }}
-            >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,107,53,0.1)" }}>
               <Mail size={14} style={{ color: "var(--brand)" }} />
             </div>
             <div className="flex-1">
-              <p
-                className="text-xs font-semibold uppercase tracking-wider mb-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Email
-              </p>
-              <p
-                className="text-sm font-medium truncate"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {user?.email}
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-muted)" }}>Email</p>
+              <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{user?.email}</p>
             </div>
             <span className="tag tag-green text-[10px]">Verified</span>
           </div>
 
           {/* Phone */}
-          <div
-            className="flex items-center gap-4 px-5 py-4"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(255,107,53,0.1)" }}
-            >
+          <div className="flex items-center gap-4 px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,107,53,0.1)" }}>
               <Phone size={14} style={{ color: "var(--brand)" }} />
             </div>
             <div className="flex-1">
-              <p
-                className="text-xs font-semibold uppercase tracking-wider mb-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Phone
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-muted)" }}>Phone</p>
               {editing ? (
-                <input
-                  className="input-theme text-sm py-1.5"
-                  placeholder="+91 98765 43210"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
+                <input className="input-theme text-sm py-1.5" placeholder="+91 98765 43210"
+                  value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
               ) : (
-                <p
-                  className="text-sm font-medium"
-                  style={{
-                    color: form.phone
-                      ? "var(--text-primary)"
-                      : "var(--text-muted)",
-                  }}
-                >
+                <p className="text-sm font-medium" style={{ color: form.phone ? "var(--text-primary)" : "var(--text-muted)" }}>
                   {form.phone || "Add phone number"}
                 </p>
               )}
@@ -397,42 +228,18 @@ export default function UserProfile() {
           </div>
 
           {/* Address */}
-          <div
-            className="flex items-start gap-4 px-5 py-4"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-              style={{ background: "rgba(255,107,53,0.1)" }}
-            >
+          <div className="flex items-start gap-4 px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(255,107,53,0.1)" }}>
               <MapPin size={14} style={{ color: "var(--brand)" }} />
             </div>
             <div className="flex-1">
-              <p
-                className="text-xs font-semibold uppercase tracking-wider mb-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Default Address
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-muted)" }}>Default Address</p>
               {editing ? (
-                <textarea
-                  className="input-theme text-sm py-2 resize-none"
-                  rows={2}
-                  placeholder="Your delivery address"
-                  value={form.address}
-                  onChange={(e) =>
-                    setForm({ ...form, address: e.target.value })
-                  }
-                />
+                <textarea className="input-theme text-sm py-2 resize-none" rows={2}
+                  placeholder="Your delivery address" value={form.address}
+                  onChange={e => setForm({ ...form, address: e.target.value })} />
               ) : (
-                <p
-                  className="text-sm font-medium"
-                  style={{
-                    color: form.address
-                      ? "var(--text-primary)"
-                      : "var(--text-muted)",
-                  }}
-                >
+                <p className="text-sm font-medium" style={{ color: form.address ? "var(--text-primary)" : "var(--text-muted)" }}>
                   {form.address || "Add delivery address"}
                 </p>
               )}
@@ -440,84 +247,40 @@ export default function UserProfile() {
           </div>
         </div>
 
-        {/* ── NEW: Saved Stores ──────────────────────────────── */}
+        {/* Saved Stores */}
         {favorites.length > 0 && (
-          <div
-            className="rounded-3xl overflow-hidden"
-            style={{
-              backgroundColor: "var(--card)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4"
-              style={{ borderBottom: "1px solid var(--border)" }}
-            >
-              <h2
-                className="font-bold text-xs uppercase tracking-widest flex items-center gap-2"
-                style={{ color: "var(--text-muted)" }}
-              >
+          <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+              <h2 className="font-bold text-xs uppercase tracking-widest flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
                 <Heart size={12} style={{ color: "#ef4444" }} /> Saved Stores
               </h2>
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-lg"
-                style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
-              >
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-lg"
+                style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
                 {favorites.length} saved
               </span>
             </div>
             {favorites.map((store, i) => (
-              <div
-                key={store._id}
-                className="flex items-center gap-4 px-5 py-4 group"
-                style={{
-                  borderTop: i > 0 ? "1px solid var(--border)" : "none",
-                }}
-              >
-                <Link
-                  to={`/user/store/${store._id}`}
-                  className="flex items-center gap-4 flex-1 min-w-0"
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                    style={{ background: "var(--elevated)" }}
-                  >
+              <div key={store._id} className="flex items-center gap-4 px-5 py-4 group"
+                style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                <Link to={`/user/store/${store._id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                    style={{ background: "var(--elevated)" }}>
                     {CAT_EMOJIS[store.category] || "🏪"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p
-                      className="font-semibold text-sm truncate"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {store.name}
-                    </p>
-                    <div
-                      className="flex items-center gap-2 text-xs mt-0.5"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400" : "bg-red-400"}`}
-                      />
+                    <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{store.name}</p>
+                    <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400" : "bg-red-400"}`} />
                       {store.isOpen ? "Open" : "Closed"} · {store.deliveryTime}
                     </div>
                   </div>
-                  <div
-                    className="flex items-center gap-1 text-xs flex-shrink-0"
-                    style={{ color: "#f59e0b" }}
-                  >
+                  <div className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: "#f59e0b" }}>
                     ⭐ {store.rating?.toFixed(1) || "4.5"}
                   </div>
                 </Link>
-                {/* Remove from favorites */}
-                <button
-                  onClick={() => toggleFavorite(store._id)}
+                <button onClick={() => toggleFavorite(store._id)}
                   className="p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
-                  style={{
-                    color: "#ef4444",
-                    background: "rgba(239,68,68,0.08)",
-                  }}
-                  title="Remove from saved"
-                >
+                  style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }} title="Remove from saved">
                   <Heart size={14} fill="#ef4444" stroke="#ef4444" />
                 </button>
               </div>
@@ -527,82 +290,29 @@ export default function UserProfile() {
 
         {/* Recent Orders */}
         {recentOrders.length > 0 && (
-          <div
-            className="rounded-3xl overflow-hidden"
-            style={{
-              backgroundColor: "var(--card)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4"
-              style={{ borderBottom: "1px solid var(--border)" }}
-            >
-              <h2
-                className="font-bold text-xs uppercase tracking-widest"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Recent Orders
-              </h2>
-              <Link
-                to="/user/orders"
-                className="text-xs font-semibold"
-                style={{ color: "var(--brand)" }}
-              >
-                View all →
-              </Link>
+          <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+              <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Recent Orders</h2>
+              <Link to="/user/orders" className="text-xs font-semibold" style={{ color: "var(--brand)" }}>View all →</Link>
             </div>
             {recentOrders.map((order, i) => {
               const sc = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
               return (
-                <Link
-                  key={order._id}
-                  to={`/user/orders/${order._id}`}
+                <Link key={order._id} to={`/user/orders/${order._id}`}
                   className="flex items-center gap-4 px-5 py-4 transition-colors"
-                  style={{
-                    borderTop: i > 0 ? "1px solid var(--border)" : "none",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "var(--hover)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                    style={{ background: "var(--elevated)" }}
-                  >
-                    🛍️
-                  </div>
+                  style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--hover)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: "var(--elevated)" }}>🛍️</div>
                   <div className="flex-1 min-w-0">
-                    <p
-                      className="font-semibold text-sm truncate"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {order.storeId?.name || "Store"}
-                    </p>
-                    <p
-                      className="text-xs mt-0.5"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      {new Date(order.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                      })}{" "}
-                      · ₹{order.totalPrice}
+                    <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{order.storeId?.name || "Store"}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ₹{order.totalPrice}
                     </p>
                   </div>
-                  <span
-                    className="tag text-[10px] font-semibold flex-shrink-0"
-                    style={{ background: sc.color + "20", color: sc.color }}
-                  >
-                    {sc.label}
-                  </span>
-                  <ChevronRight
-                    size={14}
-                    style={{ color: "var(--text-muted)" }}
-                  />
+                  <span className="tag text-[10px] font-semibold flex-shrink-0"
+                    style={{ background: sc.color + "20", color: sc.color }}>{sc.label}</span>
+                  <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />
                 </Link>
               );
             })}
@@ -610,57 +320,22 @@ export default function UserProfile() {
         )}
 
         {/* Quick Links */}
-        <div
-          className="rounded-3xl overflow-hidden"
-          style={{
-            backgroundColor: "var(--card)",
-            border: "1px solid var(--border)",
-          }}
-        >
+        <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           {[
-            {
-              icon: Package,
-              label: "My Orders",
-              sub: "Track and manage orders",
-              to: "/user/orders",
-              color: "var(--brand)",
-            },
-            {
-              icon: Heart,
-              label: "Saved Stores",
-              sub: `${favorites.length} stores saved`,
-              to: "/user/home",
-              color: "#ef4444",
-            },
+            { icon: Package, label: "My Orders",    sub: "Track and manage orders",  to: "/user/orders", color: "var(--brand)" },
+            { icon: Heart,   label: "Saved Stores",  sub: `${favorites.length} stores saved`, to: "/user/home", color: "#ef4444" },
           ].map(({ icon: Icon, label, sub, to, color }, i) => (
-            <Link
-              key={to}
-              to={to}
+            <Link key={to} to={to}
               className="flex items-center gap-4 px-5 py-4 transition-colors"
               style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--hover)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
-            >
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: color + "15" }}
-              >
+              onMouseEnter={e => e.currentTarget.style.background = "var(--hover)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: color + "15" }}>
                 <Icon size={17} style={{ color }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p
-                  className="font-semibold text-sm"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {label}
-                </p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {sub}
-                </p>
+                <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{label}</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>
               </div>
               <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
             </Link>
@@ -668,17 +343,10 @@ export default function UserProfile() {
         </div>
 
         {/* Sign Out */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm transition-all hover:scale-[1.01] active:scale-[0.99]"
-          style={{
-            background: "rgba(239,68,68,0.08)",
-            color: "#ef4444",
-            border: "1.5px solid rgba(239,68,68,0.18)",
-          }}
-        >
-          <LogOut size={16} />
-          Sign Out
+        <button onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm transition-all hover:scale-[1.01]"
+          style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1.5px solid rgba(239,68,68,0.18)" }}>
+          <LogOut size={16} /> Sign Out
         </button>
       </div>
     </div>
