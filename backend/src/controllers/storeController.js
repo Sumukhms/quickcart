@@ -77,3 +77,41 @@ export const getMyStore = async (req, res) => {
     res.status(500).json({ message: e.message });
   }
 };
+
+
+export const getStoreAnalytics = async (req, res) => {
+  try {
+    const store = await Store.findOne({ ownerId: req.user.userId });
+    if (!store) return res.status(404).json({ message: "No store found" });
+
+    const storeId = store._id;
+
+    // Top 5 products by units sold
+    const topProducts = await Order.aggregate([
+      { $match: { storeId, status: { $ne: "cancelled" } } },
+      { $unwind: "$items" },
+      { $group: {
+        _id:       "$items.name",
+        totalSold: { $sum: "$items.quantity" },
+        revenue:   { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
+      }},
+      { $sort: { totalSold: -1 } },
+      { $limit: 5 },
+      { $project: { _id: 0, name: "$_id", totalSold: 1, revenue: 1 } },
+    ]);
+
+    // Revenue by day — last 7 days
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
+    const revenueByDay = await Order.aggregate([
+      { $match: { storeId, status: { $ne: "cancelled" }, createdAt: { $gte: sevenDaysAgo } } },
+      { $group: {
+        _id:     { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        revenue: { $sum: "$totalPrice" },
+        orders:  { $sum: 1 },
+      }},
+      { $sort: { _id: 1 } },
+    ]);
+
+    res.json({ topProducts, revenueByDay });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};

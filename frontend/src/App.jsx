@@ -9,6 +9,9 @@ import { LoginPage, RegisterPage } from "./pages/AuthPages.jsx";
 // Route guards
 import { CustomerRoute, StoreRoute, DeliveryRoute } from "./routes/ProtectedRoute.jsx";
 
+//── Admin pages ────────────────────────────────────────────
+import AdminPanel from "./pages/admin/AdminPanel.jsx";
+
 // ── Customer pages ────────────────────────────────────────────
 import UserHome       from "./pages/user/UserHome.jsx";
 import UserStorePage  from "./pages/user/UserStorePage.jsx";
@@ -67,6 +70,9 @@ export default function App() {
         <Route path="/delivery/active"    element={<DeliveryRoute><DeliveryActive /></DeliveryRoute>} />
         <Route path="/delivery/history"   element={<DeliveryRoute><DeliveryHistory /></DeliveryRoute>} />
 
+        // Add admin route:
+        <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+        
         {/* Catch-all */}
         <Route path="*" element={<RootRedirect />} />
       </Routes>

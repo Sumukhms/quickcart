@@ -11,8 +11,8 @@ import cartRoutes    from "./src/routes/cartRoutes.js";
 import orderRoutes   from "./src/routes/orderRoutes.js";
 import couponRoutes  from "./src/routes/couponRoutes.js";
 import ratingRoutes  from "./src/routes/ratingRoutes.js";
-// ── NEW: favorites route ───────────────────────────────────────
 import favoriteRoutes from "./src/routes/favoriteRoutes.js";
+import adminRoutes from "./src/routes/adminRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -42,8 +42,8 @@ app.use("/api/cart",      cartRoutes);
 app.use("/api/orders",    orderRoutes);
 app.use("/api/coupons",   couponRoutes);
 app.use("/api/ratings",   ratingRoutes);
-// ── NEW ────────────────────────────────────────────────────────
 app.use("/api/favorites", favoriteRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", roles: ["customer", "store", "delivery"] }));
 

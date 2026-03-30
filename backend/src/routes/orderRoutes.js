@@ -10,8 +10,8 @@ import { protect, restrictTo } from "../middleware/authMiddleware.js";
 const r = express.Router();
 
 // ── CUSTOMER routes ──
-r.post("/",              protect, restrictTo("customer"), placeOrder);
-r.get("/my",             protect, restrictTo("customer"), getMyOrders);
+r.post("/",    protect, placeOrder);    // was: restrictTo("customer")
+r.get("/my",   protect, getMyOrders)
 r.post("/:id/cancel",   protect, restrictTo("customer"), cancelOrder);   // ← NEW
 r.get("/:id",           protect, getOrderById);
 

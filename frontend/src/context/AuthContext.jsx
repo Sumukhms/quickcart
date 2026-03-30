@@ -5,8 +5,9 @@ const AuthContext = createContext();
 
 export const ROLE_HOME = {
   customer: "/user/home",
-  store: "/store/dashboard",
+  store:    "/store/dashboard",
   delivery: "/delivery/dashboard",
+  admin:    "/admin",
 };
 
 export function AuthProvider({ children }) {
@@ -50,12 +51,12 @@ export function AuthProvider({ children }) {
   const isCustomer  = user?.role === "customer";
   const isStore     = user?.role === "store";
   const isDelivery  = user?.role === "delivery";
-
+  const isAdmin = user?.role === "admin";
   return (
     <AuthContext.Provider value={{
       user, token, login, register, logout, updateUser,
       isLoggedIn: !!user,
-      isCustomer, isStore, isDelivery,
+      isCustomer, isStore, isDelivery,  isAdmin,
       homeRoute: user ? ROLE_HOME[user.role] : "/login",
     }}>
       {children}

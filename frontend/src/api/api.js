@@ -101,3 +101,15 @@ export const favoriteAPI = {
   toggle:  (storeId) => api.post("/favorites/toggle", { storeId }),
   getAll:  ()        => api.get("/favorites"),
 };
+
+// ─── Admin ────────────────────────────────────────────────────
+export const adminAPI = {
+  getStats:      ()           => api.get("/admin/stats"),
+  getUsers:      (params)     => api.get("/admin/users", { params }),
+  getOrders:     (params)     => api.get("/admin/orders", { params }),
+  getCoupons:    ()           => api.get("/admin/coupons"),
+  createCoupon:  (data)       => api.post("/admin/coupons", data),
+  deleteCoupon:  (id)         => api.delete(`/admin/coupons/${id}`),
+  toggleCoupon:  (id)         => api.patch(`/admin/coupons/${id}/toggle`),
+  getAnalytics:  ()           => api.get("/stores/analytics"),
+};
