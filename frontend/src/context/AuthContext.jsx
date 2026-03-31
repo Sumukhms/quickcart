@@ -26,13 +26,13 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
     _persist(data);
-    return data; // includes redirectTo
+    return data;
   }, []);
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    _persist(data);
-    return data; // includes redirectTo
+    // Registration no longer returns a token — returns { requiresVerification, email }
+    return data;
   }, []);
 
   const logout = useCallback(() => {
@@ -43,21 +43,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   const updateUser = useCallback((updates) => {
-    const updated = { ...user, ...updates };
+    // Accepts either a full user object or a partial patch
+    const updated = updates._id
+      ? { ...updates }                 // full object (from OAuth callback)
+      : { ...(user || {}), ...updates }; // partial patch
     setUser(updated);
     localStorage.setItem("qc-user", JSON.stringify(updated));
   }, [user]);
 
-  const isCustomer  = user?.role === "customer";
-  const isStore     = user?.role === "store";
-  const isDelivery  = user?.role === "delivery";
-  const isAdmin = user?.role === "admin";
+  // Called by OAuthCallback after storing token manually
+  const setTokenExternal = useCallback((t) => {
+    setToken(t);
+    localStorage.setItem("qc-token", t);
+  }, []);
+
   return (
     <AuthContext.Provider value={{
-      user, token, login, register, logout, updateUser,
-      isLoggedIn: !!user,
-      isCustomer, isStore, isDelivery,  isAdmin,
-      homeRoute: user ? ROLE_HOME[user.role] : "/login",
+      user, token, login, register, logout, updateUser, setTokenExternal,
+      isLoggedIn:  !!user,
+      isCustomer:  user?.role === "customer",
+      isStore:     user?.role === "store",
+      isDelivery:  user?.role === "delivery",
+      isAdmin:     user?.role === "admin",
+      homeRoute:   user ? ROLE_HOME[user.role] : "/login",
     }}>
       {children}
     </AuthContext.Provider>

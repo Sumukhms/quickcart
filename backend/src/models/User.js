@@ -1,47 +1,43 @@
-/**
- * User model — UPDATED
- *
- * Changes:
- *   1. Added `favoriteStores` array (ObjectId refs to Store)
- *   2. Kept all existing fields unchanged
- */
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
     name:     { type: String, required: true, trim: true },
     email:    { type: String, required: true, unique: true, lowercase: true },
-    password: { type: String, required: true },
+    password: { type: String }, // optional: Google-only users have no password
     role: {
-      type: String,
-      enum: ["customer", "store", "delivery","admin"],
+      type:    String,
+      enum:    ["customer", "store", "delivery", "admin"],
       default: "customer",
     },
+
+    // ── Auth & verification ────────────────────────────────
+    isEmailVerified: { type: Boolean, default: false },
+    authProvider:    { type: String, enum: ["local", "google"], default: "local" },
+    googleId:        { type: String, default: null },
+
+    // ── Profile ────────────────────────────────────────────
     phone:   { type: String },
-    // ── Legacy single address (kept for backward compat) ──
     address: { type: String },
-    // ── NEW: multiple saved addresses (max 5) ─────────────
     addresses: {
       type: [String],
       default: [],
       validate: {
         validator: (arr) => arr.length <= 5,
-        message: "Maximum 5 addresses allowed",
+        message:   "Maximum 5 addresses allowed",
       },
     },
-    // ── NEW: favorite stores ───────────────────────────────
     favoriteStores: [{ type: mongoose.Schema.Types.ObjectId, ref: "Store" }],
+    avatar:         { type: String, default: "" },
 
-    avatar: { type: String, default: "" },
-
-    // Delivery partner specific
+    // ── Delivery partner ───────────────────────────────────
     vehicleType:     { type: String, enum: ["bike", "cycle", "scooter", ""], default: "" },
     isAvailable:     { type: Boolean, default: true },
 
-    // Store owner specific
+    // ── Store owner ────────────────────────────────────────
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: "Store" },
 
-    // Stats
+    // ── Stats ──────────────────────────────────────────────
     totalDeliveries: { type: Number, default: 0 },
     rating:          { type: Number, default: 5.0, min: 0, max: 5 },
   },

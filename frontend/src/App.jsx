@@ -8,6 +8,8 @@ import { LoginPage, RegisterPage } from "./pages/AuthPages.jsx";
 
 // Route guards
 import ProtectedRoute, { StoreRoute, DeliveryRoute } from "./routes/ProtectedRoute.jsx";
+import { ForgotPasswordPage } from "./pages/AuthPages.jsx";
+import OAuthCallback          from "./pages/auth/OAuthCallback.jsx";
 
 // Admin pages
 import AdminPanel from "./pages/admin/AdminPanel.jsx";
@@ -56,6 +58,8 @@ export default function App() {
         {/* Auth */}
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/auth/callback"   element={<OAuthCallback />} />
 
         {/* ── BROWSING — open to ALL logged-in users ── */}
         <Route path="/user/home"      element={<ProtectedRoute><UserHome /></ProtectedRoute>} />

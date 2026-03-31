@@ -1,22 +1,26 @@
-import express from "express";
-import cors from "cors";
+import express    from "express";
+import cors       from "cors";
+import helmet     from "helmet";
+import rateLimit  from "express-rate-limit";
 import { createServer } from "http";
-import { Server } from "socket.io";
+import { Server }       from "socket.io";
 import "dotenv/config";
-import connectDB from "./src/config/db.js";
-import authRoutes    from "./src/routes/authRoutes.js";
-import storeRoutes   from "./src/routes/storeRoutes.js";
-import productRoutes from "./src/routes/productRoutes.js";
-import cartRoutes    from "./src/routes/cartRoutes.js";
-import orderRoutes   from "./src/routes/orderRoutes.js";
-import couponRoutes  from "./src/routes/couponRoutes.js";
-import ratingRoutes  from "./src/routes/ratingRoutes.js";
-import favoriteRoutes from "./src/routes/favoriteRoutes.js";
-import adminRoutes from "./src/routes/adminRoutes.js";
-import paymentRoutes from "./src/routes/paymentRoutes.js";
-import statsRoutes from "./src/routes/statsRoutes.js"
+import passport         from "./src/config/passport.js";   // ← initialises strategy
+import connectDB        from "./src/config/db.js";
 
-const app = express();
+import authRoutes     from "./src/routes/authRoutes.js";
+import storeRoutes    from "./src/routes/storeRoutes.js";
+import productRoutes  from "./src/routes/productRoutes.js";
+import cartRoutes     from "./src/routes/cartRoutes.js";
+import orderRoutes    from "./src/routes/orderRoutes.js";
+import couponRoutes   from "./src/routes/couponRoutes.js";
+import ratingRoutes   from "./src/routes/ratingRoutes.js";
+import favoriteRoutes from "./src/routes/favoriteRoutes.js";
+import adminRoutes    from "./src/routes/adminRoutes.js";
+import paymentRoutes  from "./src/routes/paymentRoutes.js";
+import statsRoutes    from "./src/routes/statsRoutes.js";
+
+const app        = express();
 const httpServer = createServer(app);
 
 const ALLOWED_ORIGINS = [
@@ -25,18 +29,40 @@ const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
+// ── Security headers ──────────────────────────────────────────
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,  // needed for Razorpay iframe
+}));
+
+// ── Global rate limiter (100 req / 15 min per IP) ─────────────
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max:      100,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message: { message: "Too many requests, please try again later." },
+});
+app.use(globalLimiter);
+
+// ── Auth-specific rate limiter (10 req / 15 min per IP) ───────
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max:      10,
+  message:  { message: "Too many auth attempts, please try again in 15 minutes." },
+});
+
 const io = new Server(httpServer, {
   cors: { origin: ALLOWED_ORIGINS, credentials: true },
 });
 
 connectDB();
 
-// ─── Middleware ────────────────────────────────────────────────
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));            // prevent huge payloads
+app.use(passport.initialize());                       // Passport (no sessions)
 app.use((req, _res, next) => { req.io = io; next(); });
 
-// ─── Routes ───────────────────────────────────────────────────
+// ── Routes ────────────────────────────────────────────────────
 app.use("/api/auth",      authRoutes);
 app.use("/api/stores",    storeRoutes);
 app.use("/api/products",  productRoutes);
@@ -45,39 +71,24 @@ app.use("/api/orders",    orderRoutes);
 app.use("/api/coupons",   couponRoutes);
 app.use("/api/ratings",   ratingRoutes);
 app.use("/api/favorites", favoriteRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/payment", paymentRoutes);
-app.use("/api/stats", statsRoutes);
+app.use("/api/admin",     adminRoutes);
+app.use("/api/payment",   paymentRoutes);
+app.use("/api/stats",     statsRoutes);
 
-app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", roles: ["customer", "store", "delivery"] }));
+app.get("/", (_req, res) => res.json({ message: "QuickCart API v2" }));
 
-// ─── Socket.io ────────────────────────────────────────────────
+// ── Socket.io ─────────────────────────────────────────────────
 io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
-
-  socket.on("join_store", (storeId) => {
-    socket.join(`store_${storeId}`);
-    console.log(`Socket joined store room: ${storeId}`);
-  });
-
-  socket.on("join_order", (orderId) => {
-    socket.join(`order_${orderId}`);
-  });
-
-  socket.on("join_delivery", (agentId) => {
-    socket.join(`delivery_${agentId}`);
-  });
-
+  socket.on("join_store",    (id) => socket.join(`store_${id}`));
+  socket.on("join_order",    (id) => socket.join(`order_${id}`));
+  socket.on("join_delivery", (id) => socket.join(`delivery_${id}`));
   socket.on("update_location", ({ orderId, lat, lng }) => {
     io.to(`order_${orderId}`).emit("location_update", { lat, lng });
   });
-
-  socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
-  });
+  socket.on("disconnect", () => {});
 });
 
-// ─── Global error handler ─────────────────────────────────────
+// ── Global error handler ──────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({ message: err.message || "Something went wrong" });
