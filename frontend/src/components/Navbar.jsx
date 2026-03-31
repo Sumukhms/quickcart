@@ -3,18 +3,15 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ShoppingCart, User, Moon, Sun, Package, LogOut, Settings,
   ChevronDown, MapPin, LayoutDashboard, Truck, Store, Home,
-  ClipboardList, History, ShoppingBag, ArrowRight, Shield, Zap,
+  ClipboardList, History, ShoppingBag, ArrowRight, Shield,
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import CartDrawer from "./cart/CartDrawer";
 
-// NAV_LINKS as a function so store users can get their dynamic store link
 function getNavLinks(user) {
-  const storeShopLink = user?.storeId
-    ? `/user/store/${user.storeId}`
-    : "/user/home";
+  const storeShopLink = user?.storeId ? `/user/store/${user.storeId}` : "/user/home";
 
   return {
     customer: [
@@ -73,6 +70,10 @@ export default function Navbar() {
   const NAV_LINKS = getNavLinks(user);
   const menuLinks = isLoggedIn ? NAV_LINKS[user?.role] || [] : [];
   const roleBadge = user ? ROLE_BADGE[user.role] : null;
+
+  // Cart label differs by role
+  const cartLabel = user?.role === "store"    ? "Store Cart"    :
+                    user?.role === "delivery"  ? "Delivery Cart" : "Your Cart";
 
   return (
     <>
@@ -154,12 +155,13 @@ export default function Navbar() {
                 }
               </button>
 
-              {/* Cart — only for customers */}
-              {isLoggedIn && ["customer", "store", "delivery"].includes(user?.role) && (
+              {/* ── Cart — visible to ALL logged-in users ── */}
+              {isLoggedIn && (
                 <button
                   onClick={() => setCartOpen(true)}
                   className="relative p-2 rounded-xl transition-all hover:scale-110 active:scale-95"
                   style={{ background: "var(--elevated)", color: "var(--text-secondary)" }}
+                  title={cartLabel}
                 >
                   <ShoppingCart size={20} />
                   {count > 0 && (
@@ -176,6 +178,22 @@ export default function Navbar() {
                     </span>
                   )}
                 </button>
+              )}
+
+              {/* ── My Orders shortcut — shown for store & delivery ── */}
+              {isLoggedIn && (user?.role === "store" || user?.role === "delivery") && (
+                <Link
+                  to="/user/orders"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                  style={{
+                    background: location.pathname === "/user/orders" ? "rgba(255,107,53,0.1)" : "var(--elevated)",
+                    color: location.pathname === "/user/orders" ? "var(--brand)" : "var(--text-secondary)",
+                  }}
+                  title="My personal orders"
+                >
+                  <ShoppingBag size={15} />
+                  <span className="hidden lg:block">My Orders</span>
+                </Link>
               )}
 
               {/* User menu */}
@@ -245,7 +263,7 @@ export default function Navbar() {
                         )}
                       </div>
 
-                      {/* Nav links */}
+                      {/* Role-specific nav links */}
                       {menuLinks.map(({ to, icon: Icon, label }) => (
                         <Link
                           key={`menu-${to}-${label}`}
@@ -259,6 +277,46 @@ export default function Navbar() {
                           <Icon size={15} /> {label}
                         </Link>
                       ))}
+
+                      {/* ── My Orders link (for store + delivery) ── */}
+                      {(user?.role === "store" || user?.role === "delivery") && (
+                        <>
+                          <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                          <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                            Personal Shopping
+                          </p>
+                          <Link
+                            to="/user/home"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
+                            style={{ color: "var(--text-secondary)" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--hover)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            <Home size={15} /> Browse Stores
+                          </Link>
+                          <Link
+                            to="/user/orders"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
+                            style={{ color: "var(--text-secondary)" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--hover)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            <ShoppingBag size={15} /> My Orders
+                          </Link>
+                          <Link
+                            to="/user/cart"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
+                            style={{ color: "var(--text-secondary)" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--hover)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            <ShoppingCart size={15} /> My Cart {count > 0 && <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,107,53,0.15)", color: "var(--brand)" }}>{count}</span>}
+                          </Link>
+                        </>
+                      )}
 
                       {/* Admin panel link */}
                       {user?.role === "admin" && (
@@ -308,8 +366,13 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {isLoggedIn && ["customer", "store", "delivery"].includes(user?.role) && (
-        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      {/* ── Cart Drawer — ALL logged-in users ── */}
+      {isLoggedIn && (
+        <CartDrawer
+          open={cartOpen}
+          onClose={() => setCartOpen(false)}
+          cartLabel={cartLabel}
+        />
       )}
     </>
   );

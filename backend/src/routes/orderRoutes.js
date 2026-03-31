@@ -23,7 +23,7 @@ r.put("/:id/status", protect, restrictTo("store", "delivery"), updateOrderStatus
 r.get("/delivery/available", protect, restrictTo("delivery"), getAvailableOrders);
 r.get("/delivery/mine",      protect, restrictTo("delivery"), getMyDeliveries);
 r.post("/:id/accept",        protect, restrictTo("delivery"), acceptDelivery);
-r.post("/:id/delivered",     protect, restrictTo("delivery"), markDelivered);
+// r.post("/:id/delivered",     protect, restrictTo("delivery"), markDelivered);
 r.put("/:id/location",       protect, restrictTo("delivery"), updateDeliveryLocation);
 
 export default r;

@@ -1,5 +1,6 @@
 import Order from "../models/Order.js";
 import Cart  from "../models/Cart.js";
+import Store from "../models/Store.js";
 import { applyCoupon } from "./couponController.js";
 
 // ─── Flow helpers (inlined — keep in sync with shared/orderFlows.js) ──
@@ -101,15 +102,25 @@ export const getOrderById = async (req, res) => {
 // ─── STORE OWNER ──────────────────────────────────────────────
 export const getStoreOrders = async (req, res) => {
   try {
+    // ── Ownership guard ──────────────────────────────────────
+    const store = await Store.findOne({ ownerId: req.user.userId });
+    if (!store) return res.status(404).json({ message: "No store found for this account" });
+    if (store._id.toString() !== req.params.storeId) {
+      return res.status(403).json({ message: "Access denied — not your store" });
+    }
+
     const { status, limit = 50 } = req.query;
-    const filter = { storeId: req.params.storeId };
+    const filter = { storeId: store._id };   // always scoped to verified store
     if (status) filter.status = status;
 
-    const orders = await Order.find(filter)
-      .populate("userId", "name phone address")
-      .populate("deliveryAgentId", "name phone")
-      .sort({ createdAt: -1 })
-      .limit(Number(limit));
+    const [orders, total] = await Promise.all([
+      Order.find(filter)
+        .populate("userId",          "name phone address")
+        .populate("deliveryAgentId", "name phone")
+        .sort({ createdAt: -1 })
+        .limit(Number(limit)),
+      Order.countDocuments(filter),
+    ]);
     res.json(orders);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };

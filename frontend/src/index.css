@@ -34,8 +34,16 @@
   --border: #e5e2dd;
   --hover: #f5f3f0;
   --text-primary: #1a1a22;
-  --text-secondary: #5a5a6e;
-  --text-muted: #9a9aaa;
+  --text-secondary: #3d3d4a;     /* ← was missing, too light */
+  --text-muted: #7a7a8a;          /* ← was missing */
+  --brand: #e55a28;               /* ← slightly darker in light for contrast */
+  --brand-light: #ff6b35;
+  --brand-dark: #c44416;
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --glow-brand: 0 0 20px rgba(229,90,40,0.15);
+  --glow-success: 0 0 16px rgba(22,163,74,0.15);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,6 +76,11 @@ body {
 /* ── Shimmer effect ── */
 .shimmer {
   background: linear-gradient(90deg, var(--card) 25%, var(--elevated) 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
+.light .shimmer {
+  background: linear-gradient(90deg, #f0eeeb 25%, #e8e5e1 50%, #f0eeeb 75%);
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite;
 }

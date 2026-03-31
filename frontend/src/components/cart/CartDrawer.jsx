@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, Package, Sparkles } from "lucide-react";
+import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, Sparkles } from "lucide-react";
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 function CartItem({ item, onUpdate, onRemove, index }) {
@@ -43,6 +44,7 @@ function CartItem({ item, onUpdate, onRemove, index }) {
             src={item.image}
             alt={item.name}
             className="w-full h-full object-cover"
+            onError={(e) => { e.target.style.display = "none"; }}
           />
         ) : "🛍️"}
       </div>
@@ -62,7 +64,6 @@ function CartItem({ item, onUpdate, onRemove, index }) {
 
       {/* Controls */}
       <div className="flex flex-col items-end justify-between gap-1">
-        {/* Remove button */}
         <button
           onClick={handleRemove}
           className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
@@ -71,7 +72,6 @@ function CartItem({ item, onUpdate, onRemove, index }) {
           <Trash2 size={12} />
         </button>
 
-        {/* Qty stepper */}
         <div
           className="flex items-center gap-1.5 rounded-xl px-1.5 py-1"
           style={{ background: "var(--elevated)" }}
@@ -83,10 +83,7 @@ function CartItem({ item, onUpdate, onRemove, index }) {
           >
             <Minus size={11} />
           </button>
-          <span
-            className="w-6 text-center text-sm font-black"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <span className="w-6 text-center text-sm font-black" style={{ color: "var(--text-primary)" }}>
             {item.qty}
           </span>
           <button
@@ -102,8 +99,9 @@ function CartItem({ item, onUpdate, onRemove, index }) {
   );
 }
 
-export default function CartDrawer({ open, onClose }) {
+export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
   const { cartItems, cartStore, total, count, updateQty, removeFromCart, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -111,9 +109,13 @@ export default function CartDrawer({ open, onClose }) {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  const subtotal  = total;
-  const delivery  = 20;
+  const subtotal   = total;
+  const delivery   = 20;
   const grandTotal = subtotal + delivery;
+
+  // Role-aware post-checkout redirect hint
+  const roleHint = user?.role === "store"    ? "You're ordering as a Store Owner" :
+                   user?.role === "delivery"  ? "You're ordering as a Delivery Partner" : null;
 
   return (
     <>
@@ -157,7 +159,7 @@ export default function CartDrawer({ open, onClose }) {
             </div>
             <div>
               <h2 className="font-bold text-base" style={{ color: "var(--text-primary)" }}>
-                Your Cart
+                {cartLabel}
               </h2>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 {count} item{count !== 1 ? "s" : ""}
@@ -185,14 +187,21 @@ export default function CartDrawer({ open, onClose }) {
           </div>
         </div>
 
+        {/* Role hint banner (store/delivery only) */}
+        {roleHint && cartItems.length > 0 && (
+          <div
+            className="mx-4 mt-3 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+            style={{ background: "rgba(59,130,246,0.08)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
+          >
+            ℹ️ {roleHint}
+          </div>
+        )}
+
         {/* Items */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-5 pb-10">
-              <div
-                className="text-7xl select-none"
-                style={{ animation: "floatSlow 4s ease-in-out infinite" }}
-              >
+              <div className="text-7xl select-none" style={{ animation: "floatSlow 4s ease-in-out infinite" }}>
                 🛒
               </div>
               <div className="text-center">
@@ -203,7 +212,7 @@ export default function CartDrawer({ open, onClose }) {
                   Discover stores and add items you love
                 </p>
               </div>
-              <button onClick={onClose} className="btn btn-brand text-sm">
+              <button onClick={() => { onClose(); navigate("/user/home"); }} className="btn btn-brand text-sm">
                 Browse Stores <ArrowRight size={14} />
               </button>
             </div>
@@ -222,10 +231,7 @@ export default function CartDrawer({ open, onClose }) {
 
         {/* Footer */}
         {cartItems.length > 0 && (
-          <div
-            className="p-4 space-y-3"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
+          <div className="p-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
             {/* Savings hint */}
             <div
               className="flex items-center justify-between text-xs px-3 py-2.5 rounded-xl"

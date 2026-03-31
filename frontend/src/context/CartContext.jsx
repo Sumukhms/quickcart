@@ -1,26 +1,56 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { cartAPI } from "../api/api";
 import { useAuth } from "./AuthContext";
 
 const CartContext = createContext();
+const CART_KEY = "qc-cart-v2";
+
+function loadCart() {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    if (!raw) return { items: [], store: null };
+    const parsed = JSON.parse(raw);
+    // Validate shape
+    if (!Array.isArray(parsed.items)) return { items: [], store: null };
+    return parsed;
+  } catch {
+    return { items: [], store: null };
+  }
+}
+
+function saveCart(items, store) {
+  try {
+    localStorage.setItem(CART_KEY, JSON.stringify({ items, store }));
+  } catch { /* quota exceeded — ignore */ }
+}
 
 export function CartProvider({ children }) {
-  const { isLoggedIn, isCustomer } = useAuth();
-  const [cartItems, setCartItems] = useState([]);
-  const [cartStore, setCartStore] = useState(null);
-  const [toasts, setToasts] = useState([]);
-  const [syncing, setSyncing] = useState(false);
+  const { isLoggedIn } = useAuth();
 
-  // ── Toasts ─────────────────────────────────────────────
+  const [cartItems, setCartItems] = useState(() => loadCart().items);
+  const [cartStore, setCartStore] = useState(() => loadCart().store);
+  const [toasts,    setToasts]    = useState([]);
+
+  // Persist on every change
+  useEffect(() => {
+    saveCart(cartItems, cartStore);
+  }, [cartItems, cartStore]);
+
+  // Clear cart on logout
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setCartItems([]);
+      setCartStore(null);
+    }
+  }, [isLoggedIn]);
+
   const addToast = useCallback((message, type = "success") => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   }, []);
 
-  // ── Local cart helpers (optimistic) ────────────────────
   const addToCart = useCallback((product, store) => {
-    if (cartStore && cartStore._id !== store._id) {
+    if (cartStore && cartStore._id !== (store._id || store)) {
       addToast("Clear your cart before adding from another store", "error");
       return false;
     }
@@ -50,6 +80,7 @@ export function CartProvider({ children }) {
   const clearCart = useCallback(() => {
     setCartItems([]);
     setCartStore(null);
+    localStorage.removeItem(CART_KEY);
   }, []);
 
   const total = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0);
@@ -58,7 +89,7 @@ export function CartProvider({ children }) {
   return (
     <CartContext.Provider value={{
       cartItems, cartStore, total, count, toasts,
-      addToCart, removeFromCart, updateQty, clearCart, addToast, syncing
+      addToCart, removeFromCart, updateQty, clearCart, addToast,
     }}>
       {children}
     </CartContext.Provider>
