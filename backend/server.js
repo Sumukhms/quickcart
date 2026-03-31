@@ -13,6 +13,7 @@ import couponRoutes  from "./src/routes/couponRoutes.js";
 import ratingRoutes  from "./src/routes/ratingRoutes.js";
 import favoriteRoutes from "./src/routes/favoriteRoutes.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
+import paymentRoutes from "./src/routes/paymentRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -44,6 +45,7 @@ app.use("/api/coupons",   couponRoutes);
 app.use("/api/ratings",   ratingRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.get("/", (_req, res) => res.json({ message: "QuickCart API v2 running", roles: ["customer", "store", "delivery"] }));
 

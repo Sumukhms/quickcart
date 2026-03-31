@@ -58,9 +58,11 @@ export default function App() {
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* CUSTOMER ROUTES */}
-        <Route path="/user/home"          element={<CustomerRoute><UserHome /></CustomerRoute>} />
-        <Route path="/user/store/:id"     element={<CustomerRoute><UserStorePage /></CustomerRoute>} />
+        {/* BROWSING ROUTES — open to ALL logged-in users (customer, store, delivery) */}
+        <Route path="/user/home"          element={<ProtectedRoute><UserHome /></ProtectedRoute>} />
+        <Route path="/user/store/:id"     element={<ProtectedRoute><UserStorePage /></ProtectedRoute>} />
+
+        {/* CUSTOMER-ONLY ROUTES */}
         <Route path="/user/cart"          element={<CustomerRoute><UserCart /></CustomerRoute>} />
         <Route path="/user/orders"        element={<CustomerRoute><UserOrders /></CustomerRoute>} />
         <Route path="/user/orders/:id"    element={<CustomerRoute><UserTrack /></CustomerRoute>} />

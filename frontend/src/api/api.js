@@ -1,10 +1,3 @@
-/**
- * api.js — UPDATED
- *
- * Changes:
- *   1. authAPI gets three new address methods
- *   2. NEW: favoriteAPI — toggle and get favorites
- */
 import axios from "axios";
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -55,6 +48,7 @@ export const storeAPI = {
 // ─── Products ─────────────────────────────────────────────────
 export const productAPI = {
   getByStore: (storeId)      => api.get(`/products/store/${storeId}`),
+  search:     (q)            => api.get("/products/search", { params: { q } }),
   create:     (data)         => api.post("/products", data),
   update:     (id, data)     => api.put(`/products/${id}`, data),
   delete:     (id)           => api.delete(`/products/${id}`),
@@ -94,6 +88,28 @@ export const couponAPI = {
 export const ratingAPI = {
   submit: (storeId, rating, orderId) =>
     api.post("/ratings/rate", { storeId, rating, orderId }),
+};
+
+// ─── Payment ──────────────────────────────────────────────────
+export const paymentAPI = {
+  /**
+   * Ask backend to create a Razorpay order.
+   * Returns { razorpayOrderId, amount, currency, keyId }
+   */
+  createOrder: (amount) =>
+    api.post("/payment/create-order", { amount }),
+
+  /**
+   * Verify payment signature on the backend.
+   * If valid, backend creates the DB order and returns it.
+   *
+   * @param {object} payload
+   *   razorpay_payment_id, razorpay_order_id, razorpay_signature,
+   *   orderData: { storeId, items, totalPrice, deliveryAddress,
+   *                paymentMethod, notes?, couponCode? }
+   */
+  verify: (payload) =>
+    api.post("/payment/verify", payload),
 };
 
 // ─── Favorites ────────────────────────────────────────────────

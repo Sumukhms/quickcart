@@ -10,26 +10,33 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import CartDrawer from "./cart/CartDrawer";
 
-const NAV_LINKS = {
-  customer: [
-    { to: "/user/home",   icon: Home,    label: "Home"    },
-    { to: "/user/orders", icon: Package, label: "Orders"  },
-    { to: "/user/profile",icon: User,    label: "Profile" },
-  ],
-  store: [
-    { to: "/user/home",       icon: Home,           label: "Shop"      },
-    { to: "/store/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/store/orders",    icon: ClipboardList,   label: "Orders"    },
-    { to: "/store/products",  icon: Store,           label: "Products"  },
-    { to: "/store/settings",  icon: Settings,        label: "Settings"  },
-  ],
-  delivery: [
-    { to: "/user/home",          icon: Home,   label: "Shop"      },
-    { to: "/delivery/dashboard", icon: Truck,  label: "Dashboard" },
-    { to: "/delivery/active",    icon: MapPin, label: "Active"    },
-    { to: "/delivery/history",   icon: History, label: "History"  },
-  ],
-};
+// NAV_LINKS as a function so store users can get their dynamic store link
+function getNavLinks(user) {
+  const storeShopLink = user?.storeId
+    ? `/user/store/${user.storeId}`
+    : "/user/home";
+
+  return {
+    customer: [
+      { to: "/user/home",    icon: Home,    label: "Home"    },
+      { to: "/user/orders",  icon: Package, label: "Orders"  },
+      { to: "/user/profile", icon: User,    label: "Profile" },
+    ],
+    store: [
+      { to: storeShopLink,      icon: Store,           label: "My Store"  },
+      { to: "/store/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+      { to: "/store/orders",    icon: ClipboardList,   label: "Orders"    },
+      { to: "/store/products",  icon: Package,         label: "Products"  },
+      { to: "/store/settings",  icon: Settings,        label: "Settings"  },
+    ],
+    delivery: [
+      { to: "/user/home",          icon: Home,   label: "Browse"    },
+      { to: "/delivery/dashboard", icon: Truck,  label: "Dashboard" },
+      { to: "/delivery/active",    icon: MapPin, label: "Active"    },
+      { to: "/delivery/history",   icon: History, label: "History"  },
+    ],
+  };
+}
 
 const ROLE_BADGE = {
   customer: { label: "Customer", color: "#22c55e", bg: "rgba(34,197,94,0.12)"  },
@@ -63,6 +70,7 @@ export default function Navbar() {
 
   useEffect(() => { setUserMenuOpen(false); }, [location.pathname]);
 
+  const NAV_LINKS = getNavLinks(user);
   const menuLinks = isLoggedIn ? NAV_LINKS[user?.role] || [] : [];
   const roleBadge = user ? ROLE_BADGE[user.role] : null;
 
@@ -112,7 +120,7 @@ export default function Navbar() {
                   const active = location.pathname === to || location.pathname.startsWith(to + "/");
                   return (
                     <Link
-                      key={to}
+                      key={`${to}-${label}`}
                       to={to}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
                       style={{
@@ -124,12 +132,6 @@ export default function Navbar() {
                     >
                       <Icon size={15} />
                       {label}
-                      {active && (
-                        <div
-                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                          style={{ background: "var(--brand)" }}
-                        />
-                      )}
                     </Link>
                   );
                 })}
@@ -152,8 +154,8 @@ export default function Navbar() {
                 }
               </button>
 
-              {/* Cart */}
-              {isLoggedIn && (
+              {/* Cart — only for customers */}
+              {isLoggedIn && user?.role === "customer" && (
                 <button
                   onClick={() => setCartOpen(true)}
                   className="relative p-2 rounded-xl transition-all hover:scale-110 active:scale-95"
@@ -246,7 +248,7 @@ export default function Navbar() {
                       {/* Nav links */}
                       {menuLinks.map(({ to, icon: Icon, label }) => (
                         <Link
-                          key={to}
+                          key={`menu-${to}-${label}`}
                           to={to}
                           onClick={() => setUserMenuOpen(false)}
                           className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
@@ -306,7 +308,7 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {isLoggedIn && (
+      {isLoggedIn && user?.role === "customer" && (
         <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
       )}
     </>

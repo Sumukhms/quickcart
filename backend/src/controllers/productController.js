@@ -47,6 +47,22 @@ export const getProductsByStore = async (req, res) => {
   }
 };
 
+export const searchProducts = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) return res.json([]);
+    const products = await Product.find({
+      name: { $regex: q.trim(), $options: "i" },
+      available: true,
+    })
+      .populate("storeId", "name category isOpen deliveryTime image rating")
+      .limit(40);
+    res.json(products);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 export const updateProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id).populate("storeId");

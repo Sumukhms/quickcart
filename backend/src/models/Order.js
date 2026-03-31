@@ -1,3 +1,12 @@
+/**
+ * Order.js — UPDATED
+ *
+ * Changes:
+ *   + paymentStatus: "pending" | "paid" | "failed"
+ *   + paymentId:     String (Razorpay payment ID, stored after verification)
+ *
+ * Everything else is unchanged from the original.
+ */
 import mongoose from "mongoose";
 
 const orderSchema = new mongoose.Schema({
@@ -22,9 +31,9 @@ const orderSchema = new mongoose.Schema({
     enum: [
       "pending",
       "confirmed",
-      "preparing",          // food flow only
-      "packing",            // ← NEW — grocery flow
-      "ready_for_pickup",   // food flow only
+      "preparing",
+      "packing",
+      "ready_for_pickup",
       "out_for_delivery",
       "delivered",
       "cancelled",
@@ -32,10 +41,22 @@ const orderSchema = new mongoose.Schema({
     default: "pending",
   },
 
-  paymentMethod: { type: String, enum: ["cod", "online"], default: "cod" },
+  paymentMethod: { type: String, enum: ["cod", "online", "upi", "card"], default: "cod" },
+
+  // ── NEW: Razorpay payment tracking ───────────────────────
+  paymentStatus: {
+    type:    String,
+    enum:    ["pending", "paid", "failed"],
+    default: "pending",
+  },
+  paymentId: {
+    type:    String,  // Razorpay payment_id e.g. "pay_xxxxxxxxxxxx"
+    default: null,
+  },
+  // ─────────────────────────────────────────────────────────
+
   estimatedTime: { type: String, default: "30-40 min" },
 
-  // Delivery tracking
   deliveryLocation: {
     lat: { type: Number },
     lng: { type: Number },
