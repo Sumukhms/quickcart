@@ -129,3 +129,7 @@ export const adminAPI = {
   toggleCoupon:  (id)         => api.patch(`/admin/coupons/${id}/toggle`),
   getAnalytics:  ()           => api.get("/stores/analytics"),
 };
+
+export const statsAPI = {
+  getHome: () => api.get("/stats/home"),
+};

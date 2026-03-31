@@ -17,7 +17,7 @@ r.get("/:id",           protect, getOrderById);
 
 // ── STORE OWNER routes ──
 r.get("/store/:storeId",  protect, restrictTo("store"), getStoreOrders);
-r.put("/:id/status",      protect, restrictTo("store"), updateOrderStatus);
+r.put("/:id/status", protect, restrictTo("store", "delivery"), updateOrderStatus);
 
 // ── DELIVERY PARTNER routes ──
 r.get("/delivery/available", protect, restrictTo("delivery"), getAvailableOrders);

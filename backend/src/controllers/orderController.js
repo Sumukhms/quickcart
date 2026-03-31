@@ -121,18 +121,33 @@ export const getStoreOrders = async (req, res) => {
  * know which flow (food vs grocery) applies, then we check that
  * the requested "toStatus" is exactly the next valid step.
  */
+// ─── Role-based status permissions ───────────────────────────
+const STORE_ALLOWED_STATUSES = ["confirmed", "preparing", "packing", "ready_for_pickup", "cancelled"];
+const DELIVERY_ALLOWED_STATUSES = ["out_for_delivery", "delivered"];
+
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status: toStatus } = req.body;
+    const actorRole = req.user.role; // "store" or "delivery"
 
-    // Fetch order with store category
-    const order = await Order.findById(req.params.id)
-      .populate("storeId", "name category");
+    const order = await Order.findById(req.params.id).populate("storeId", "name category");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const storeCategory = order.storeId?.category || "Other";
 
-    // All statuses that exist in any flow
+    // ── Role gate ─────────────────────────────────────────────
+    if (actorRole === "store" && !STORE_ALLOWED_STATUSES.includes(toStatus)) {
+      return res.status(403).json({
+        message: `Store owners cannot set status to "${toStatus}"`,
+      });
+    }
+    if (actorRole === "delivery" && !DELIVERY_ALLOWED_STATUSES.includes(toStatus)) {
+      return res.status(403).json({
+        message: `Delivery partners cannot set status to "${toStatus}"`,
+      });
+    }
+
+    // ── Flow sequence validation ──────────────────────────────
     const allKnownStatuses = [
       "pending", "confirmed", "preparing", "packing",
       "ready_for_pickup", "out_for_delivery", "delivered", "cancelled",
@@ -141,16 +156,12 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(400).json({ message: `Unknown status: "${toStatus}"` });
     }
 
-    // Validate transition for this store's category
     if (!isValidTransition(order.status, toStatus, storeCategory)) {
       const nextAllowed = getNextStatus(order.status, storeCategory);
       return res.status(400).json({
-        message:
-          `Invalid status transition for ${storeCategory} orders: ` +
-          `"${order.status}" → "${toStatus}". ` +
-          `Expected next: "${nextAllowed || "none (already terminal)"}"`,
-        currentStatus:  order.status,
-        allowedNext:    nextAllowed,
+        message: `Invalid transition for ${storeCategory} orders: "${order.status}" → "${toStatus}". Expected: "${nextAllowed || "none"}"`,
+        currentStatus: order.status,
+        allowedNext: nextAllowed,
         storeCategory,
       });
     }
@@ -166,7 +177,6 @@ export const updateOrderStatus = async (req, res) => {
       { returnDocument: "after" }
     ).populate("userId", "name phone");
 
-    // Real-time: customer + store room
     req.io?.to(`order_${updated._id}`).emit("order_status_update", {
       status: toStatus, orderId: updated._id, order: updated,
     });
@@ -174,13 +184,11 @@ export const updateOrderStatus = async (req, res) => {
       orderId: updated._id, status: toStatus,
     });
 
-    // Notify delivery partners on any delivery-trigger status
-    // (food → "ready_for_pickup", grocery → "packing")
     if (DELIVERY_TRIGGER_STATUSES.includes(toStatus)) {
       req.io?.emit("delivery_available", {
-        orderId:       updated._id,
-        address:       updated.deliveryAddress,
-        storeId:       updated.storeId,
+        orderId: updated._id,
+        address: updated.deliveryAddress,
+        storeId: updated.storeId,
         triggerStatus: toStatus,
       });
     }

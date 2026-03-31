@@ -51,18 +51,19 @@ export default function DeliveryActive() {
   };
 
   const markDelivered = useCallback(async () => {
-    if (!order) return;
-    setMarkingDone(true);
-    try {
-      await orderAPI.markDelivered(order._id);
-      addToast("Order delivered! 🎉 Great job!", "success");
-      navigate("/delivery/history");
-    } catch (err) {
-      addToast(err.response?.data?.message || "Failed to mark as delivered", "error");
-    } finally {
-      setMarkingDone(false);
-    }
-  }, [order, addToast, navigate]);
+  if (!order) return;
+  setMarkingDone(true);
+  try {
+    // Use unified status endpoint — backend validates delivery role
+    await orderAPI.updateStatus(order._id, "delivered");
+    addToast("Order delivered! 🎉 Great job!", "success");
+    navigate("/delivery/history");
+  } catch (err) {
+    addToast(err.response?.data?.message || "Failed to mark as delivered", "error");
+  } finally {
+    setMarkingDone(false);
+  }
+}, [order, addToast, navigate]);
 
   if (loading) {
     return (
