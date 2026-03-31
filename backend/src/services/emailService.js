@@ -1,34 +1,76 @@
+/**
+ * emailService.js — UPDATED
+ *
+ * Changes vs original:
+ *   1. sendWithRetry() — up to 3 attempts with exponential backoff
+ *   2. Transporter lazy-init moved inside sendWithRetry (avoids cold-start crash)
+ *   3. Validates EMAIL_USER / EMAIL_PASS env at call time, not module load
+ *   4. All email functions now return a boolean (true = sent, false = failed)
+ *      so callers can decide whether to surface an error
+ */
 import nodemailer from "nodemailer";
 
-// ── Lazy singleton ────────────────────────────────────────────
+// ── Lazy singleton ──────────────────────────────────────────────
 let _transporter = null;
 
 function getTransporter() {
   if (_transporter) return _transporter;
 
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error("EMAIL_USER and EMAIL_PASS must be set in environment");
+  }
+
   _transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",     // ✅ more reliable than service: gmail
-    port: 587,
+    host:   "smtp.gmail.com",
+    port:   587,
     secure: false,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    // Generous timeouts for slow SMTP connections
+    connectionTimeout: 10_000,
+    greetingTimeout:   5_000,
+    socketTimeout:     10_000,
   });
 
-  // ✅ VERIFY CONNECTION (DEBUG)
-  _transporter.verify((error, success) => {
+  // Verify connection once and log result — don't crash on failure
+  _transporter.verify((error) => {
     if (error) {
-      console.error("❌ EMAIL CONFIG ERROR:", error);
+      console.error("❌ SMTP connection failed:", error.message);
+      _transporter = null; // force re-init on next call
     } else {
-      console.log("✅ Email server ready");
+      console.log("✅ SMTP server ready");
     }
   });
 
   return _transporter;
 }
 
-// ── Shared HTML wrapper ───────────────────────────────────────
+// ── Retry wrapper ───────────────────────────────────────────────
+async function sendWithRetry(mailOptions, attempts = 3) {
+  let lastError;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const info = await getTransporter().sendMail(mailOptions);
+      console.log(`✅ Email sent (attempt ${i}):`, info.messageId);
+      return true;
+    } catch (err) {
+      lastError = err;
+      console.error(`⚠️  Email attempt ${i}/${attempts} failed:`, err.message);
+      // Force transporter re-init after failure in case connection died
+      _transporter = null;
+      if (i < attempts) {
+        // Exponential backoff: 1s, 2s, 4s
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i - 1)));
+      }
+    }
+  }
+  console.error("❌ All email attempts failed:", lastError?.message);
+  return false;
+}
+
+// ── Shared HTML wrapper ─────────────────────────────────────────
 function htmlWrapper(title, bodyHtml) {
   return `
     <!DOCTYPE html>
@@ -73,10 +115,12 @@ function htmlWrapper(title, bodyHtml) {
     </html>`;
 }
 
-// ── OTP email ────────────────────────────────────────────────
+// ── OTP email ───────────────────────────────────────────────────
 export async function sendOtpEmail(email, otp, purpose) {
   const isReset    = purpose === "reset_password";
-  const subject    = isReset ? "Reset your QuickCart password" : "Verify your QuickCart email";
+  const subject    = isReset
+    ? "Reset your QuickCart password"
+    : "Verify your QuickCart email";
   const actionLine = isReset
     ? "Use the OTP below to reset your password."
     : "Use the OTP below to verify your email address.";
@@ -107,21 +151,15 @@ export async function sendOtpEmail(email, otp, purpose) {
     </p>
   `);
 
-  try {
-    const info = await getTransporter().sendMail({
-      from: process.env.EMAIL_FROM,
-      to: email,
-      subject,
-      html,
-    });
-
-    console.log("✅ OTP EMAIL SENT:", info.response);
-  } catch (err) {
-    console.error("❌ OTP EMAIL ERROR:", err);
-  }
+  return sendWithRetry({
+    from:    process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`,
+    to:      email,
+    subject,
+    html,
+  });
 }
 
-// ── Welcome email ─────────────────────────────────────────────
+// ── Welcome email ───────────────────────────────────────────────
 export async function sendWelcomeEmail(email, name) {
   const html = htmlWrapper("Welcome to QuickCart!", `
     <h2 style="margin:0 0 8px;color:#111827;font-size:20px;font-weight:700;">
@@ -137,16 +175,10 @@ export async function sendWelcomeEmail(email, name) {
     </p>
   `);
 
-  try {
-    const info = await getTransporter().sendMail({
-      from: process.env.EMAIL_FROM,
-      to: email,
-      subject: "Welcome to QuickCart 🚀",
-      html,
-    });
-
-    console.log("✅ WELCOME EMAIL SENT:", info.response);
-  } catch (err) {
-    console.error("❌ WELCOME EMAIL ERROR:", err);
-  }
+  return sendWithRetry({
+    from:    process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`,
+    to:      email,
+    subject: "Welcome to QuickCart 🚀",
+    html,
+  });
 }

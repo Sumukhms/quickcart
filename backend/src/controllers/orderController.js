@@ -1,9 +1,27 @@
-import Order from "../models/Order.js";
-import Cart  from "../models/Cart.js";
-import Store from "../models/Store.js";
+/**
+ * orderController.js — UPDATED
+ *
+ * Key changes vs original:
+ *   1. placeOrder: idempotency check prevents duplicate orders
+ *   2. placeOrder: server-side stock re-validation (mirrors cartController)
+ *   3. placeOrder: stock decrement on successful order (atomic via $inc)
+ *   4. DELIVERY_FEE sourced from constants (no more hardcoded 20)
+ *   5. cancelOrder: re-stocks items on cancellation
+ */
+import Order   from "../models/Order.js";
+import Cart    from "../models/Cart.js";
+import Store   from "../models/Store.js";
+import Product from "../models/Product.js";
 import { applyCoupon } from "./couponController.js";
+import {
+  DELIVERY_FEE,
+  ORDER_CANCELLABLE_STATUSES,
+  DELIVERY_TRIGGER_STATUSES,
+  MAX_ORDER_VALUE,
+  MIN_ORDER_VALUE,
+} from "../config/constants.js";
 
-// ─── Flow helpers (inlined — keep in sync with shared/orderFlows.js) ──
+// ─── Flow helpers ──────────────────────────────────────────────
 const FOOD_CATEGORIES = ["Food"];
 
 function getFlowType(storeCategory) {
@@ -14,9 +32,6 @@ const FLOW_SEQUENCES = {
   food:    ["pending", "confirmed", "preparing", "ready_for_pickup", "out_for_delivery", "delivered"],
   grocery: ["pending", "confirmed", "packing", "out_for_delivery", "delivered"],
 };
-
-// Statuses that unlock delivery partner assignment
-const DELIVERY_TRIGGER_STATUSES = ["ready_for_pickup", "packing"];
 
 function getNextStatus(currentStatus, storeCategory) {
   const seq = FLOW_SEQUENCES[getFlowType(storeCategory)];
@@ -32,7 +47,20 @@ function isValidTransition(fromStatus, toStatus, storeCategory) {
   return getNextStatus(fromStatus, storeCategory) === toStatus;
 }
 
-// ─── CUSTOMER ─────────────────────────────────────────────────
+const STORE_ALLOWED_STATUSES    = ["confirmed", "preparing", "packing", "ready_for_pickup", "cancelled"];
+const DELIVERY_ALLOWED_STATUSES = ["out_for_delivery", "delivered"];
+
+// ─── CUSTOMER ──────────────────────────────────────────────────
+
+/**
+ * placeOrder
+ *
+ * Extra guards added:
+ *   - totalPrice sanity check (min/max)
+ *   - idempotency: blocks duplicate pending orders for same user+store
+ *   - stock re-validation per item
+ *   - stock decrement (atomic, per-product)
+ */
 export const placeOrder = async (req, res) => {
   try {
     const {
@@ -45,27 +73,94 @@ export const placeOrder = async (req, res) => {
       couponCode,
     } = req.body;
 
+    // ── Basic guards ──────────────────────────────────────────
     if (!deliveryAddress?.trim())       return res.status(400).json({ message: "Delivery address required" });
     if (!items || items.length === 0)   return res.status(400).json({ message: "Cart is empty" });
     if (!storeId)                       return res.status(400).json({ message: "Store ID is required" });
-    if (!totalPrice || totalPrice <= 0) return res.status(400).json({ message: "Invalid total price" });
+    if (!totalPrice || totalPrice < MIN_ORDER_VALUE) {
+      return res.status(400).json({ message: "Invalid order total" });
+    }
+    if (totalPrice > MAX_ORDER_VALUE) {
+      return res.status(400).json({ message: `Order value cannot exceed ₹${MAX_ORDER_VALUE}` });
+    }
 
+    // ── Idempotency: prevent duplicate pending orders ─────────
+    const recentPending = await Order.findOne({
+      userId:    req.user.userId,
+      storeId,
+      status:    "pending",
+      createdAt: { $gte: new Date(Date.now() - 30_000) }, // within last 30 seconds
+    });
+    if (recentPending) {
+      return res.status(409).json({
+        message: "Duplicate order detected. Your previous order is still being processed.",
+        orderId: recentPending._id,
+      });
+    }
+
+    // ── Stock validation per item ─────────────────────────────
+    const productIds = items.map((i) => i.productId).filter(Boolean);
+    const products   = await Product.find({ _id: { $in: productIds } });
+    const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
+
+    for (const item of items) {
+      const product = productMap[item.productId?.toString()];
+      if (!product) {
+        return res.status(400).json({ message: `Product "${item.name}" is no longer available` });
+      }
+      if (!product.available) {
+        return res.status(400).json({ message: `"${product.name}" is currently unavailable` });
+      }
+      if (
+        product.stock !== undefined &&
+        product.stock !== null &&
+        product.stock < item.quantity
+      ) {
+        return res.status(400).json({
+          message: `Only ${product.stock} unit${product.stock !== 1 ? "s" : ""} of "${product.name}" available`,
+          available: product.stock,
+        });
+      }
+    }
+
+    // ── Create order ──────────────────────────────────────────
     const order = await Order.create({
-      userId: req.user.userId,
+      userId:          req.user.userId,
       storeId,
       items,
       totalPrice,
+      deliveryFee:     DELIVERY_FEE,
       deliveryAddress,
-      paymentMethod: paymentMethod || "cod",
+      paymentMethod:   paymentMethod || "cod",
       notes,
-      statusHistory: [{ status: "pending", timestamp: new Date(), updatedBy: req.user.userId }],
+      statusHistory:   [{ status: "pending", timestamp: new Date(), updatedBy: req.user.userId }],
     });
 
-    await Cart.findOneAndUpdate({ userId: req.user.userId }, { items: [], storeId: null });
+    // ── Decrement stock (atomic, fire-and-forget errors) ──────
+    const bulkStockOps = items
+      .filter((i) => i.productId)
+      .map((i) => ({
+        updateOne: {
+          filter: { _id: i.productId, stock: { $gte: i.quantity } },
+          update: { $inc: { stock: -i.quantity } },
+        },
+      }));
+    if (bulkStockOps.length) {
+      Product.bulkWrite(bulkStockOps).catch((err) =>
+        console.error("Stock decrement error:", err.message)
+      );
+    }
 
+    // ── Clear cart ─────────────────────────────────────────────
+    await Cart.findOneAndUpdate(
+      { userId: req.user.userId },
+      { items: [], storeId: null }
+    );
+
+    // ── Notify store ───────────────────────────────────────────
     req.io?.to(`store_${storeId}`).emit("new_order", { orderId: order._id, order });
 
-    // Increment coupon usage AFTER order is safely persisted
+    // ── Coupon usage ───────────────────────────────────────────
     if (couponCode?.trim()) {
       try { await applyCoupon(couponCode.trim().toUpperCase()); }
       catch (e) { console.warn("Coupon usage increment failed:", e.message); }
@@ -99,10 +194,10 @@ export const getOrderById = async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
-// ─── STORE OWNER ──────────────────────────────────────────────
+// ─── STORE OWNER ───────────────────────────────────────────────
+
 export const getStoreOrders = async (req, res) => {
   try {
-    // ── Ownership guard ──────────────────────────────────────
     const store = await Store.findOne({ ownerId: req.user.userId });
     if (!store) return res.status(404).json({ message: "No store found for this account" });
     if (store._id.toString() !== req.params.storeId) {
@@ -110,36 +205,23 @@ export const getStoreOrders = async (req, res) => {
     }
 
     const { status, limit = 50 } = req.query;
-    const filter = { storeId: store._id };   // always scoped to verified store
+    const filter = { storeId: store._id };
     if (status) filter.status = status;
 
-    const [orders, total] = await Promise.all([
-      Order.find(filter)
-        .populate("userId",          "name phone address")
-        .populate("deliveryAgentId", "name phone")
-        .sort({ createdAt: -1 })
-        .limit(Number(limit)),
-      Order.countDocuments(filter),
-    ]);
+    const orders = await Order.find(filter)
+      .populate("userId",          "name phone address")
+      .populate("deliveryAgentId", "name phone")
+      .sort({ createdAt: -1 })
+      .limit(Number(limit));
+
     res.json(orders);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
-/**
- * updateOrderStatus — category-aware transition validation.
- *
- * The store's category is read from the populated storeId so we
- * know which flow (food vs grocery) applies, then we check that
- * the requested "toStatus" is exactly the next valid step.
- */
-// ─── Role-based status permissions ───────────────────────────
-const STORE_ALLOWED_STATUSES = ["confirmed", "preparing", "packing", "ready_for_pickup", "cancelled"];
-const DELIVERY_ALLOWED_STATUSES = ["out_for_delivery", "delivered"];
-
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status: toStatus } = req.body;
-    const actorRole = req.user.role; // "store" or "delivery"
+    const actorRole = req.user.role;
 
     const order = await Order.findById(req.params.id).populate("storeId", "name category");
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -148,31 +230,19 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Role gate ─────────────────────────────────────────────
     if (actorRole === "store" && !STORE_ALLOWED_STATUSES.includes(toStatus)) {
-      return res.status(403).json({
-        message: `Store owners cannot set status to "${toStatus}"`,
-      });
+      return res.status(403).json({ message: `Store owners cannot set status to "${toStatus}"` });
     }
     if (actorRole === "delivery" && !DELIVERY_ALLOWED_STATUSES.includes(toStatus)) {
-      return res.status(403).json({
-        message: `Delivery partners cannot set status to "${toStatus}"`,
-      });
+      return res.status(403).json({ message: `Delivery partners cannot set status to "${toStatus}"` });
     }
 
-    // ── Flow sequence validation ──────────────────────────────
-    const allKnownStatuses = [
-      "pending", "confirmed", "preparing", "packing",
-      "ready_for_pickup", "out_for_delivery", "delivered", "cancelled",
-    ];
-    if (!allKnownStatuses.includes(toStatus)) {
-      return res.status(400).json({ message: `Unknown status: "${toStatus}"` });
-    }
-
+    // ── Flow sequence validation ───────────────────────────────
     if (!isValidTransition(order.status, toStatus, storeCategory)) {
       const nextAllowed = getNextStatus(order.status, storeCategory);
       return res.status(400).json({
-        message: `Invalid transition for ${storeCategory} orders: "${order.status}" → "${toStatus}". Expected: "${nextAllowed || "none"}"`,
+        message: `Invalid transition for ${storeCategory}: "${order.status}" → "${toStatus}". Expected: "${nextAllowed || "none"}"`,
         currentStatus: order.status,
-        allowedNext: nextAllowed,
+        allowedNext:   nextAllowed,
         storeCategory,
       });
     }
@@ -181,9 +251,7 @@ export const updateOrderStatus = async (req, res) => {
       req.params.id,
       {
         status: toStatus,
-        $push: {
-          statusHistory: { status: toStatus, timestamp: new Date(), updatedBy: req.user.userId },
-        },
+        $push: { statusHistory: { status: toStatus, timestamp: new Date(), updatedBy: req.user.userId } },
       },
       { returnDocument: "after" }
     ).populate("userId", "name phone");
@@ -208,13 +276,8 @@ export const updateOrderStatus = async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
-// ─── DELIVERY PARTNER ─────────────────────────────────────────
+// ─── DELIVERY PARTNER ──────────────────────────────────────────
 
-/**
- * getAvailableOrders
- * Queries both trigger statuses so food and grocery orders
- * both surface in the delivery partner's feed.
- */
 export const getAvailableOrders = async (req, res) => {
   try {
     const orders = await Order.find({
@@ -222,16 +285,12 @@ export const getAvailableOrders = async (req, res) => {
       deliveryAgentId: null,
     })
       .populate("storeId", "name address phone category")
-      .populate("userId", "name phone address")
+      .populate("userId",  "name phone address")
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
-/**
- * acceptDelivery
- * Accepts from either trigger status (ready_for_pickup / packing).
- */
 export const acceptDelivery = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -241,12 +300,12 @@ export const acceptDelivery = async (req, res) => {
     }
     if (!DELIVERY_TRIGGER_STATUSES.includes(order.status)) {
       return res.status(400).json({
-        message: `Order is not ready for delivery pickup (status: "${order.status}")`,
+        message: `Order is not ready for pickup (status: "${order.status}")`,
       });
     }
 
-    order.deliveryAgentId     = req.user.userId;
-    order.status              = "out_for_delivery";
+    order.deliveryAgentId      = req.user.userId;
+    order.status               = "out_for_delivery";
     order.isAcceptedByDelivery = true;
     order.statusHistory.push({
       status: "out_for_delivery", timestamp: new Date(), updatedBy: req.user.userId,
@@ -272,7 +331,7 @@ export const getMyDeliveries = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("storeId", "name address phone category")
-      .populate("userId", "name phone address")
+      .populate("userId",  "name phone address")
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -293,7 +352,6 @@ export const markDelivered = async (req, res) => {
     req.io?.to(`order_${order._id}`).emit("order_status_update", {
       status: "delivered", orderId: order._id,
     });
-
     res.json(order);
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -301,32 +359,37 @@ export const markDelivered = async (req, res) => {
 export const updateDeliveryLocation = async (req, res) => {
   try {
     const { lat, lng } = req.body;
+    if (lat === undefined || lng === undefined) {
+      return res.status(400).json({ message: "lat and lng are required" });
+    }
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { deliveryLocation: { lat, lng } },
       { returnDocument: "after" }
     );
+    if (!order) return res.status(404).json({ message: "Order not found" });
     req.io?.to(`order_${order._id}`).emit("location_update", { lat, lng, orderId: order._id });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
-// ─── Add this export to the bottom of orderController.js ─────
-
+/**
+ * cancelOrder
+ *
+ * Extra guard: restocks items when a pending/confirmed order is cancelled.
+ */
 export const cancelOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    // Only the customer who placed the order can cancel
     if (order.userId.toString() !== req.user.userId) {
       return res.status(403).json({ message: "Not your order" });
     }
 
-    const cancellable = ["pending", "confirmed"];
-    if (!cancellable.includes(order.status)) {
+    if (!ORDER_CANCELLABLE_STATUSES.includes(order.status)) {
       return res.status(400).json({
-        message: `Cannot cancel — order is already "${order.status}". Only pending or confirmed orders can be cancelled.`,
+        message: `Cannot cancel — order is "${order.status}". Only ${ORDER_CANCELLABLE_STATUSES.join(" or ")} orders can be cancelled.`,
       });
     }
 
@@ -338,7 +401,21 @@ export const cancelOrder = async (req, res) => {
     });
     await order.save();
 
-    // Notify customer + store in real time
+    // ── Restock items on cancellation ─────────────────────────
+    const bulkRestoreOps = (order.items || [])
+      .filter((i) => i.productId && i.quantity)
+      .map((i) => ({
+        updateOne: {
+          filter: { _id: i.productId },
+          update: { $inc: { stock: i.quantity } },
+        },
+      }));
+    if (bulkRestoreOps.length) {
+      Product.bulkWrite(bulkRestoreOps).catch((err) =>
+        console.error("Stock restore error:", err.message)
+      );
+    }
+
     req.io?.to(`order_${order._id}`).emit("order_status_update", {
       status: "cancelled", orderId: order._id,
     });
@@ -347,7 +424,5 @@ export const cancelOrder = async (req, res) => {
     });
 
     res.json(order);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
+  } catch (e) { res.status(500).json({ message: e.message }); }
 };
