@@ -148,14 +148,16 @@ export default function UserHome() {
   const { favorites } = useFavorites();
 
   const {
-    data: stores,
-    loading,
-    error,
-    search,
-    setSearch,
-    category,
-    setCategory,
-  } = useStores();
+  data: stores,
+  loading,
+  error,
+  search,
+  setSearch,
+  category,
+  setCategory,
+  refresh: fetchStores,
+} = useStores();
+
   const [bannerIdx, setBannerIdx] = useState(0);
   const [searchInput, setSearchInput] = useState("");
   const [hoveredCat, setHoveredCat] = useState(null);
@@ -320,17 +322,7 @@ export default function UserHome() {
                 What are you craving today?
               </p>
             </div>
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(255,107,53,0.15), rgba(255,107,53,0.05))",
-                border: "1px solid rgba(255,107,53,0.2)",
-                animation: "heartbeat 3s infinite",
-              }}
-            >
-              🛒
-            </div>
+            
           </div>
 
           <SearchBar

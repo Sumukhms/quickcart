@@ -155,7 +155,7 @@ export default function Navbar() {
               </button>
 
               {/* Cart — only for customers */}
-              {isLoggedIn && user?.role === "customer" && (
+              {isLoggedIn && ["customer", "store", "delivery"].includes(user?.role) && (
                 <button
                   onClick={() => setCartOpen(true)}
                   className="relative p-2 rounded-xl transition-all hover:scale-110 active:scale-95"
@@ -308,7 +308,7 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {isLoggedIn && user?.role === "customer" && (
+      {isLoggedIn && ["customer", "store", "delivery"].includes(user?.role) && (
         <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
       )}
     </>
