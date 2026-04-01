@@ -1,13 +1,10 @@
 /**
- * authController.js — FIXED
+ * authController.js — FIXED v2
  *
- * Fixes:
- *   1. register: properly handles existing-but-unverified accounts
- *      (resends OTP instead of throwing "already registered" error)
- *   2. login: normalizes email before lookup
- *   3. verifyEmail: clears all existing OTPs for same email on success
- *   4. forgotPassword: normalizes email
- *   5. googleCallback: handles missing FRONTEND_URL gracefully
+ * Key fix in this version:
+ *   forgotPassword: now returns a 500 with emailError:true when the
+ *   email cannot be sent, instead of silently returning 200.
+ *   This lets the frontend display a clear error to the user.
  */
 import User  from "../models/User.js";
 import Otp   from "../models/Otp.js";
@@ -69,11 +66,9 @@ export const register = async (req, res) => {
     const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
-      // If already verified → error
       if (existingUser.isEmailVerified) {
         return res.status(400).json({ message: "Email already registered. Please log in." });
       }
-      // If unverified → resend OTP (don't error out)
       const otp = await Otp.createOtp(normalizedEmail, "verify_email");
       const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
       if (!sent) {
@@ -102,13 +97,10 @@ export const register = async (req, res) => {
 
     const user = await User.create(userData);
 
-    // Generate OTP and send email
     const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
     const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
     if (!sent) {
-      // Created account but email failed — tell the user clearly
-      // Don't delete the account; they can request a resend
       console.error(`[Register] Account created for ${normalizedEmail} but OTP email failed to send.`);
       return res.status(201).json({
         message:              "Account created! However, we could not send the OTP email. Please check server EMAIL configuration and use 'Resend OTP'.",
@@ -125,7 +117,6 @@ export const register = async (req, res) => {
     });
   } catch (e) {
     console.error("[Register] Error:", e.message);
-    // Handle MongoDB duplicate key error
     if (e.code === 11000) {
       return res.status(400).json({ message: "Email already registered. Please log in." });
     }
@@ -153,7 +144,6 @@ export const verifyEmail = async (req, res) => {
     );
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Send welcome email (non-blocking)
     sendWelcomeEmail(normalizedEmail, user.name).catch(console.error);
 
     const token = signToken(user);
@@ -211,7 +201,6 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // Google-only accounts have no password
     if (user.authProvider === "google" && !user.password) {
       return res.status(400).json({
         message: "This account uses Google Sign-In. Please continue with Google.",
@@ -244,15 +233,22 @@ export const login = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// FORGOT PASSWORD
+// FORGOT PASSWORD — FIXED
+// Now returns 500 + emailError:true when email delivery fails,
+// instead of silently returning 200. This lets the client show
+// a useful error message instead of leaving the user confused.
 // ─────────────────────────────────────────────────────────────
 export const forgotPassword = async (req, res) => {
   try {
     const normalizedEmail = req.body.email?.toLowerCase().trim();
 
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
     const user = await User.findOne({ email: normalizedEmail });
 
-    // Always return 200 to prevent email enumeration
+    // Anti-enumeration: always 200 for "not found" or "google-only" accounts
     if (!user || user.authProvider === "google") {
       return res.json({
         message: "If that email exists, an OTP has been sent.",
@@ -262,11 +258,18 @@ export const forgotPassword = async (req, res) => {
     const otp  = await Otp.createOtp(normalizedEmail, "reset_password");
     const sent = await sendOtpEmail(normalizedEmail, otp, "reset_password");
 
+    // ── KEY FIX: surface email failures ──────────────────────
     if (!sent) {
+      console.error(`[ForgotPassword] OTP generated but email failed for ${normalizedEmail}`);
       return res.status(500).json({
-        message: "Failed to send OTP email. Please check server EMAIL configuration.",
+        message:
+          "OTP was generated but the email could not be sent. " +
+          "Please check EMAIL_USER and EMAIL_PASS in your server .env file " +
+          "(Gmail requires an App Password, not your regular password).",
+        emailError: true,
       });
     }
+    // ─────────────────────────────────────────────────────────
 
     res.json({ message: "If that email exists, an OTP has been sent." });
   } catch (e) {

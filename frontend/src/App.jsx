@@ -3,6 +3,7 @@ import { useAuth } from "./context/AuthContext";
 
 // Common
 import Navbar from "./components/Navbar.jsx";
+import Footer from "./components/Footer.jsx";
 import ToastContainer from "./components/Toast.jsx";
 import { LoginPage, RegisterPage } from "./pages/AuthPages.jsx";
 
@@ -48,47 +49,54 @@ function AdminRoute({ children }) {
 
 export default function App() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--bg)" }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--bg)" }}>
       <Navbar />
       <ToastContainer />
-      <Routes>
-        {/* Root */}
-        <Route path="/" element={<RootRedirect />} />
 
-        {/* Auth */}
-        <Route path="/login"    element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/auth/callback"   element={<OAuthCallback />} />
+      {/* Main content grows to fill available space */}
+      <main className="flex-1">
+        <Routes>
+          {/* Root */}
+          <Route path="/" element={<RootRedirect />} />
 
-        {/* ── BROWSING — open to ALL logged-in users ── */}
-        <Route path="/user/home"      element={<ProtectedRoute><UserHome /></ProtectedRoute>} />
-        <Route path="/user/store/:id" element={<ProtectedRoute><UserStorePage /></ProtectedRoute>} />
+          {/* Auth */}
+          <Route path="/login"    element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/auth/callback"   element={<OAuthCallback />} />
 
-        {/* ── SHOPPING — ALL roles can buy things ── */}
-        <Route path="/user/cart"       element={<ProtectedRoute><UserCart /></ProtectedRoute>} />
-        <Route path="/checkout"        element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-        <Route path="/user/orders"     element={<ProtectedRoute><UserOrders /></ProtectedRoute>} />
-        <Route path="/user/orders/:id" element={<ProtectedRoute><UserTrack /></ProtectedRoute>} />
-        <Route path="/user/profile"    element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+          {/* ── BROWSING — open to ALL logged-in users ── */}
+          <Route path="/user/home"      element={<ProtectedRoute><UserHome /></ProtectedRoute>} />
+          <Route path="/user/store/:id" element={<ProtectedRoute><UserStorePage /></ProtectedRoute>} />
 
-        {/* ── STORE OWNER routes ── */}
-        <Route path="/store/dashboard" element={<StoreRoute><StoreDashboard /></StoreRoute>} />
-        <Route path="/store/products"  element={<StoreRoute><StoreProducts /></StoreRoute>} />
-        <Route path="/store/orders"    element={<StoreRoute><StoreOrders /></StoreRoute>} />
-        <Route path="/store/settings"  element={<StoreRoute><StoreSettings /></StoreRoute>} />
+          {/* ── SHOPPING — ALL roles can buy things ── */}
+          <Route path="/user/cart"       element={<ProtectedRoute><UserCart /></ProtectedRoute>} />
+          <Route path="/checkout"        element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+          <Route path="/user/orders"     element={<ProtectedRoute><UserOrders /></ProtectedRoute>} />
+          <Route path="/user/orders/:id" element={<ProtectedRoute><UserTrack /></ProtectedRoute>} />
+          <Route path="/user/profile"    element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
 
-        {/* ── DELIVERY PARTNER routes ── */}
-        <Route path="/delivery/dashboard" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
-        <Route path="/delivery/active"    element={<DeliveryRoute><DeliveryActive /></DeliveryRoute>} />
-        <Route path="/delivery/history"   element={<DeliveryRoute><DeliveryHistory /></DeliveryRoute>} />
+          {/* ── STORE OWNER routes ── */}
+          <Route path="/store/dashboard" element={<StoreRoute><StoreDashboard /></StoreRoute>} />
+          <Route path="/store/products"  element={<StoreRoute><StoreProducts /></StoreRoute>} />
+          <Route path="/store/orders"    element={<StoreRoute><StoreOrders /></StoreRoute>} />
+          <Route path="/store/settings"  element={<StoreRoute><StoreSettings /></StoreRoute>} />
 
-        {/* ── ADMIN routes ── */}
-        <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+          {/* ── DELIVERY PARTNER routes ── */}
+          <Route path="/delivery/dashboard" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
+          <Route path="/delivery/active"    element={<DeliveryRoute><DeliveryActive /></DeliveryRoute>} />
+          <Route path="/delivery/history"   element={<DeliveryRoute><DeliveryHistory /></DeliveryRoute>} />
 
-        {/* Catch-all */}
-        <Route path="*" element={<RootRedirect />} />
-      </Routes>
+          {/* ── ADMIN routes ── */}
+          <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+
+          {/* Catch-all */}
+          <Route path="*" element={<RootRedirect />} />
+        </Routes>
+      </main>
+
+      {/* Footer renders itself conditionally based on route */}
+      <Footer />
     </div>
   );
 }

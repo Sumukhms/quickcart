@@ -380,27 +380,6 @@ export function LoginPage() {
           </Link>
         </p>
       </form>
-
-      {/* Demo accounts */}
-      <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
-        <div className="divider-label mb-3">Quick Demo Login</div>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { role: "customer", email: "customer@demo.com", pw: "Demo1234", emoji: "👤", color: "#22c55e" },
-            { role: "store",    email: "store@demo.com",    pw: "Demo1234", emoji: "🏪", color: "#3b82f6" },
-            { role: "delivery", email: "delivery@demo.com", pw: "Demo1234", emoji: "🛵", color: "#f59e0b" },
-          ].map(({ role, email, pw, emoji, color }) => (
-            <button
-              key={role}
-              onClick={() => setForm({ email, password: pw })}
-              className="py-3 px-1 rounded-2xl text-xs font-bold capitalize transition-all hover:scale-105"
-              style={{ background: color + "12", color, border: `1.5px solid ${color}30` }}
-            >
-              <div className="text-xl mb-1">{emoji}</div>{role}
-            </button>
-          ))}
-        </div>
-      </div>
     </AuthLayout>
   );
 }
@@ -565,14 +544,33 @@ export function ForgotPasswordPage() {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    setError(""); setLoading(true);
+    setError(""); setSuccess(""); setLoading(true);
     try {
-      await api.post("/auth/forgot-password", { email });
-      setSuccess("If that email exists, an OTP has been sent. Check your inbox and spam folder.");
+      const { data } = await api.post("/auth/forgot-password", { email });
+
+      // Check if backend reported an email failure
+      if (data.emailError) {
+        setError(
+          "OTP was generated but the email could not be sent. " +
+          "Please ask the admin to check EMAIL_USER and EMAIL_PASS in the server .env file."
+        );
+        return;
+      }
+
+      setSuccess("OTP sent! Check your inbox and spam folder.");
       setStep("otp");
       startCooldown();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to send OTP");
+      const msg = err.response?.data?.message || "Failed to send OTP";
+      // Surface email config errors clearly
+      if (err.response?.data?.emailError) {
+        setError(
+          "The OTP could not be emailed. Server email configuration issue — " +
+          "please check EMAIL_USER and EMAIL_PASS in the backend .env file."
+        );
+      } else {
+        setError(msg);
+      }
     } finally { setLoading(false); }
   };
 
@@ -580,10 +578,16 @@ export function ForgotPasswordPage() {
     if (cooldown > 0) return;
     setLoading(true); setError(""); setSuccess("");
     try {
-      await api.post("/auth/forgot-password", { email });
+      const { data } = await api.post("/auth/forgot-password", { email });
+      if (data.emailError) {
+        setError("OTP generated but email delivery failed. Check server email config.");
+        return;
+      }
       setSuccess("OTP resent to your email.");
       startCooldown();
-    } catch { setError("Failed to resend OTP"); }
+    } catch {
+      setError("Failed to resend OTP. Please try again.");
+    }
     finally { setLoading(false); }
   };
 

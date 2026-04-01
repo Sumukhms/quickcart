@@ -47,7 +47,7 @@ export const createRazorpayOrder = async (req, res) => {
     const options = {
       amount:   Math.round(Number(amount) * 100), // paise
       currency: RAZORPAY_CURRENCY,
-      receipt:  `qc_${req.user.userId}_${Date.now()}`,
+      receipt:  `ord_${Date.now().toString().slice(-8)}`,
     };
 
     const razorpayOrder = await razorpay.orders.create(options);
