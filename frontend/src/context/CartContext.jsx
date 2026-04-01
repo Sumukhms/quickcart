@@ -9,7 +9,6 @@ function loadCart() {
     const raw = localStorage.getItem(CART_KEY);
     if (!raw) return { items: [], store: null };
     const parsed = JSON.parse(raw);
-    // Validate shape
     if (!Array.isArray(parsed.items)) return { items: [], store: null };
     return parsed;
   } catch {
@@ -20,7 +19,7 @@ function loadCart() {
 function saveCart(items, store) {
   try {
     localStorage.setItem(CART_KEY, JSON.stringify({ items, store }));
-  } catch { /* quota exceeded — ignore */ }
+  } catch { /* quota exceeded */ }
 }
 
 export function CartProvider({ children }) {
@@ -40,6 +39,7 @@ export function CartProvider({ children }) {
     if (!isLoggedIn) {
       setCartItems([]);
       setCartStore(null);
+      localStorage.removeItem(CART_KEY);
     }
   }, [isLoggedIn]);
 
@@ -50,16 +50,29 @@ export function CartProvider({ children }) {
   }, []);
 
   const addToCart = useCallback((product, store) => {
-    if (cartStore && cartStore._id !== (store._id || store)) {
-      addToast("Clear your cart before adding from another store", "error");
+    // FIX: properly compare store IDs (both may be objects or strings)
+    const storeId    = store?._id?.toString() || store?.toString();
+    const cartStoreId = cartStore?._id?.toString() || cartStore?.toString();
+
+    if (cartStoreId && storeId && cartStoreId !== storeId) {
+      addToast("Clear your cart before adding items from a different store", "error");
       return false;
     }
-    setCartStore(store);
+
+    // Use the full store object if available
+    const storeToSet = store?._id ? store : cartStore;
+    setCartStore(storeToSet);
+
     setCartItems(prev => {
       const existing = prev.find(i => i._id === product._id);
-      if (existing) return prev.map(i => i._id === product._id ? { ...i, qty: i.qty + 1 } : i);
+      if (existing) {
+        return prev.map(i =>
+          i._id === product._id ? { ...i, qty: i.qty + 1 } : i
+        );
+      }
       return [...prev, { ...product, qty: 1 }];
     });
+
     addToast(`${product.name} added to cart ✓`, "success");
     return true;
   }, [cartStore, addToast]);
@@ -74,7 +87,9 @@ export function CartProvider({ children }) {
 
   const updateQty = useCallback((productId, qty) => {
     if (qty <= 0) { removeFromCart(productId); return; }
-    setCartItems(prev => prev.map(i => i._id === productId ? { ...i, qty } : i));
+    setCartItems(prev => prev.map(i =>
+      i._id === productId ? { ...i, qty } : i
+    ));
   }, [removeFromCart]);
 
   const clearCart = useCallback(() => {

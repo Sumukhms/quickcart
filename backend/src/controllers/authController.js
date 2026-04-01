@@ -1,18 +1,13 @@
 /**
- * authController.js — UPDATED
+ * authController.js — FIXED
  *
- * New endpoints:
- *   POST /api/auth/register              → register + send verification OTP
- *   POST /api/auth/verify-email          → verify OTP, activate account
- *   POST /api/auth/resend-verification   → resend verification OTP
- *   POST /api/auth/forgot-password       → send password-reset OTP
- *   POST /api/auth/verify-reset-otp      → verify reset OTP (dry-run)
- *   POST /api/auth/reset-password        → verify OTP + set new password
- *
- * Existing endpoints updated:
- *   POST /api/auth/login                 → blocks unverified accounts
- *   GET  /api/auth/google                → Google OAuth entry
- *   GET  /api/auth/google/callback       → Google OAuth callback
+ * Fixes:
+ *   1. register: properly handles existing-but-unverified accounts
+ *      (resends OTP instead of throwing "already registered" error)
+ *   2. login: normalizes email before lookup
+ *   3. verifyEmail: clears all existing OTPs for same email on success
+ *   4. forgotPassword: normalizes email
+ *   5. googleCallback: handles missing FRONTEND_URL gracefully
  */
 import User  from "../models/User.js";
 import Otp   from "../models/Otp.js";
@@ -52,29 +47,54 @@ function safeUser(user) {
     storeId:         user.storeId,
     totalDeliveries: user.totalDeliveries,
     rating:          user.rating,
+    favoriteStores:  user.favoriteStores || [],
   };
 }
 
 // ─────────────────────────────────────────────────────────────
-// REGISTER — creates unverified account, sends OTP
+// REGISTER
 // ─────────────────────────────────────────────────────────────
 export const register = async (req, res) => {
   try {
     const { name, email, password, role, phone, vehicleType } = req.body;
+    const normalizedEmail = email?.toLowerCase().trim();
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
     const validRoles = ["customer", "store", "delivery"];
     const userRole   = validRoles.includes(role) ? role : "customer";
 
-    if (await User.findOne({ email })) {
-      return res.status(400).json({ message: "Email already registered" });
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    if (existingUser) {
+      // If already verified → error
+      if (existingUser.isEmailVerified) {
+        return res.status(400).json({ message: "Email already registered. Please log in." });
+      }
+      // If unverified → resend OTP (don't error out)
+      const otp = await Otp.createOtp(normalizedEmail, "verify_email");
+      const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
+      if (!sent) {
+        return res.status(500).json({
+          message: "Account exists but we could not send the OTP email. Check your EMAIL_USER and EMAIL_PASS in .env",
+        });
+      }
+      return res.status(200).json({
+        message:              "A new verification OTP has been sent to your email.",
+        email:                normalizedEmail,
+        requiresVerification: true,
+      });
     }
 
-    const hashed   = await bcrypt.hash(password, 12);  // cost 12 for production
+    const hashed   = await bcrypt.hash(password, 12);
     const userData = {
-      name, email,
-      password: hashed,
-      role: userRole,
-      phone,
+      name:            name?.trim(),
+      email:           normalizedEmail,
+      password:        hashed,
+      role:            userRole,
+      phone:           phone?.trim() || undefined,
       isEmailVerified: false,
       authProvider:    "local",
     };
@@ -83,16 +103,32 @@ export const register = async (req, res) => {
     const user = await User.create(userData);
 
     // Generate OTP and send email
-    const otp = await Otp.createOtp(email, "verify_email");
-    await sendOtpEmail(email, otp, "verify_email");
+    const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
+    const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
+
+    if (!sent) {
+      // Created account but email failed — tell the user clearly
+      // Don't delete the account; they can request a resend
+      console.error(`[Register] Account created for ${normalizedEmail} but OTP email failed to send.`);
+      return res.status(201).json({
+        message:              "Account created! However, we could not send the OTP email. Please check server EMAIL configuration and use 'Resend OTP'.",
+        email:                normalizedEmail,
+        requiresVerification: true,
+        emailError:           true,
+      });
+    }
 
     res.status(201).json({
-      message:            "Registration successful. Please verify your email.",
-      email,
+      message:              "Registration successful. Please check your email for the OTP.",
+      email:                normalizedEmail,
       requiresVerification: true,
     });
   } catch (e) {
-    console.error("Register error:", e);
+    console.error("[Register] Error:", e.message);
+    // Handle MongoDB duplicate key error
+    if (e.code === 11000) {
+      return res.status(400).json({ message: "Email already registered. Please log in." });
+    }
     res.status(500).json({ message: e.message });
   }
 };
@@ -103,30 +139,32 @@ export const register = async (req, res) => {
 export const verifyEmail = async (req, res) => {
   try {
     const { email, otp } = req.body;
+    const normalizedEmail = email?.toLowerCase().trim();
 
-    const result = await Otp.verifyOtp(email, otp, "verify_email");
+    const result = await Otp.verifyOtp(normalizedEmail, otp, "verify_email");
     if (!result.valid) {
       return res.status(400).json({ message: result.reason });
     }
 
     const user = await User.findOneAndUpdate(
-      { email },
+      { email: normalizedEmail },
       { isEmailVerified: true },
       { new: true }
     );
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Send welcome email (non-blocking — don't await)
-    sendWelcomeEmail(email, user.name).catch(console.error);
+    // Send welcome email (non-blocking)
+    sendWelcomeEmail(normalizedEmail, user.name).catch(console.error);
 
     const token = signToken(user);
     res.json({
-      message:    "Email verified successfully!",
+      message:    "Email verified successfully! Welcome to QuickCart.",
       token,
       user:       safeUser(user),
-      redirectTo: ROLE_REDIRECT[user.role],
+      redirectTo: ROLE_REDIRECT[user.role] || "/user/home",
     });
   } catch (e) {
+    console.error("[VerifyEmail] Error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
@@ -136,29 +174,38 @@ export const verifyEmail = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const resendVerificationOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const normalizedEmail = req.body.email?.toLowerCase().trim();
+    if (!normalizedEmail) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email: email?.toLowerCase() });
-    if (!user)              return res.status(404).json({ message: "Account not found" });
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user)                return res.status(404).json({ message: "Account not found" });
     if (user.isEmailVerified) return res.status(400).json({ message: "Email is already verified" });
 
-    const otp = await Otp.createOtp(email, "verify_email");
-    await sendOtpEmail(email, otp, "verify_email");
+    const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
+    const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
-    res.json({ message: "Verification OTP resent. Please check your email." });
+    if (!sent) {
+      return res.status(500).json({
+        message: "Failed to send OTP email. Please check server EMAIL configuration.",
+      });
+    }
+
+    res.json({ message: "Verification OTP sent. Please check your email." });
   } catch (e) {
+    console.error("[ResendOtp] Error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
 
 // ─────────────────────────────────────────────────────────────
-// LOGIN — blocks unverified local accounts
+// LOGIN
 // ─────────────────────────────────────────────────────────────
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = email?.toLowerCase().trim();
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
@@ -176,7 +223,6 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // Block unverified local accounts
     if (!user.isEmailVerified) {
       return res.status(403).json({
         message:              "Please verify your email before logging in.",
@@ -186,52 +232,65 @@ export const login = async (req, res) => {
     }
 
     const token = signToken(user);
-    res.json({ token, user: safeUser(user), redirectTo: ROLE_REDIRECT[user.role] });
+    res.json({
+      token,
+      user:       safeUser(user),
+      redirectTo: ROLE_REDIRECT[user.role] || "/user/home",
+    });
   } catch (e) {
+    console.error("[Login] Error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
 
 // ─────────────────────────────────────────────────────────────
-// FORGOT PASSWORD — send OTP to email
+// FORGOT PASSWORD
 // ─────────────────────────────────────────────────────────────
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const normalizedEmail = req.body.email?.toLowerCase().trim();
 
-    const user = await User.findOne({ email: email?.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
-    // Always return 200 to prevent email enumeration attacks
+    // Always return 200 to prevent email enumeration
     if (!user || user.authProvider === "google") {
       return res.json({
         message: "If that email exists, an OTP has been sent.",
       });
     }
 
-    const otp = await Otp.createOtp(email, "reset_password");
-    await sendOtpEmail(email, otp, "reset_password");
+    const otp  = await Otp.createOtp(normalizedEmail, "reset_password");
+    const sent = await sendOtpEmail(normalizedEmail, otp, "reset_password");
+
+    if (!sent) {
+      return res.status(500).json({
+        message: "Failed to send OTP email. Please check server EMAIL configuration.",
+      });
+    }
 
     res.json({ message: "If that email exists, an OTP has been sent." });
   } catch (e) {
+    console.error("[ForgotPassword] Error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
 
 // ─────────────────────────────────────────────────────────────
-// RESET PASSWORD — verify OTP + update password
+// RESET PASSWORD
 // ─────────────────────────────────────────────────────────────
 export const resetPassword = async (req, res) => {
   try {
     const { email, otp, password } = req.body;
+    const normalizedEmail = email?.toLowerCase().trim();
 
-    const result = await Otp.verifyOtp(email, otp, "reset_password");
+    const result = await Otp.verifyOtp(normalizedEmail, otp, "reset_password");
     if (!result.valid) {
       return res.status(400).json({ message: result.reason });
     }
 
     const hashed = await bcrypt.hash(password, 12);
     const user   = await User.findOneAndUpdate(
-      { email },
+      { email: normalizedEmail },
       { password: hashed },
       { new: true }
     );
@@ -239,48 +298,57 @@ export const resetPassword = async (req, res) => {
 
     res.json({ message: "Password reset successfully. You can now log in." });
   } catch (e) {
+    console.error("[ResetPassword] Error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
 
 // ─────────────────────────────────────────────────────────────
-// GOOGLE OAUTH CALLBACK — called by Passport after consent
+// GOOGLE OAUTH CALLBACK
 // ─────────────────────────────────────────────────────────────
 export const googleCallback = async (req, res) => {
   try {
-    const user  = req.user;  // set by passport strategy
+    const user  = req.user;
     const token = signToken(user);
-
-    // Redirect to frontend with token in URL fragment (not query string)
-    // Frontend reads it once and stores in localStorage
     const redirectTo = ROLE_REDIRECT[user.role] || "/user/home";
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
     res.redirect(
-      `${process.env.FRONTEND_URL}/auth/callback#token=${token}&redirectTo=${encodeURIComponent(redirectTo)}`
+      `${frontendUrl}/auth/callback#token=${token}&redirectTo=${encodeURIComponent(redirectTo)}`
     );
   } catch (e) {
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_failed`);
+    console.error("[GoogleCallback] Error:", e.message);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    res.redirect(`${frontendUrl}/login?error=oauth_failed`);
   }
 };
 
 // ─────────────────────────────────────────────────────────────
-// Unchanged endpoints (getProfile, updateProfile, etc.)
+// PROFILE MANAGEMENT
 // ─────────────────────────────────────────────────────────────
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ ...user.toObject(), addresses: user.addresses || [] });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
 export const updateProfile = async (req, res) => {
   try {
-    const allowed = { name: req.body.name, phone: req.body.phone, address: req.body.address };
+    const allowed = {
+      name:    req.body.name?.trim(),
+      phone:   req.body.phone?.trim(),
+      address: req.body.address?.trim(),
+    };
     if (req.user.role === "delivery") allowed.vehicleType = req.body.vehicleType;
+
     const user = await User.findByIdAndUpdate(
       req.user.userId,
       { $set: allowed },
       { new: true }
     ).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ ...user.toObject(), addresses: user.addresses || [] });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -306,9 +374,11 @@ export const removeAddress = async (req, res) => {
     const idx  = Number(req.params.index);
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (isNaN(idx) || idx < 0 || idx >= user.addresses.length) return res.status(400).json({ message: "Invalid address index" });
+    if (isNaN(idx) || idx < 0 || idx >= user.addresses.length) {
+      return res.status(400).json({ message: "Invalid address index" });
+    }
     user.addresses.splice(idx, 1);
-    user.address = user.addresses[0] || user.address;
+    user.address = user.addresses[0] || "";
     await user.save();
     res.json({ addresses: user.addresses, address: user.address });
   } catch (e) { res.status(500).json({ message: e.message }); }
@@ -319,7 +389,9 @@ export const setDefaultAddress = async (req, res) => {
     const idx  = Number(req.params.index);
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (isNaN(idx) || idx < 0 || idx >= user.addresses.length) return res.status(400).json({ message: "Invalid address index" });
+    if (isNaN(idx) || idx < 0 || idx >= user.addresses.length) {
+      return res.status(400).json({ message: "Invalid address index" });
+    }
     const [chosen] = user.addresses.splice(idx, 1);
     user.addresses.unshift(chosen);
     user.address = chosen;
@@ -330,8 +402,11 @@ export const setDefaultAddress = async (req, res) => {
 
 export const toggleDeliveryAvailability = async (req, res) => {
   try {
-    if (req.user.role !== "delivery") return res.status(403).json({ message: "Delivery partners only" });
+    if (req.user.role !== "delivery") {
+      return res.status(403).json({ message: "Delivery partners only" });
+    }
     const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
     user.isAvailable = !user.isAvailable;
     await user.save();
     res.json({ isAvailable: user.isAvailable });

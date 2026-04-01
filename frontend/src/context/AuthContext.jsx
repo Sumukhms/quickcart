@@ -12,9 +12,12 @@ export const ROLE_HOME = {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("qc-user")); } catch { return null; }
+    try {
+      const raw = localStorage.getItem("qc-user");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
   });
-  const [token, setToken] = useState(() => localStorage.getItem("qc-token"));
+  const [token, setToken] = useState(() => localStorage.getItem("qc-token") || null);
 
   const _persist = (data) => {
     setUser(data.user);
@@ -31,7 +34,7 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    // Registration no longer returns a token — returns { requiresVerification, email }
+    // Registration returns { requiresVerification, email } — no token yet
     return data;
   }, []);
 
@@ -43,29 +46,38 @@ export function AuthProvider({ children }) {
   }, []);
 
   const updateUser = useCallback((updates) => {
-    // Accepts either a full user object or a partial patch
-    const updated = updates._id
-      ? { ...updates }                 // full object (from OAuth callback)
-      : { ...(user || {}), ...updates }; // partial patch
+    if (!updates) return;
+    // If a full user object is passed (has _id or id), replace entirely
+    const isFullObject = updates._id || updates.id;
+    const updated = isFullObject
+      ? { ...updates }
+      : { ...(user || {}), ...updates };
     setUser(updated);
     localStorage.setItem("qc-user", JSON.stringify(updated));
   }, [user]);
 
-  // Called by OAuthCallback after storing token manually
+  // Called by OAuthCallback after parsing token from URL hash
   const setTokenExternal = useCallback((t) => {
+    if (!t) return;
     setToken(t);
     localStorage.setItem("qc-token", t);
   }, []);
 
   return (
     <AuthContext.Provider value={{
-      user, token, login, register, logout, updateUser, setTokenExternal,
-      isLoggedIn:  !!user,
+      user,
+      token,
+      login,
+      register,
+      logout,
+      updateUser,
+      setTokenExternal,
+      isLoggedIn:  !!user && !!token,
       isCustomer:  user?.role === "customer",
       isStore:     user?.role === "store",
       isDelivery:  user?.role === "delivery",
       isAdmin:     user?.role === "admin",
-      homeRoute:   user ? ROLE_HOME[user.role] : "/login",
+      homeRoute:   user ? (ROLE_HOME[user.role] || "/user/home") : "/login",
     }}>
       {children}
     </AuthContext.Provider>
