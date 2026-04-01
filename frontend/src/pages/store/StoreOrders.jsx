@@ -2,66 +2,24 @@ import { useState, useEffect } from "react";
 import { Link }                from "react-router-dom";
 import {
   ChevronLeft, RefreshCw, Search, Check, X,
-  Phone, ChevronDown, ChevronUp, Package
+  Phone, ChevronDown, ChevronUp, Package, Loader2
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import api          from "../../api/api";
-// ── NEW: flow-aware helpers ────────────────────────────────────
 import { STATUS_VISUAL, getNextStatusAction } from "../../utils/orderFlows";
+import { EmptyState } from "../../components/ui/Skeleton";
 
-// ─── Demo orders include a "packing" example ──────────────────
-const DEMO_ORDERS = [
-  {
-    _id: "o1", status: "pending",   totalPrice: 245, deliveryFee: 20,
-    createdAt: new Date().toISOString(),
-    userId: { name: "Raj Kumar",    phone: "+91 98765 43210" },
-    items: [{ name: "Amul Milk 500ml", quantity: 2, price: 28 }, { name: "Bread", quantity: 1, price: 45 }],
-    deliveryAddress: "12, 3rd Main, Koramangala", paymentMethod: "cod",
-  },
-  {
-    _id: "o2", status: "packing",   totalPrice: 180, deliveryFee: 20,
-    createdAt: new Date(Date.now() - 1_800_000).toISOString(),
-    userId: { name: "Priya Singh",  phone: "+91 87654 32109" },
-    items: [{ name: "Basmati Rice 1kg", quantity: 1, price: 120 }, { name: "Tata Salt", quantity: 1, price: 22 }],
-    deliveryAddress: "5B, 1st Cross, HSR Layout", paymentMethod: "cod",
-  },
-  {
-    _id: "o3", status: "delivered", totalPrice: 320, deliveryFee: 20,
-    createdAt: new Date(Date.now() - 86_400_000).toISOString(),
-    userId: { name: "Arjun Mehta",  phone: "+91 76543 21098" },
-    items: [{ name: "Mixed Veggies", quantity: 2, price: 80 }, { name: "Eggs 12pcs", quantity: 1, price: 90 }],
-    deliveryAddress: "44, 8th Main, Indiranagar", paymentMethod: "online",
-  },
-  {
-    _id: "o4", status: "confirmed", totalPrice: 95,  deliveryFee: 0,
-    createdAt: new Date(Date.now() - 3_600_000).toISOString(),
-    userId: { name: "Sneha Patel",  phone: "+91 65432 10987" },
-    items: [{ name: "Parle-G Biscuits", quantity: 3, price: 10 }, { name: "Sprite 750ml", quantity: 1, price: 45 }],
-    deliveryAddress: "77, 2nd Phase, JP Nagar", paymentMethod: "cod",
-  },
-  {
-    _id: "o5", status: "cancelled", totalPrice: 150, deliveryFee: 20,
-    createdAt: new Date(Date.now() - 7_200_000).toISOString(),
-    userId: { name: "Vikram Das",   phone: "+91 54321 09876" },
-    items: [{ name: "Fortune Oil 1L", quantity: 1, price: 145 }],
-    deliveryAddress: "9, 6th Sector, HSR Layout", paymentMethod: "cod",
-  },
-];
-
-// ─── Order row ────────────────────────────────────────────────
 function OrderRow({ order, storeCategory, onStatusUpdate }) {
   const [expanded, setExpanded] = useState(false);
   const sc         = STATUS_VISUAL[order.status] || STATUS_VISUAL.pending;
-  // ── Dynamic next action for this order's flow ─────────────
   const nextAction = getNextStatusAction(order.status, storeCategory);
 
   return (
     <div
-      className="rounded-2xl overflow-hidden transition-all"
+      className="rounded-2xl overflow-hidden transition-all duration-300"
       style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
     >
-      {/* Summary row */}
       <div
         className="flex items-center gap-3 px-5 py-4 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
@@ -97,10 +55,8 @@ function OrderRow({ order, storeCategory, onStatusUpdate }) {
         }
       </div>
 
-      {/* Expanded detail */}
       {expanded && (
         <div className="px-5 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
-          {/* Items */}
           <div className="py-3 space-y-1.5">
             {order.items?.map((item, i) => (
               <div key={i} className="flex justify-between text-sm">
@@ -119,19 +75,16 @@ function OrderRow({ order, storeCategory, onStatusUpdate }) {
             </div>
           </div>
 
-          {/* Meta */}
           <div className="flex flex-col gap-1.5 mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
             <span>📍 {order.deliveryAddress}</span>
             {order.userId?.phone && (
-              <a href={`tel:${order.userId.phone}`} className="flex items-center gap-1"
-                style={{ color: "var(--brand)" }}>
+              <a href={`tel:${order.userId.phone}`} className="flex items-center gap-1" style={{ color: "var(--brand)" }}>
                 <Phone size={11} /> {order.userId.phone}
               </a>
             )}
             <span>💳 {order.paymentMethod === "cod" ? "Cash on Delivery" : "Online Payment"}</span>
           </div>
 
-          {/* ── Flow-aware action buttons ─────────────────── */}
           {nextAction && order.status !== "cancelled" && (
             <div className="flex gap-2">
               <button
@@ -157,34 +110,36 @@ function OrderRow({ order, storeCategory, onStatusUpdate }) {
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────
 export default function StoreOrders() {
   const { isLoggedIn } = useAuth();
   const { addToast }   = useCart();
 
-  const [orders,       setOrders]       = useState([]);
-  const [storeId,      setStoreId]      = useState(null);
+  const [orders,        setOrders]        = useState([]);
+  const [storeId,       setStoreId]       = useState(null);
   const [storeCategory, setStoreCategory] = useState("Other");
-  const [loading,      setLoading]      = useState(true);
-  const [refreshing,   setRefreshing]   = useState(false);
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [error,         setError]         = useState(null);
+  const [search,        setSearch]        = useState("");
+  const [statusFilter,  setStatusFilter]  = useState("all");
 
   useEffect(() => { if (isLoggedIn) fetchData(); }, [isLoggedIn]);
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
+    setError(null);
     try {
       const { data: store } = await api.get("/stores/mine");
       setStoreId(store._id);
       setStoreCategory(store.category || "Other");
       const { data } = await api.get(`/orders/store/${store._id}`, { params: { limit: 200 } });
-      setOrders(data);
-    } catch {
-      // Demo fallback
-      setStoreId("s1");
-      setStoreCategory("Groceries");
-      setOrders(DEMO_ORDERS);
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      if (err.response?.status === 404) {
+        setError("no_store");
+      } else {
+        setError(err.response?.data?.message || "Failed to load orders");
+      }
     } finally { setLoading(false); setRefreshing(false); }
   };
 
@@ -193,14 +148,13 @@ export default function StoreOrders() {
       await api.put(`/orders/${orderId}/status`, { status: newStatus });
     } catch (err) {
       addToast(err.response?.data?.message || "Invalid transition", "error");
-      return; // don't update local state if server rejected
+      return;
     }
     setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
     const vis = STATUS_VISUAL[newStatus];
     addToast(`Order → ${vis?.label || newStatus}`, "success");
   };
 
-  // Status tabs — include "packing" in the active group
   const STATUS_TABS = [
     { id: "all",       label: "All",       count: orders.length },
     { id: "pending",   label: "New",       count: orders.filter(o => o.status === "pending").length },
@@ -221,6 +175,18 @@ export default function StoreOrders() {
 
   const revenue = orders.filter(o => o.status !== "cancelled").reduce((s, o) => s + o.totalPrice, 0);
 
+  if (error === "no_store") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
+        <div className="text-center max-w-sm">
+          <div className="text-6xl mb-4">🏪</div>
+          <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>Create your store first</h2>
+          <Link to="/store/settings" className="btn btn-brand">Create Store</Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
       <div className="max-w-3xl mx-auto px-4 py-6 pb-20">
@@ -238,7 +204,6 @@ export default function StoreOrders() {
             <h1 className="font-display font-bold text-2xl" style={{ color: "var(--text-primary)" }}>All Orders</h1>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>Total revenue: ₹{revenue.toLocaleString()}</p>
           </div>
-          {/* Flow badge */}
           <span
             className="text-xs font-bold px-2.5 py-1.5 rounded-xl"
             style={{
@@ -298,6 +263,13 @@ export default function StoreOrders() {
           ))}
         </div>
 
+        {/* Error */}
+        {error && error !== "no_store" && (
+          <div className="rounded-2xl p-4 mb-4 text-sm" style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+            {error} <button onClick={() => fetchData()} className="ml-2 underline">Retry</button>
+          </div>
+        )}
+
         {/* Order list */}
         {loading ? (
           <div className="space-y-3">
@@ -306,11 +278,11 @@ export default function StoreOrders() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-            <Package size={40} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
-            <p className="font-semibold" style={{ color: "var(--text-secondary)" }}>No orders found</p>
-          </div>
+          <EmptyState
+            icon="📦"
+            title="No orders found"
+            subtitle={orders.length === 0 ? "Orders will appear here once customers start ordering" : "No orders match your current filter"}
+          />
         ) : (
           <div className="space-y-3">
             {filtered.map(order => (

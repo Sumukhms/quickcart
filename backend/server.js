@@ -27,19 +27,18 @@ const httpServer = createServer(app);
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "http://localhost:4173",   // vite preview
+  "http://localhost:4173",
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
 // ── Security headers ──────────────────────────────────────────
 app.use(helmet({
-  crossOriginEmbedderPolicy: false,  // needed for Razorpay iframe
+  crossOriginEmbedderPolicy: false,
 }));
 
 // ── CORS ──────────────────────────────────────────────────────
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
     callback(new Error(`CORS: Origin ${origin} not allowed`));
@@ -50,21 +49,35 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // preflight for all routes
 
-// ── Global rate limiter (100 req / 15 min per IP) ─────────────
+origin: (origin, callback) => {
+  if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    return callback(null, true);
+  }
+  return callback(null, true); // allow all during dev
+}
+
+// Handle preflight for all routes — using a specific handler, not wildcard
+// app.options("/*", (req, res) => {
+//   res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+//   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
+//   res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.sendStatus(204);
+// });
+
+// ── Global rate limiter ────────────────────────────────────────
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max:      100,
   standardHeaders: true,
   legacyHeaders:   false,
   message: { message: "Too many requests, please try again later." },
-  // Skip rate limit for development
   skip: () => process.env.NODE_ENV === "development",
 });
 app.use(globalLimiter);
 
-// ── Auth-specific rate limiter (10 req / 15 min per IP) ───────
+// ── Auth-specific rate limiter ─────────────────────────────────
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max:      10,
@@ -83,7 +96,7 @@ const io = new Server(httpServer, {
 // ── Connect DB ─────────────────────────────────────────────────
 connectDB();
 
-// ── Verify email config on startup (non-blocking) ────────────
+// ── Verify email config on startup (non-blocking) ─────────────
 verifyEmailConfig().catch(() => {});
 
 app.use(express.json({ limit: "10kb" }));
@@ -122,7 +135,6 @@ io.on("connection", (socket) => {
 
 // ── Global error handler ──────────────────────────────────────
 app.use((err, _req, res, _next) => {
-  // CORS errors
   if (err.message?.startsWith("CORS:")) {
     return res.status(403).json({ message: err.message });
   }
