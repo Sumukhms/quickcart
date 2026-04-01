@@ -4,10 +4,9 @@ const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
   baseURL: BASE,
-  timeout: 30_000,   // 30s timeout
+  timeout: 30_000,
 });
 
-// ── Request interceptor — attach JWT ──────────────────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("qc-token");
@@ -17,19 +16,15 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ── Response interceptor — handle auth errors ─────────────────
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      // Don't redirect if we're already on an auth page
       const authPages = ["/login", "/register", "/forgot-password", "/auth/callback"];
       const isAuthPage = authPages.some(p => window.location.pathname.startsWith(p));
-
       if (!isAuthPage) {
         localStorage.removeItem("qc-token");
         localStorage.removeItem("qc-user");
-        // Use replace to avoid history stack buildup
         window.location.replace("/login");
       }
     }
@@ -57,21 +52,21 @@ export const authAPI = {
 
 // ─── Stores ───────────────────────────────────────────────────
 export const storeAPI = {
-  getAll:     (params)    => api.get("/stores", { params }),
-  getById:    (id)        => api.get(`/stores/${id}`),
-  getMine:    ()          => api.get("/stores/mine"),
-  create:     (data)      => api.post("/stores", data),
-  update:     (id, data)  => api.put(`/stores/${id}`, data),
-  getAnalytics: ()        => api.get("/stores/analytics"),
+  getAll:       (params)   => api.get("/stores", { params }),
+  getById:      (id)       => api.get(`/stores/${id}`),
+  getMine:      ()         => api.get("/stores/mine"),
+  create:       (data)     => api.post("/stores", data),
+  update:       (id, data) => api.put(`/stores/${id}`, data),
+  getAnalytics: ()         => api.get("/stores/analytics"),
 };
 
 // ─── Products ─────────────────────────────────────────────────
 export const productAPI = {
-  getByStore: (storeId)      => api.get(`/products/store/${storeId}`),
-  search:     (q)            => api.get("/products/search", { params: { q } }),
-  create:     (data)         => api.post("/products", data),
-  update:     (id, data)     => api.put(`/products/${id}`, data),
-  delete:     (id)           => api.delete(`/products/${id}`),
+  getByStore: (storeId)     => api.get(`/products/store/${storeId}`),
+  search:     (q)           => api.get("/products/search", { params: { q } }),
+  create:     (data)        => api.post("/products", data),
+  update:     (id, data)    => api.put(`/products/${id}`, data),
+  delete:     (id)          => api.delete(`/products/${id}`),
 };
 
 // ─── Cart ─────────────────────────────────────────────────────
@@ -96,11 +91,19 @@ export const orderAPI = {
   cancel:          (id)              => api.post(`/orders/${id}/cancel`),
 };
 
-// ─── Coupons ──────────────────────────────────────────────────
+// ─── Coupons (platform-wide) ──────────────────────────────────
 export const couponAPI = {
-  validate: (code, orderTotal, storeCategory) =>
-    api.post("/coupons/validate", { code, orderTotal, storeCategory }),
+  validate: (code, orderTotal, storeCategory, storeId) =>
+    api.post("/coupons/validate", { code, orderTotal, storeCategory, storeId }),
   list: () => api.get("/coupons"),
+};
+
+// ─── Store Coupons (store-owner specific) ─────────────────────
+export const storeCouponAPI = {
+  list:   ()         => api.get("/store-coupons"),
+  create: (data)     => api.post("/store-coupons", data),
+  toggle: (id)       => api.patch(`/store-coupons/${id}/toggle`),
+  delete: (id)       => api.delete(`/store-coupons/${id}`),
 };
 
 // ─── Ratings ──────────────────────────────────────────────────
@@ -111,8 +114,9 @@ export const ratingAPI = {
 
 // ─── Payment ──────────────────────────────────────────────────
 export const paymentAPI = {
-  createOrder: (amount) => api.post("/payment/create-order", { amount }),
-  verify:      (payload) => api.post("/payment/verify", payload),
+  createOrder: (amount, items, couponCode) =>
+    api.post("/payment/create-order", { amount, items, couponCode }),
+  verify: (payload) => api.post("/payment/verify", payload),
 };
 
 // ─── Favorites ────────────────────────────────────────────────
@@ -123,14 +127,22 @@ export const favoriteAPI = {
 
 // ─── Admin ────────────────────────────────────────────────────
 export const adminAPI = {
-  getStats:     ()       => api.get("/admin/stats"),
-  getUsers:     (params) => api.get("/admin/users", { params }),
-  getOrders:    (params) => api.get("/admin/orders", { params }),
-  getCoupons:   ()       => api.get("/admin/coupons"),
-  createCoupon: (data)   => api.post("/admin/coupons", data),
-  deleteCoupon: (id)     => api.delete(`/admin/coupons/${id}`),
-  toggleCoupon: (id)     => api.patch(`/admin/coupons/${id}/toggle`),
-  getAnalytics: ()       => api.get("/stores/analytics"),
+  getStats:       ()       => api.get("/admin/stats"),
+  getUsers:       (params) => api.get("/admin/users", { params }),
+  getOrders:      (params) => api.get("/admin/orders", { params }),
+  // Platform coupons
+  getCoupons:     ()       => api.get("/admin/coupons"),
+  createCoupon:   (data)   => api.post("/admin/coupons", data),
+  deleteCoupon:   (id)     => api.delete(`/admin/coupons/${id}`),
+  toggleCoupon:   (id)     => api.patch(`/admin/coupons/${id}/toggle`),
+  // Banners
+  getBanners:     ()               => api.get("/admin/banners"),
+  createBanner:   (data)           => api.post("/admin/banners", data),
+  updateBanner:   (id, data)       => api.put(`/admin/banners/${id}`, data),
+  deleteBanner:   (id)             => api.delete(`/admin/banners/${id}`),
+  toggleBanner:   (id)             => api.patch(`/admin/banners/${id}/toggle`),
+  // Analytics
+  getAnalytics:   ()       => api.get("/stores/analytics"),
 };
 
 export const statsAPI = {

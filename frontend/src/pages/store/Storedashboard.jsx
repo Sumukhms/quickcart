@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Loader2,
   Phone,
+  Tag,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -831,7 +832,7 @@ export default function StoreDashboard() {
         </div>
 
         {/* Quick nav */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-4 gap-3 mb-6">
           {[
             {
               to: "/store/products",
@@ -846,6 +847,13 @@ export default function StoreDashboard() {
               label: "Orders",
               sub: "All orders",
               color: "#3b82f6",
+            },
+            {
+              to: "/store/coupons",
+              icon: Tag,
+              label: "Coupons",
+              sub: "Discounts",
+              color: "#22c55e",
             },
             {
               to: "/store/settings",

@@ -20,10 +20,12 @@ const MAX_DEFAULT = 5;
 
 function AddressChip({ address, selected, onSelect, onDelete, index }) {
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(address)}
-      className="w-full flex items-start gap-3 p-3.5 rounded-2xl text-left transition-all hover:scale-[1.01] group"
+      onKeyDown={(e) => e.key === "Enter" && onSelect(address)}
+      className="w-full flex items-start gap-3 p-3.5 rounded-2xl text-left transition-all hover:scale-[1.01] group cursor-pointer"
       style={{
         background: selected ? "rgba(255,107,53,0.06)" : "var(--elevated)",
         border: `1.5px solid ${selected ? "var(--brand)" : "var(--border)"}`,
@@ -45,20 +47,14 @@ function AddressChip({ address, selected, onSelect, onDelete, index }) {
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {selected && (
-          <div
-            className="w-5 h-5 rounded-full flex items-center justify-center"
-            style={{ background: "var(--brand)" }}
-          >
+          <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--brand)" }}>
             <Check size={11} style={{ color: "white" }} />
           </div>
         )}
         {onDelete && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(index);
-            }}
+            onClick={(e) => { e.stopPropagation(); onDelete(index); }}
             className="p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
             style={{ color: "#ef4444" }}
           >
@@ -66,10 +62,9 @@ function AddressChip({ address, selected, onSelect, onDelete, index }) {
           </button>
         )}
       </div>
-    </button>
+    </div>
   );
 }
-
 export default function AddressSelector({
   addresses = [],
   selected = "",
