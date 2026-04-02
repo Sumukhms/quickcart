@@ -33,6 +33,7 @@ import StoreProducts from "./pages/store/StoreProducts.jsx";
 import StoreOrders from "./pages/store/StoreOrders.jsx";
 import StoreSettings from "./pages/store/StoreSettings.jsx";
 import StoreCoupons from "./pages/store/StoreCoupons.jsx";
+import StoreInventory from "./pages/store/StoreInventory.jsx";  // NEW
 
 // Delivery Partner pages
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard.jsx";
@@ -82,142 +83,31 @@ export default function App() {
           <Route path="/careers" element={<StaticPage />} />
 
           {/* Browsing — all logged-in users */}
-          <Route
-            path="/user/home"
-            element={
-              <ProtectedRoute>
-                <UserHome />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/user/store/:id"
-            element={
-              <ProtectedRoute>
-                <UserStorePage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/user/home" element={<ProtectedRoute><UserHome /></ProtectedRoute>} />
+          <Route path="/user/store/:id" element={<ProtectedRoute><UserStorePage /></ProtectedRoute>} />
 
           {/* Shopping — all roles */}
-          <Route
-            path="/user/cart"
-            element={
-              <ProtectedRoute>
-                <UserCart />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute>
-                <CheckoutPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/user/orders"
-            element={
-              <ProtectedRoute>
-                <UserOrders />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/user/orders/:id"
-            element={
-              <ProtectedRoute>
-                <UserTrack />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/user/profile"
-            element={
-              <ProtectedRoute>
-                <UserProfile />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/user/cart" element={<ProtectedRoute><UserCart /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+          <Route path="/user/orders" element={<ProtectedRoute><UserOrders /></ProtectedRoute>} />
+          <Route path="/user/orders/:id" element={<ProtectedRoute><UserTrack /></ProtectedRoute>} />
+          <Route path="/user/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
 
           {/* Store Owner routes */}
-          <Route
-            path="/store/dashboard"
-            element={
-              <StoreRoute>
-                <StoreDashboard />
-              </StoreRoute>
-            }
-          />
-          <Route
-            path="/store/products"
-            element={
-              <StoreRoute>
-                <StoreProducts />
-              </StoreRoute>
-            }
-          />
-          <Route
-            path="/store/orders"
-            element={
-              <StoreRoute>
-                <StoreOrders />
-              </StoreRoute>
-            }
-          />
-          <Route
-            path="/store/settings"
-            element={
-              <StoreRoute>
-                <StoreSettings />
-              </StoreRoute>
-            }
-          />
-          <Route
-            path="/store/coupons"
-            element={
-              <StoreRoute>
-                <StoreCoupons />
-              </StoreRoute>
-            }
-          />
+          <Route path="/store/dashboard" element={<StoreRoute><StoreDashboard /></StoreRoute>} />
+          <Route path="/store/products"  element={<StoreRoute><StoreProducts /></StoreRoute>} />
+          <Route path="/store/orders"    element={<StoreRoute><StoreOrders /></StoreRoute>} />
+          <Route path="/store/settings"  element={<StoreRoute><StoreSettings /></StoreRoute>} />
+          <Route path="/store/coupons"   element={<StoreRoute><StoreCoupons /></StoreRoute>} />
+          <Route path="/store/inventory" element={<StoreRoute><StoreInventory /></StoreRoute>} />  {/* NEW */}
 
           {/* Delivery Partner routes */}
-          <Route
-            path="/delivery/dashboard"
-            element={
-              <DeliveryRoute>
-                <DeliveryDashboard />
-              </DeliveryRoute>
-            }
-          />
-          <Route
-            path="/delivery/active"
-            element={
-              <DeliveryRoute>
-                <DeliveryActive />
-              </DeliveryRoute>
-            }
-          />
-          <Route
-            path="/delivery/history"
-            element={
-              <DeliveryRoute>
-                <DeliveryHistory />
-              </DeliveryRoute>
-            }
-          />
+          <Route path="/delivery/dashboard" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
+          <Route path="/delivery/active"    element={<DeliveryRoute><DeliveryActive /></DeliveryRoute>} />
+          <Route path="/delivery/history"   element={<DeliveryRoute><DeliveryHistory /></DeliveryRoute>} />
 
           {/* Admin routes */}
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminPanel />
-              </AdminRoute>
-            }
-          />
+          <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
 
           {/* Catch-all */}
           <Route path="*" element={<RootRedirect />} />

@@ -1,38 +1,28 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Edit3,
-  Save,
-  X,
-  Camera,
-  Package,
-  Star,
-  ChevronRight,
-  LogOut,
-  Heart,
+  User, Mail, Phone, MapPin, Edit3, Save, X, Camera,
+  Package, Star, ChevronRight, LogOut, Heart, Trash2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoriteContext";
+import DeleteAccountModal from "../../components/ui/DeleteAccountModal";
 import api from "../../api/api";
 
 const STATUS_CONFIG = {
-  pending:          { label: "Pending",         color: "#f59e0b" },
-  confirmed:        { label: "Confirmed",        color: "#3b82f6" },
-  preparing:        { label: "Preparing",        color: "#8b5cf6" },
-  ready_for_pickup: { label: "Ready",            color: "#f97316" },
-  out_for_delivery: { label: "On the way",       color: "#f97316" },
-  delivered:        { label: "Delivered",        color: "#22c55e" },
-  cancelled:        { label: "Cancelled",        color: "#ef4444" },
+  pending:          { label: "Pending",   color: "#f59e0b" },
+  confirmed:        { label: "Confirmed", color: "#3b82f6" },
+  preparing:        { label: "Preparing", color: "#8b5cf6" },
+  ready_for_pickup: { label: "Ready",     color: "#f97316" },
+  out_for_delivery: { label: "On the way",color: "#f97316" },
+  delivered:        { label: "Delivered", color: "#22c55e" },
+  cancelled:        { label: "Cancelled", color: "#ef4444" },
 };
 
 const CAT_EMOJIS = {
-  Groceries: "🛒", Food: "🍛", Snacks: "🍿",
-  Beverages: "🧃", Medicines: "💊", Other: "🏪",
+  Groceries:"🛒", Food:"🍛", Snacks:"🍿",
+  Beverages:"🧃", Medicines:"💊", Other:"🏪",
 };
 
 export default function UserProfile() {
@@ -41,9 +31,10 @@ export default function UserProfile() {
   const { favorites, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
 
-  const [editing,      setEditing]      = useState(false);
-  const [saving,       setSaving]       = useState(false);
-  const [recentOrders, setRecentOrders] = useState([]);
+  const [editing,          setEditing]          = useState(false);
+  const [saving,           setSaving]           = useState(false);
+  const [recentOrders,     setRecentOrders]     = useState([]);
+  const [showDeleteModal,  setShowDeleteModal]  = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
   useEffect(() => {
@@ -81,20 +72,21 @@ export default function UserProfile() {
     navigate("/login");
   };
 
+  const handleAccountDeleted = () => {
+    logout(); clearCart();
+    addToast("Your account has been permanently deleted.", "info");
+    navigate("/login");
+  };
+
   const initials = user?.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "U";
 
   return (
     <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
 
-      {/* ── Hero header — fixed height, no negative margin child ── */}
+      {/* ── Hero header ── */}
       <div
         className="relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)",
-          paddingBottom: "2rem",
-        }}
-      >
-        {/* Background glows */}
+        style={{ background: "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)", paddingBottom: "2rem" }}>
         <div className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-25 pointer-events-none"
           style={{ background: "radial-gradient(circle, var(--brand), transparent)", transform: "translate(35%, -35%)" }} />
         <div className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-10 pointer-events-none"
@@ -102,13 +94,9 @@ export default function UserProfile() {
 
         <div className="max-w-2xl mx-auto px-4 pt-6 pb-4">
           <div className="flex items-center gap-5">
-
-            {/* Avatar */}
             <div className="relative flex-shrink-0">
-              <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-display font-black text-2xl shadow-2xl"
-                style={{ background: "linear-gradient(135deg, var(--brand), #ff8c5a)", boxShadow: "0 0 30px rgba(255,107,53,0.45)" }}
-              >
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-display font-black text-2xl shadow-2xl"
+                style={{ background: "linear-gradient(135deg, var(--brand), #ff8c5a)", boxShadow: "0 0 30px rgba(255,107,53,0.45)" }}>
                 {initials}
               </div>
               <button className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-xl flex items-center justify-center shadow-lg"
@@ -117,34 +105,24 @@ export default function UserProfile() {
               </button>
             </div>
 
-            {/* Name + role */}
             <div className="flex-1 min-w-0">
               {editing ? (
-                <input
-                  className="input-theme text-xl font-bold mb-2 py-2"
-                  value={form.name}
+                <input className="input-theme text-xl font-bold mb-2 py-2" value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
-                  style={{ maxWidth: 260, background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)", color: "white" }}
-                />
+                  style={{ maxWidth: 260, background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.2)", color: "white" }} />
               ) : (
                 <h1 className="font-display font-bold text-2xl text-white mb-1">{user?.name}</h1>
               )}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="tag text-xs font-semibold" style={{ background: "rgba(34,197,94,0.2)", color: "#4ade80" }}>
-                  👤 Customer
-                </span>
-                <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-                  ✓ Verified
-                </span>
+                <span className="tag text-xs font-semibold" style={{ background: "rgba(34,197,94,0.2)", color: "#4ade80" }}>👤 Customer</span>
+                <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>✓ Verified</span>
               </div>
             </div>
 
-            {/* Edit / Save buttons */}
             <div className="flex gap-2 flex-shrink-0">
               {editing ? (
                 <>
-                  <button
-                    onClick={() => { setEditing(false); setForm({ name: user.name || "", phone: user.phone || "", address: user.address || "" }); }}
+                  <button onClick={() => { setEditing(false); setForm({ name: user.name || "", phone: user.phone || "", address: user.address || "" }); }}
                     className="p-2.5 rounded-xl text-white/50 hover:text-white transition-colors"
                     style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}>
                     <X size={15} />
@@ -152,9 +130,7 @@ export default function UserProfile() {
                   <button onClick={handleSave} disabled={saving}
                     className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
                     style={{ background: "var(--brand)", color: "white" }}>
-                    {saving
-                      ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      : <><Save size={13} /> Save</>}
+                    {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={13} /> Save</>}
                   </button>
                 </>
               ) : (
@@ -169,15 +145,15 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* ── Page body — normal flow, no overlap ── */}
+      {/* ── Page body ── */}
       <div className="max-w-2xl mx-auto px-4 py-5 pb-20 space-y-4">
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { icon: Package, label: "Orders",  value: recentOrders.length || "–", color: "var(--brand)" },
-            { icon: Star,    label: "Reviews", value: "8",                         color: "#f59e0b" },
-            { icon: Heart,   label: "Saved",   value: favorites.length,            color: "#ef4444" },
+            { icon: Star,    label: "Reviews", value: "8",                          color: "#f59e0b" },
+            { icon: Heart,   label: "Saved",   value: favorites.length,             color: "#ef4444" },
           ].map(({ icon: Icon, label, value, color }) => (
             <div key={label}
               className="rounded-2xl p-4 text-center transition-all hover:-translate-y-1"
@@ -192,12 +168,9 @@ export default function UserProfile() {
         {/* Contact Info */}
         <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-              Contact Information
-            </h2>
+            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Contact Information</h2>
           </div>
 
-          {/* Email */}
           <div className="flex items-center gap-4 px-5 py-4">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,107,53,0.1)" }}>
               <Mail size={14} style={{ color: "var(--brand)" }} />
@@ -209,7 +182,6 @@ export default function UserProfile() {
             <span className="tag tag-green text-[10px]">Verified</span>
           </div>
 
-          {/* Phone */}
           <div className="flex items-center gap-4 px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,107,53,0.1)" }}>
               <Phone size={14} style={{ color: "var(--brand)" }} />
@@ -227,7 +199,6 @@ export default function UserProfile() {
             </div>
           </div>
 
-          {/* Address */}
           <div className="flex items-start gap-4 px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(255,107,53,0.1)" }}>
               <MapPin size={14} style={{ color: "var(--brand)" }} />
@@ -323,7 +294,7 @@ export default function UserProfile() {
         <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
           {[
             { icon: Package, label: "My Orders",    sub: "Track and manage orders",  to: "/user/orders", color: "var(--brand)" },
-            { icon: Heart,   label: "Saved Stores",  sub: `${favorites.length} stores saved`, to: "/user/home", color: "#ef4444" },
+            { icon: Heart,   label: "Saved Stores", sub: `${favorites.length} stores saved`, to: "/user/home", color: "#ef4444" },
           ].map(({ icon: Icon, label, sub, to, color }, i) => (
             <Link key={to} to={to}
               className="flex items-center gap-4 px-5 py-4 transition-colors"
@@ -348,7 +319,44 @@ export default function UserProfile() {
           style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1.5px solid rgba(239,68,68,0.18)" }}>
           <LogOut size={16} /> Sign Out
         </button>
+
+        {/* Danger Zone */}
+        <div
+          className="rounded-3xl overflow-hidden"
+          style={{ border: "1px solid rgba(239,68,68,0.2)", backgroundColor: "var(--card)" }}
+        >
+          <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(239,68,68,0.15)" }}>
+            <h2 className="font-bold text-xs uppercase tracking-widest flex items-center gap-2" style={{ color: "#ef4444" }}>
+              ⚠️ Danger Zone
+            </h2>
+          </div>
+          <div className="px-5 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>Delete Account</p>
+                <p className="text-xs mt-0.5 max-w-xs" style={{ color: "var(--text-muted)" }}>
+                  Permanently remove your account, orders history, and all personal data. This action cannot be undone.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold flex-shrink-0 transition-all hover:scale-105"
+                style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}
+              >
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Delete Account Modal */}
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDeleted={handleAccountDeleted}
+        user={user}
+      />
     </div>
   );
 }

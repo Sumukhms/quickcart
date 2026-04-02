@@ -1,13 +1,8 @@
-/**
- * authController.js — FIXED v2
- *
- * Key fix in this version:
- *   forgotPassword: now returns a 500 with emailError:true when the
- *   email cannot be sent, instead of silently returning 200.
- *   This lets the frontend display a clear error to the user.
- */
 import User  from "../models/User.js";
 import Otp   from "../models/Otp.js";
+import Cart  from "../models/Cart.js";
+import Order from "../models/Order.js";
+import Store from "../models/Store.js";
 import bcrypt from "bcryptjs";
 import jwt    from "jsonwebtoken";
 import { sendOtpEmail, sendWelcomeEmail } from "../services/emailService.js";
@@ -233,10 +228,7 @@ export const login = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// FORGOT PASSWORD — FIXED
-// Now returns 500 + emailError:true when email delivery fails,
-// instead of silently returning 200. This lets the client show
-// a useful error message instead of leaving the user confused.
+// FORGOT PASSWORD
 // ─────────────────────────────────────────────────────────────
 export const forgotPassword = async (req, res) => {
   try {
@@ -248,7 +240,6 @@ export const forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email: normalizedEmail });
 
-    // Anti-enumeration: always 200 for "not found" or "google-only" accounts
     if (!user || user.authProvider === "google") {
       return res.json({
         message: "If that email exists, an OTP has been sent.",
@@ -258,18 +249,15 @@ export const forgotPassword = async (req, res) => {
     const otp  = await Otp.createOtp(normalizedEmail, "reset_password");
     const sent = await sendOtpEmail(normalizedEmail, otp, "reset_password");
 
-    // ── KEY FIX: surface email failures ──────────────────────
     if (!sent) {
       console.error(`[ForgotPassword] OTP generated but email failed for ${normalizedEmail}`);
       return res.status(500).json({
         message:
           "OTP was generated but the email could not be sent. " +
-          "Please check EMAIL_USER and EMAIL_PASS in your server .env file " +
-          "(Gmail requires an App Password, not your regular password).",
+          "Please check EMAIL_USER and EMAIL_PASS in your server .env file.",
         emailError: true,
       });
     }
-    // ─────────────────────────────────────────────────────────
 
     res.json({ message: "If that email exists, an OTP has been sent." });
   } catch (e) {
@@ -414,4 +402,63 @@ export const toggleDeliveryAvailability = async (req, res) => {
     await user.save();
     res.json({ isAvailable: user.isAvailable });
   } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+// ─────────────────────────────────────────────────────────────
+// DELETE ACCOUNT
+// ─────────────────────────────────────────────────────────────
+export const deleteAccount = async (req, res) => {
+  try {
+    const { password, confirmation } = req.body;
+    const userId = req.user.userId;
+
+    if (confirmation !== "DELETE") {
+      return res.status(400).json({ message: 'Please type "DELETE" exactly to confirm' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // For local auth users, verify password
+    if (user.authProvider === "local" && user.password) {
+      if (!password) {
+        return res.status(400).json({ message: "Password is required to delete your account" });
+      }
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        return res.status(400).json({ message: "Incorrect password — account not deleted" });
+      }
+    }
+
+    // Cancel any active orders
+    await Order.updateMany(
+      { userId, status: { $in: ["pending", "confirmed"] } },
+      {
+        $set:  { status: "cancelled" },
+        $push: { statusHistory: { status: "cancelled", timestamp: new Date(), updatedBy: userId } },
+      }
+    );
+
+    // Clear their cart
+    await Cart.findOneAndDelete({ userId });
+
+    // If store owner, close their store
+    if (user.role === "store") {
+      await Store.findOneAndUpdate({ ownerId: userId }, { isOpen: false });
+    }
+
+    // Remove from other users' favoriteStores
+    await User.updateMany(
+      { favoriteStores: userId },
+      { $pull: { favoriteStores: userId } }
+    );
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    res.json({ message: "Your account has been permanently deleted." });
+  } catch (e) {
+    console.error("[DeleteAccount] Error:", e.message);
+    res.status(500).json({ message: e.message });
+  }
 };

@@ -15,12 +15,13 @@ import productRoutes     from "./src/routes/productRoutes.js";
 import cartRoutes        from "./src/routes/cartRoutes.js";
 import orderRoutes       from "./src/routes/orderRoutes.js";
 import couponRoutes      from "./src/routes/couponRoutes.js";
-import storeCouponRoutes from "./src/routes/storeCouponRoutes.js";  // NEW
+import storeCouponRoutes from "./src/routes/storeCouponRoutes.js";
 import ratingRoutes      from "./src/routes/ratingRoutes.js";
 import favoriteRoutes    from "./src/routes/favoriteRoutes.js";
 import adminRoutes       from "./src/routes/adminRoutes.js";
 import paymentRoutes     from "./src/routes/paymentRoutes.js";
 import statsRoutes       from "./src/routes/statsRoutes.js";
+import inventoryRoutes   from "./src/routes/inventoryRoutes.js";  // NEW
 
 const app        = express();
 const httpServer = createServer(app);
@@ -37,7 +38,6 @@ app.use(helmet({ crossOriginEmbedderPolicy: false }));
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    // Allow all origins in development
     if (process.env.NODE_ENV === "development") return callback(null, true);
     callback(new Error(`CORS: Origin ${origin} not allowed`));
   },
@@ -47,7 +47,6 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// ── Global rate limiter ────────────────────────────────────────
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max:      200,
@@ -87,12 +86,13 @@ app.use("/api/products",      productRoutes);
 app.use("/api/cart",          cartRoutes);
 app.use("/api/orders",        orderRoutes);
 app.use("/api/coupons",       couponRoutes);
-app.use("/api/store-coupons", storeCouponRoutes);   // NEW
+app.use("/api/store-coupons", storeCouponRoutes);
 app.use("/api/ratings",       ratingRoutes);
 app.use("/api/favorites",     favoriteRoutes);
 app.use("/api/admin",         adminRoutes);
 app.use("/api/payment",       paymentRoutes);
 app.use("/api/stats",         statsRoutes);
+app.use("/api/inventory",     inventoryRoutes);   // NEW
 
 app.get("/", (_req, res) => res.json({
   message: "QuickCart API v2",

@@ -1,11 +1,3 @@
-/**
- * authRoutes.js — FIXED
- *
- * Fixes:
- *   1. Rate limiters are disabled in development mode
- *   2. resend-verification and forgot-password now parse JSON body properly
- *   3. Removed redundant express.json() calls (already in server.js)
- */
 import express   from "express";
 import passport  from "../config/passport.js";
 import { protect, restrictTo } from "../middleware/authMiddleware.js";
@@ -16,6 +8,7 @@ import {
   googleCallback,
   addAddress, removeAddress, setDefaultAddress,
   toggleDeliveryAvailability,
+  deleteAccount,  // NEW
 } from "../controllers/authController.js";
 import {
   registerValidation,
@@ -29,7 +22,6 @@ const r = express.Router();
 
 const isDev = process.env.NODE_ENV === "development";
 
-// ── Auth-specific rate limiters ────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 1000 : 10,
@@ -49,7 +41,7 @@ const registerLimiter = rateLimit({
 
 const otpLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: isDev ? 1000 : 5,   // bumped from 3 to 5 to avoid frustration
+  max: isDev ? 1000 : 5,
   message: { message: "Too many OTP requests, please wait 5 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -90,5 +82,8 @@ r.patch("/availability",             protect, restrictTo("delivery"), toggleDeli
 r.post("/addresses",                 protect, addAddress);
 r.delete("/addresses/:index",        protect, removeAddress);
 r.patch("/addresses/:index/default", protect, setDefaultAddress);
+
+// ── Account deletion ───────────────────────────────────────────
+r.delete("/account",                 protect, deleteAccount);   // NEW
 
 export default r;

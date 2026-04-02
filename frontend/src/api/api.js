@@ -48,6 +48,7 @@ export const authAPI = {
   addAddress:         (address) => api.post("/auth/addresses", { address }),
   removeAddress:      (index)   => api.delete(`/auth/addresses/${index}`),
   setDefaultAddress:  (index)   => api.patch(`/auth/addresses/${index}/default`),
+  deleteAccount:      (data)    => api.delete("/auth/account", { data }), // NEW
 };
 
 // ─── Stores ───────────────────────────────────────────────────
@@ -125,23 +126,29 @@ export const favoriteAPI = {
   getAll: ()        => api.get("/favorites"),
 };
 
+// ─── Inventory ────────────────────────────────────────────────
+export const inventoryAPI = {
+  get:         ()                  => api.get("/inventory"),
+  getAlerts:   ()                  => api.get("/inventory/alerts"),
+  updateStock: (id, data)          => api.patch(`/inventory/${id}/stock`, data),
+  toggle:      (id)                => api.patch(`/inventory/${id}/toggle`),
+  bulkUpdate:  (updates)           => api.post("/inventory/bulk", { updates }),
+};
+
 // ─── Admin ────────────────────────────────────────────────────
 export const adminAPI = {
   getStats:       ()       => api.get("/admin/stats"),
   getUsers:       (params) => api.get("/admin/users", { params }),
   getOrders:      (params) => api.get("/admin/orders", { params }),
-  // Platform coupons
   getCoupons:     ()       => api.get("/admin/coupons"),
   createCoupon:   (data)   => api.post("/admin/coupons", data),
   deleteCoupon:   (id)     => api.delete(`/admin/coupons/${id}`),
   toggleCoupon:   (id)     => api.patch(`/admin/coupons/${id}/toggle`),
-  // Banners
   getBanners:     ()               => api.get("/admin/banners"),
   createBanner:   (data)           => api.post("/admin/banners", data),
   updateBanner:   (id, data)       => api.put(`/admin/banners/${id}`, data),
   deleteBanner:   (id)             => api.delete(`/admin/banners/${id}`),
   toggleBanner:   (id)             => api.patch(`/admin/banners/${id}/toggle`),
-  // Analytics
   getAnalytics:   ()       => api.get("/stores/analytics"),
 };
 
