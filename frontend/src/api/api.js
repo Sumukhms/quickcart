@@ -155,3 +155,10 @@ export const adminAPI = {
 export const statsAPI = {
   getHome: () => api.get("/stats/home"),
 };
+
+export const locationAPI = {
+    update: (orderId, lat, lng) =>
+      api.post(`/location/${orderId}`, { lat, lng }),
+    get:    (orderId) =>
+      api.get(`/location/${orderId}`),
+};

@@ -60,6 +60,7 @@ const orderSchema = new mongoose.Schema({
   deliveryLocation: {
     lat: { type: Number },
     lng: { type: Number },
+    updatedAt: { type: Date },
   },
 
   statusHistory: [{

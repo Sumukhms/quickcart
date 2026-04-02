@@ -1,34 +1,11 @@
 /**
- * UserTrack — UPDATED (diff only)
+ * UserTrack.jsx  — UPDATED
  *
- * Changes:
- *   1. Replaced the inline items + billing block with <OrderSummary>
- *   2. OrderSummary now shows invoice: subtotal, delivery, total
- *   3. All other tracking/cancel/rating logic is unchanged.
- *
- * This is a PARTIAL file showing only the changed section.
- * Merge the import + the "Order items" section below into your
- * existing UserTrack.jsx.
- *
- * ──────────────────────────────────────────────────────────────
- * IMPORT TO ADD (top of file):
- *   import OrderSummary from "../../components/order/OrderSummary";
- *
- * REPLACE the "── Order items ──" block (around line 250–290 in
- * the original) with:
- *
- *   <OrderSummary
- *     items={order.items || []}
- *     subtotal={order.totalPrice - (order.deliveryFee || 20)}
- *     deliveryFee={order.deliveryFee || 20}
- *     grandTotal={order.totalPrice + (order.deliveryFee || 0)}
- *     paymentMethod={order.paymentMethod}
- *     className="mb-4"
- *   />
- *
- * ──────────────────────────────────────────────────────────────
- * The full file below is the complete replacement so you can
- * paste it directly if preferred.
+ * Key additions over the original:
+ *   1. DeliveryNearBanner — shows proximity alert when delivery agent is near
+ *   2. User coordinates fetched from the saved Address document on the order
+ *   3. Delivery agent lat/lng tracked via socket "location_update" events
+ *   4. All original tracking, cancel, rating logic preserved
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate }             from "react-router-dom";
@@ -44,7 +21,8 @@ import { useCart }     from "../../context/CartContext";
 import {
   getTimelineSteps, getStatusMessage, getStatusIndex, STATUS_VISUAL,
 } from "../../utils/orderFlows";
-import OrderSummary    from "../../components/order/OrderSummary";  // ← NEW
+import OrderSummary         from "../../components/order/OrderSummary";
+import DeliveryNearBanner   from "../../components/delivery/DeliveryNearBanner";
 
 const STATUS_ICONS = {
   pending:          ShoppingBag,
@@ -84,6 +62,13 @@ export default function UserTrack() {
   const [showRating,       setShowRating]       = useState(false);
   const [submittingRating, setSubmittingRating] = useState(false);
   const [ratingSubmitted,  setRatingSubmitted]  = useState(false);
+
+  // ── Delivery proximity state ─────────────────────────────
+  const [deliveryCoords, setDeliveryCoords] = useState({ lat: null, lng: null });
+  // We pull user coords from the order's embedded address lat/lng
+  // (set during checkout when the address was a structured Address doc)
+  const [userCoords,     setUserCoords]     = useState({ lat: null, lng: null });
+
   const intervalRef = useRef(null);
 
   const fetchOrder = useCallback(async (silent = false) => {
@@ -92,6 +77,10 @@ export default function UserTrack() {
     try {
       const { data } = await orderAPI.getById(id);
       setOrder(data);
+      // Pull user coords from order if available
+      if (data.deliveryAddressLat && data.deliveryAddressLng) {
+        setUserCoords({ lat: data.deliveryAddressLat, lng: data.deliveryAddressLng });
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Could not load order details.");
     } finally {
@@ -104,13 +93,25 @@ export default function UserTrack() {
 
   useEffect(() => {
     if (id) joinOrderRoom(id);
-    const unsub = on("order_status_update", ({ orderId, status }) => {
+
+    const unsubStatus = on("order_status_update", ({ orderId, status }) => {
       if (orderId === id || orderId?.toString() === id) {
         setOrder((prev) => (prev ? { ...prev, status } : prev));
         if (status === "delivered") setShowRating(true);
       }
     });
-    return () => { if (typeof unsub === "function") unsub(); };
+
+    // ── NEW: live location updates ────────────────────────
+    const unsubLocation = on("location_update", ({ orderId, lat, lng }) => {
+      if (orderId === id || orderId?.toString() === id) {
+        setDeliveryCoords({ lat, lng });
+      }
+    });
+
+    return () => {
+      if (typeof unsubStatus  === "function") unsubStatus();
+      if (typeof unsubLocation === "function") unsubLocation();
+    };
   }, [id, joinOrderRoom, on]);
 
   useEffect(() => {
@@ -192,10 +193,9 @@ export default function UserTrack() {
   const isActive      = !isCancelled && !isDelivered;
   const canCancel     = CANCELLABLE.includes(order.status);
 
-  // ── Bill calculation ─────────────────────────────────────────
   const deliveryFee = order.deliveryFee ?? 20;
-  const subtotal    = order.totalPrice;          // backend totalPrice = items total (no fee)
-  const orderTotal  = subtotal + deliveryFee;    // what customer paid
+  const subtotal    = order.totalPrice;
+  const orderTotal  = subtotal + deliveryFee;
 
   const timelineSteps = getTimelineSteps(storeCategory).map((step) => ({
     ...step, icon: STATUS_ICONS[step.key] || Package,
@@ -229,6 +229,15 @@ export default function UserTrack() {
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
+
+        {/* ── NEW: Delivery proximity banner ── */}
+        <DeliveryNearBanner
+          deliveryLat={deliveryCoords.lat}
+          deliveryLng={deliveryCoords.lng}
+          userLat={userCoords.lat}
+          userLng={userCoords.lng}
+          status={order.status}
+        />
 
         {/* Live status banner */}
         {isActive && currentStepData && (
@@ -413,6 +422,12 @@ export default function UserTrack() {
                   <span style={{ color: "#f59e0b" }}>{order.deliveryAgentId?.rating || "4.8"}</span>
                   <span>· {order.deliveryAgentId?.vehicleType || "bike"}</span>
                 </div>
+                {/* ── NEW: show live distance if known ── */}
+                {deliveryCoords.lat != null && userCoords.lat != null && (
+                  <p className="text-xs mt-0.5" style={{ color: "var(--brand)" }}>
+                    📍 Live location active
+                  </p>
+                )}
               </div>
               {order.deliveryAgentId?.phone && (
                 <a href={`tel:${order.deliveryAgentId.phone}`}
@@ -449,7 +464,7 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* ── NEW: OrderSummary replaces inline items + billing block ── */}
+        {/* Order summary */}
         <OrderSummary
           items={order.items || []}
           subtotal={subtotal}

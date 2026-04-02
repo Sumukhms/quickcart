@@ -22,6 +22,9 @@ import adminRoutes       from "./src/routes/adminRoutes.js";
 import paymentRoutes     from "./src/routes/paymentRoutes.js";
 import statsRoutes       from "./src/routes/statsRoutes.js";
 import inventoryRoutes   from "./src/routes/inventoryRoutes.js";  // NEW
+import locationRoutes from "./src/routes/locationRoutes.js";
+import addressRoutes from "./src/routes/addressRoutes.js";
+
 
 const app        = express();
 const httpServer = createServer(app);
@@ -92,7 +95,10 @@ app.use("/api/favorites",     favoriteRoutes);
 app.use("/api/admin",         adminRoutes);
 app.use("/api/payment",       paymentRoutes);
 app.use("/api/stats",         statsRoutes);
-app.use("/api/inventory",     inventoryRoutes);   // NEW
+app.use("/api/inventory",     inventoryRoutes);  
+app.use("/api/location",      locationRoutes);
+app.use("/api/addresses", addressRoutes);
+
 
 app.get("/", (_req, res) => res.json({
   message: "QuickCart API v2",
