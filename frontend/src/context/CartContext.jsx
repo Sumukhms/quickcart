@@ -22,6 +22,20 @@ function saveCart(items, store) {
   } catch { /* quota exceeded */ }
 }
 
+/** Safely extract a string ID from a store reference (object or string) */
+function extractStoreId(storeRef) {
+  if (!storeRef) return null;
+  if (typeof storeRef === "string") return storeRef;
+  // MongoDB ObjectId or plain object with _id
+  if (storeRef._id) {
+    return typeof storeRef._id === "object" && storeRef._id.toString
+      ? storeRef._id.toString()
+      : String(storeRef._id);
+  }
+  // Fallback: if it's some other object, return null to avoid "[object Object]"
+  return null;
+}
+
 export function CartProvider({ children }) {
   const { isLoggedIn } = useAuth();
 
@@ -50,17 +64,16 @@ export function CartProvider({ children }) {
   }, []);
 
   const addToCart = useCallback((product, store) => {
-    // FIX: properly compare store IDs (both may be objects or strings)
-    const storeId    = store?._id?.toString() || store?.toString();
-    const cartStoreId = cartStore?._id?.toString() || cartStore?.toString();
+    const storeId     = extractStoreId(store);
+    const cartStoreId = extractStoreId(cartStore);
 
     if (cartStoreId && storeId && cartStoreId !== storeId) {
       addToast("Clear your cart before adding items from a different store", "error");
       return false;
     }
 
-    // Use the full store object if available
-    const storeToSet = store?._id ? store : cartStore;
+    // Prefer the freshest full store object; keep existing if new ref has no _id
+    const storeToSet = storeId ? store : cartStore;
     setCartStore(storeToSet);
 
     setCartItems(prev => {

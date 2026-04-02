@@ -23,21 +23,23 @@ const FOOTER_LINKS = {
     { label: "Open a store",    href: "/register" },
     { label: "Deliver with us", href: "/register" },
     { label: "Advertise",       href: "/about" },
-    { label: "API Access",      href: "/about" },
+    { label: "Partner API",     href: "/about" },
   ],
 };
 
+// Real social links — update with your actual handles before launch
 const SOCIAL_LINKS = [
-  { icon: Twitter,   href: "https://twitter.com/quickcart_in",   label: "Twitter",   external: true },
-  { icon: Instagram, href: "https://instagram.com/quickcart_in", label: "Instagram", external: true },
-  { icon: Github,    href: "https://github.com/quickcart",       label: "GitHub",    external: true },
-  { icon: Mail,      href: "mailto:support@quickcart.in",        label: "Email",     external: false },
+  { icon: Twitter,   href: "https://twitter.com/intent/tweet?text=Check+out+QuickCart+%E2%9A%A1", label: "Twitter",   },
+  { icon: Instagram, href: "https://instagram.com",                                               label: "Instagram", },
+  { icon: Github,    href: "https://github.com",                                                  label: "GitHub",    },
+  { icon: Mail,      href: "mailto:support@quickcart.in",                                         label: "Email",     },
 ];
 
 const APP_LINKS = [
   {
     label: "App Store",
-    sub: "iPhone & iPad",
+    sub:   "iPhone & iPad",
+    href:  "/register",           // links to register until real app is live
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
@@ -46,7 +48,8 @@ const APP_LINKS = [
   },
   {
     label: "Play Store",
-    sub: "Android",
+    sub:   "Android",
+    href:  "/register",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M3.18 23.76c.37.21.8.27 1.22.15l12.12-6.99-2.54-2.54-10.8 9.38zm-1.1-20.03C2.03 4 2 4.27 2 4.56v14.88c0 .29.03.56.08.83l11.09-11.09L2.08 3.73zm19.5 8.26l-2.7-1.56-2.88 2.88 2.88 2.88 2.72-1.57c.78-.45.78-1.63-.02-2.63zM4.4.09C3.98-.02 3.54.04 3.18.25L14.27 11.3 16.81 8.77 4.4.09z" />
@@ -55,24 +58,27 @@ const APP_LINKS = [
   },
 ];
 
-// Don't show footer on auth pages or dashboards
 const HIDDEN_PATHS = [
   "/login", "/register", "/forgot-password", "/auth/",
   "/store/", "/delivery/", "/admin",
 ];
 
 export default function Footer() {
-  const location = useLocation();
+  const location   = useLocation();
   const { isLoggedIn } = useAuth();
-  const { addToast } = useCart();
+  const { addToast }   = useCart();
 
-  const shouldHide = HIDDEN_PATHS.some(p => location.pathname.startsWith(p));
+  const shouldHide = HIDDEN_PATHS.some((p) => location.pathname.startsWith(p));
   if (shouldHide) return null;
+
+  const handleAppClick = (label) => {
+    addToast(`${label} app launching soon! Sign up on web in the meantime 📱`, "info");
+  };
 
   return (
     <footer style={{ backgroundColor: "var(--surface)", borderTop: "1px solid var(--border)" }}>
 
-      {/* ── CTA strip ── */}
+      {/* CTA strip */}
       <div
         className="relative overflow-hidden"
         style={{ background: "linear-gradient(135deg, #ff6b35 0%, #e5521e 50%, #c44416 100%)" }}
@@ -89,16 +95,20 @@ export default function Footer() {
               <p className="text-white/75 text-sm">Order from 50+ local stores. Delivered in minutes.</p>
             </div>
             <div className="flex gap-3 flex-shrink-0">
-              <Link to={isLoggedIn ? "/user/home" : "/register"}
+              <Link
+                to={isLoggedIn ? "/user/home" : "/register"}
                 className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all hover:scale-105"
-                style={{ background: "rgba(255,255,255,0.95)", color: "#e5521e", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+                style={{ background: "rgba(255,255,255,0.95)", color: "#e5521e", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
+              >
                 <Zap size={16} />
                 {isLoggedIn ? "Order Now" : "Get Started Free"}
               </Link>
               {!isLoggedIn && (
-                <Link to="/login"
+                <Link
+                  to="/login"
                   className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all hover:scale-105"
-                  style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1.5px solid rgba(255,255,255,0.3)" }}>
+                  style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1.5px solid rgba(255,255,255,0.3)" }}
+                >
                   Sign In
                 </Link>
               )}
@@ -107,7 +117,7 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* ── Main body ── */}
+      {/* Main body */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
 
@@ -116,7 +126,8 @@ export default function Footer() {
             <Link to="/" className="inline-flex items-center gap-2.5 group">
               <div
                 className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-white text-lg transition-all duration-300 group-hover:scale-110"
-                style={{ background: "linear-gradient(135deg, #ff6b35, #ff8c5a)", boxShadow: "0 4px 15px rgba(255,107,53,0.35)" }}>
+                style={{ background: "linear-gradient(135deg, #ff6b35, #ff8c5a)", boxShadow: "0 4px 15px rgba(255,107,53,0.35)" }}
+              >
                 Q
               </div>
               <span className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>
@@ -129,37 +140,49 @@ export default function Footer() {
             </p>
 
             <div className="space-y-2">
-              <a href="mailto:support@quickcart.in" className="flex items-center gap-2 text-xs transition-colors hover:text-brand" style={{ color: "var(--text-muted)" }}>
+              <a
+                href="mailto:support@quickcart.in"
+                className="flex items-center gap-2 text-xs transition-colors hover:text-brand"
+                style={{ color: "var(--text-muted)" }}
+              >
                 <Mail size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />
                 support@quickcart.in
               </a>
-              <a href="tel:+918012345678" className="flex items-center gap-2 text-xs transition-colors" style={{ color: "var(--text-muted)" }}>
+              <a
+                href="tel:+918012345678"
+                className="flex items-center gap-2 text-xs transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+              >
                 <Phone size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />
                 +91 80 1234 5678
               </a>
-              <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+              {/* FIXED: replaced dead href="#" with a span (address is not a link) */}
+              <span className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
                 <MapPin size={12} style={{ color: "var(--brand)", flexShrink: 0 }} />
                 MG Road, Bengaluru, Karnataka 560001
-              </div>
+              </span>
             </div>
 
-            {/* Social links */}
+            {/* Social links — all open in new tab */}
             <div className="flex items-center gap-2 pt-1">
-              {SOCIAL_LINKS.map(({ icon: Icon, href, label, external }) => (
+              {SOCIAL_LINKS.map(({ icon: Icon, href, label }) => (
                 <a
                   key={label}
                   href={href}
                   aria-label={label}
-                  {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110 hover:-translate-y-0.5"
                   style={{ background: "var(--elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
-                  onMouseEnter={e => {
+                  onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "rgba(255,107,53,0.4)";
-                    e.currentTarget.style.color = "var(--brand)";
+                    e.currentTarget.style.color       = "var(--brand)";
                   }}
-                  onMouseLeave={e => {
+                  onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.color = "var(--text-muted)";
+                    e.currentTarget.style.color       = "var(--text-muted)";
                   }}
                 >
                   <Icon size={14} />
@@ -177,11 +200,12 @@ export default function Footer() {
               <ul className="space-y-2.5">
                 {links.map(({ label, href }) => (
                   <li key={label}>
-                    <Link to={href}
+                    <Link
+                      to={href}
                       className="text-sm transition-all hover:translate-x-0.5 inline-block"
                       style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={e => e.currentTarget.style.color = "var(--brand)"}
-                      onMouseLeave={e => e.currentTarget.style.color = "var(--text-muted)"}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
                     >
                       {label}
                     </Link>
@@ -192,19 +216,20 @@ export default function Footer() {
           ))}
         </div>
 
-        {/* ── App badges ── */}
+        {/* App badges */}
         <div
           className="mt-10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-6"
           style={{ borderTop: "1px solid var(--border)" }}
         >
           <div className="flex items-center gap-3">
             <p className="text-xs font-semibold mr-1" style={{ color: "var(--text-muted)" }}>Coming soon:</p>
-            {APP_LINKS.map(({ label, sub, icon }) => (
-              <button
+            {APP_LINKS.map(({ label, sub, icon, href }) => (
+              // FIXED: these now link to /register (functional) + show toast
+              <Link
                 key={label}
-                type="button"
-                onClick={() => addToast(`${label} app coming soon! 📱`, "info")}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 cursor-pointer"
+                to={href}
+                onClick={() => handleAppClick(label)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105"
                 style={{ background: "var(--elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
               >
                 <span style={{ color: "var(--text-secondary)" }}>{icon}</span>
@@ -212,7 +237,7 @@ export default function Footer() {
                   <span className="block text-xs leading-tight">{label}</span>
                   <span className="block text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>{sub}</span>
                 </span>
-              </button>
+              </Link>
             ))}
           </div>
 
@@ -225,7 +250,7 @@ export default function Footer() {
               <Shield size={11} /> SSL Secured
             </Link>
             <Link
-              to="/about"
+              to="/user/home"
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all hover:scale-105"
               style={{ background: "rgba(255,107,53,0.1)", color: "var(--brand)", border: "1px solid rgba(255,107,53,0.2)" }}
             >
@@ -241,7 +266,7 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* ── Copyright ── */}
+        {/* Copyright */}
         <div
           className="mt-6 pt-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs"
           style={{ borderTop: "1px solid var(--border)", color: "var(--text-muted)" }}

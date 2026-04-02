@@ -1,5 +1,5 @@
 import Product from "../models/Product.js";
-import Store from "../models/Store.js";
+import Store   from "../models/Store.js";
 
 export const createProduct = async (req, res) => {
   try {
@@ -18,18 +18,22 @@ export const createProduct = async (req, res) => {
       return res.status(403).json({ message: "Not authorized — this is not your store" });
     }
 
+    const stockVal = req.body.stock !== undefined ? Number(req.body.stock) : 100;
+
     const product = await Product.create({
       name,
       description: description || "",
-      price: Number(price),
+      price:         Number(price),
       originalPrice: originalPrice ? Number(originalPrice) : undefined,
       category,
-      image: image || "",
+      image:    image || "",
       storeId,
-      unit: unit || "",
-      isVeg: isVeg !== undefined ? isVeg : true,
+      unit:     unit || "",
+      isVeg:    isVeg !== undefined ? isVeg : true,
       spiceLevel: spiceLevel || "",
-      prepTime: prepTime || "",
+      prepTime:   prepTime || "",
+      stock:     Math.max(0, stockVal),
+      available: stockVal > 0,
     });
 
     res.status(201).json(product);
@@ -52,7 +56,11 @@ export const searchProducts = async (req, res) => {
     const { q } = req.query;
     if (!q || q.trim().length < 2) return res.json([]);
     const products = await Product.find({
-      name: { $regex: q.trim(), $options: "i" },
+      $or: [
+        { name:        { $regex: q.trim(), $options: "i" } },
+        { description: { $regex: q.trim(), $options: "i" } },
+        { category:    { $regex: q.trim(), $options: "i" } },
+      ],
       available: true,
     })
       .populate("storeId", "name category isOpen deliveryTime image rating")
@@ -70,7 +78,24 @@ export const updateProduct = async (req, res) => {
     if (product.storeId.ownerId.toString() !== req.user.userId) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+    const updateData = { ...req.body };
+
+    // Keep available in sync with stock if stock is being updated
+    if (updateData.stock !== undefined) {
+      const newStock = Math.max(0, Number(updateData.stock));
+      updateData.stock = newStock;
+      // Only force available=false when stock hits 0; don't override an explicit available field
+      if (newStock === 0 && updateData.available === undefined) {
+        updateData.available = false;
+      }
+      // If stock is positive and available was false (not explicitly set), re-enable
+      if (newStock > 0 && updateData.available === undefined && !product.available) {
+        updateData.available = true;
+      }
+    }
+
+    const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
     res.json(updated);
   } catch (e) {
     res.status(500).json({ message: e.message });

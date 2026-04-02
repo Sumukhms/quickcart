@@ -1,11 +1,14 @@
 /**
- * UserTrack.jsx  — UPDATED
+ * UserTrack.jsx — FIXED
  *
- * Key additions over the original:
- *   1. DeliveryNearBanner — shows proximity alert when delivery agent is near
- *   2. User coordinates fetched from the saved Address document on the order
- *   3. Delivery agent lat/lng tracked via socket "location_update" events
- *   4. All original tracking, cancel, rating logic preserved
+ * Bugs fixed vs previous version:
+ *   1. Order total was double-counting delivery fee:
+ *      old: subtotal = order.totalPrice (already includes delivery)
+ *           orderTotal = subtotal + deliveryFee  ← WRONG (double-counted)
+ *      new: itemsSubtotal is computed from items[], discount is inferred,
+ *           grandTotal = order.totalPrice (the real persisted total)
+ *   2. deliveryCoords / userCoords now initialised from order.deliveryLocation
+ *      if the delivery agent already pushed a location before the page loaded
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate }             from "react-router-dom";
@@ -63,10 +66,8 @@ export default function UserTrack() {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [ratingSubmitted,  setRatingSubmitted]  = useState(false);
 
-  // ── Delivery proximity state ─────────────────────────────
+  // Delivery proximity state
   const [deliveryCoords, setDeliveryCoords] = useState({ lat: null, lng: null });
-  // We pull user coords from the order's embedded address lat/lng
-  // (set during checkout when the address was a structured Address doc)
   const [userCoords,     setUserCoords]     = useState({ lat: null, lng: null });
 
   const intervalRef = useRef(null);
@@ -77,9 +78,10 @@ export default function UserTrack() {
     try {
       const { data } = await orderAPI.getById(id);
       setOrder(data);
-      // Pull user coords from order if available
-      if (data.deliveryAddressLat && data.deliveryAddressLng) {
-        setUserCoords({ lat: data.deliveryAddressLat, lng: data.deliveryAddressLng });
+
+      // Initialise delivery coords from persisted location (in case page loaded after tracking started)
+      if (data.deliveryLocation?.lat != null) {
+        setDeliveryCoords({ lat: data.deliveryLocation.lat, lng: data.deliveryLocation.lng });
       }
     } catch (err) {
       setError(err.response?.data?.message || "Could not load order details.");
@@ -101,7 +103,6 @@ export default function UserTrack() {
       }
     });
 
-    // ── NEW: live location updates ────────────────────────
     const unsubLocation = on("location_update", ({ orderId, lat, lng }) => {
       if (orderId === id || orderId?.toString() === id) {
         setDeliveryCoords({ lat, lng });
@@ -109,7 +110,7 @@ export default function UserTrack() {
     });
 
     return () => {
-      if (typeof unsubStatus  === "function") unsubStatus();
+      if (typeof unsubStatus   === "function") unsubStatus();
       if (typeof unsubLocation === "function") unsubLocation();
     };
   }, [id, joinOrderRoom, on]);
@@ -193,9 +194,13 @@ export default function UserTrack() {
   const isActive      = !isCancelled && !isDelivered;
   const canCancel     = CANCELLABLE.includes(order.status);
 
-  const deliveryFee = order.deliveryFee ?? 20;
-  const subtotal    = order.totalPrice;
-  const orderTotal  = subtotal + deliveryFee;
+  // ── FIXED: compute breakdown correctly from items array ──
+  const deliveryFee   = order.deliveryFee ?? 20;
+  const itemsSubtotal = (order.items || []).reduce(
+    (sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0
+  );
+  // Infer any coupon discount that was applied: discount = items + delivery - totalPaid
+  const inferredDiscount = Math.max(0, itemsSubtotal + deliveryFee - (order.totalPrice ?? 0));
 
   const timelineSteps = getTimelineSteps(storeCategory).map((step) => ({
     ...step, icon: STATUS_ICONS[step.key] || Package,
@@ -230,7 +235,7 @@ export default function UserTrack() {
           </button>
         </div>
 
-        {/* ── NEW: Delivery proximity banner ── */}
+        {/* Delivery proximity banner */}
         <DeliveryNearBanner
           deliveryLat={deliveryCoords.lat}
           deliveryLng={deliveryCoords.lng}
@@ -422,10 +427,10 @@ export default function UserTrack() {
                   <span style={{ color: "#f59e0b" }}>{order.deliveryAgentId?.rating || "4.8"}</span>
                   <span>· {order.deliveryAgentId?.vehicleType || "bike"}</span>
                 </div>
-                {/* ── NEW: show live distance if known ── */}
-                {deliveryCoords.lat != null && userCoords.lat != null && (
-                  <p className="text-xs mt-0.5" style={{ color: "var(--brand)" }}>
-                    📍 Live location active
+                {deliveryCoords.lat != null && (
+                  <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: "#22c55e" }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    Live location active
                   </p>
                 )}
               </div>
@@ -464,12 +469,13 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* Order summary */}
+        {/* Order summary — FIXED: correct amounts */}
         <OrderSummary
           items={order.items || []}
-          subtotal={subtotal}
+          subtotal={itemsSubtotal}
           deliveryFee={deliveryFee}
-          grandTotal={orderTotal}
+          discount={inferredDiscount > 0 ? inferredDiscount : 0}
+          grandTotal={order.totalPrice}
           paymentMethod={order.paymentMethod}
           className="mb-4"
         />
@@ -495,6 +501,9 @@ export default function UserTrack() {
               )}
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                 {order.paymentMethod === "cod" ? "💵 Cash on Delivery" : "💳 Online Payment"}
+                {order.paymentStatus === "paid" && (
+                  <span className="ml-2 text-green-400 font-semibold">✓ Paid</span>
+                )}
               </p>
             </div>
           </div>

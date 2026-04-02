@@ -1,12 +1,12 @@
 /**
- * orderController.js — UPDATED
+ * orderController.js — FIXED
  *
- * Key changes vs original:
- *   1. placeOrder: idempotency check prevents duplicate orders
- *   2. placeOrder: server-side stock re-validation (mirrors cartController)
- *   3. placeOrder: stock decrement on successful order (atomic via $inc)
- *   4. DELIVERY_FEE sourced from constants (no more hardcoded 20)
- *   5. cancelOrder: re-stocks items on cancellation
+ * Bug fixes vs previous version:
+ *   1. cancelOrder: after restoring stock, re-enables products that went from
+ *      stock=0/available=false back to stock>0 (previously the available flag
+ *      stayed false even after stock was refunded)
+ *   2. placeOrder idempotency window increased to 60s for slower connections
+ *   3. Minor: consistent error logging format
  */
 import Order   from "../models/Order.js";
 import Cart    from "../models/Cart.js";
@@ -52,15 +52,6 @@ const DELIVERY_ALLOWED_STATUSES = ["out_for_delivery", "delivered"];
 
 // ─── CUSTOMER ──────────────────────────────────────────────────
 
-/**
- * placeOrder
- *
- * Extra guards added:
- *   - totalPrice sanity check (min/max)
- *   - idempotency: blocks duplicate pending orders for same user+store
- *   - stock re-validation per item
- *   - stock decrement (atomic, per-product)
- */
 export const placeOrder = async (req, res) => {
   try {
     const {
@@ -73,7 +64,6 @@ export const placeOrder = async (req, res) => {
       couponCode,
     } = req.body;
 
-    // ── Basic guards ──────────────────────────────────────────
     if (!deliveryAddress?.trim())       return res.status(400).json({ message: "Delivery address required" });
     if (!items || items.length === 0)   return res.status(400).json({ message: "Cart is empty" });
     if (!storeId)                       return res.status(400).json({ message: "Store ID is required" });
@@ -84,12 +74,12 @@ export const placeOrder = async (req, res) => {
       return res.status(400).json({ message: `Order value cannot exceed ₹${MAX_ORDER_VALUE}` });
     }
 
-    // ── Idempotency: prevent duplicate pending orders ─────────
+    // Idempotency: prevent duplicate pending orders (60-second window)
     const recentPending = await Order.findOne({
       userId:    req.user.userId,
       storeId,
       status:    "pending",
-      createdAt: { $gte: new Date(Date.now() - 30_000) }, // within last 30 seconds
+      createdAt: { $gte: new Date(Date.now() - 60_000) },
     });
     if (recentPending) {
       return res.status(409).json({
@@ -98,7 +88,7 @@ export const placeOrder = async (req, res) => {
       });
     }
 
-    // ── Stock validation per item ─────────────────────────────
+    // Stock validation per item
     const productIds = items.map((i) => i.productId).filter(Boolean);
     const products   = await Product.find({ _id: { $in: productIds } });
     const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
@@ -123,7 +113,6 @@ export const placeOrder = async (req, res) => {
       }
     }
 
-    // ── Create order ──────────────────────────────────────────
     const order = await Order.create({
       userId:          req.user.userId,
       storeId,
@@ -136,7 +125,7 @@ export const placeOrder = async (req, res) => {
       statusHistory:   [{ status: "pending", timestamp: new Date(), updatedBy: req.user.userId }],
     });
 
-    // ── Decrement stock (atomic, fire-and-forget errors) ──────
+    // Decrement stock (atomic, fire-and-forget errors)
     const bulkStockOps = items
       .filter((i) => i.productId)
       .map((i) => ({
@@ -146,21 +135,24 @@ export const placeOrder = async (req, res) => {
         },
       }));
     if (bulkStockOps.length) {
-      Product.bulkWrite(bulkStockOps).catch((err) =>
-        console.error("Stock decrement error:", err.message)
-      );
+      Product.bulkWrite(bulkStockOps)
+        .then(() => {
+          // Mark out-of-stock items as unavailable
+          Product.updateMany(
+            { _id: { $in: productIds }, stock: { $lte: 0 } },
+            { $set: { available: false } }
+          ).catch((err) => console.error("Stock availability update error:", err.message));
+        })
+        .catch((err) => console.error("Stock decrement error:", err.message));
     }
 
-    // ── Clear cart ─────────────────────────────────────────────
     await Cart.findOneAndUpdate(
       { userId: req.user.userId },
       { items: [], storeId: null }
     );
 
-    // ── Notify store ───────────────────────────────────────────
     req.io?.to(`store_${storeId}`).emit("new_order", { orderId: order._id, order });
 
-    // ── Coupon usage ───────────────────────────────────────────
     if (couponCode?.trim()) {
       try { await applyCoupon(couponCode.trim().toUpperCase()); }
       catch (e) { console.warn("Coupon usage increment failed:", e.message); }
@@ -168,7 +160,7 @@ export const placeOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (e) {
-    console.error("Place Order Error:", e);
+    console.error("[placeOrder] Error:", e);
     res.status(500).json({ message: "Server error while placing order" });
   }
 };
@@ -228,7 +220,6 @@ export const updateOrderStatus = async (req, res) => {
 
     const storeCategory = order.storeId?.category || "Other";
 
-    // ── Role gate ─────────────────────────────────────────────
     if (actorRole === "store" && !STORE_ALLOWED_STATUSES.includes(toStatus)) {
       return res.status(403).json({ message: `Store owners cannot set status to "${toStatus}"` });
     }
@@ -236,7 +227,6 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(403).json({ message: `Delivery partners cannot set status to "${toStatus}"` });
     }
 
-    // ── Flow sequence validation ───────────────────────────────
     if (!isValidTransition(order.status, toStatus, storeCategory)) {
       const nextAllowed = getNextStatus(order.status, storeCategory);
       return res.status(400).json({
@@ -376,7 +366,8 @@ export const updateDeliveryLocation = async (req, res) => {
 /**
  * cancelOrder
  *
- * Extra guard: restocks items when a pending/confirmed order is cancelled.
+ * FIXED: now also re-enables products whose stock goes from 0 to positive
+ * after the cancelled items are refunded back to inventory.
  */
 export const cancelOrder = async (req, res) => {
   try {
@@ -402,6 +393,10 @@ export const cancelOrder = async (req, res) => {
     await order.save();
 
     // ── Restock items on cancellation ─────────────────────────
+    const restoredProductIds = (order.items || [])
+      .filter((i) => i.productId && i.quantity)
+      .map((i) => i.productId);
+
     const bulkRestoreOps = (order.items || [])
       .filter((i) => i.productId && i.quantity)
       .map((i) => ({
@@ -410,10 +405,21 @@ export const cancelOrder = async (req, res) => {
           update: { $inc: { stock: i.quantity } },
         },
       }));
+
     if (bulkRestoreOps.length) {
-      Product.bulkWrite(bulkRestoreOps).catch((err) =>
-        console.error("Stock restore error:", err.message)
-      );
+      Product.bulkWrite(bulkRestoreOps)
+        .then(() => {
+          // Re-enable products that are now back in stock (were marked unavailable)
+          Product.updateMany(
+            { _id: { $in: restoredProductIds }, stock: { $gt: 0 }, available: false },
+            { $set: { available: true } }
+          ).catch((err) =>
+            console.error("[cancelOrder] Stock availability restore error:", err.message)
+          );
+        })
+        .catch((err) =>
+          console.error("[cancelOrder] Stock restore error:", err.message)
+        );
     }
 
     req.io?.to(`order_${order._id}`).emit("order_status_update", {
