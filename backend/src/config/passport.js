@@ -12,6 +12,8 @@
  * We do NOT use sessions (stateless JWT API).
  * passport.serializeUser / deserializeUser are no-ops.
  */
+import dotenv from "dotenv";
+dotenv.config();
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import User from "../models/User.js";
@@ -19,11 +21,18 @@ import User from "../models/User.js";
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
-const googleClientID = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-const googleCallbackURL = process.env.GOOGLE_CALLBACK_URL;
+const googleClientID = process.env.GOOGLE_CLIENT_ID?.trim();
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+const googleCallbackURL = process.env.GOOGLE_CALLBACK_URL?.trim();
 
-if (googleClientID && googleClientSecret && googleCallbackURL) {
+const isGoogleConfigured =
+  googleClientID &&
+  googleClientSecret &&
+  googleCallbackURL;
+
+if (isGoogleConfigured) {
+  console.log("✅ Google OAuth Strategy Loaded");
+
   passport.use(
     new GoogleStrategy(
       {
@@ -35,6 +44,7 @@ if (googleClientID && googleClientSecret && googleCallbackURL) {
       async (_accessToken, _refreshToken, profile, done) => {
         try {
           const email = profile.emails?.[0]?.value?.toLowerCase();
+
           if (!email) {
             return done(new Error("No email returned from Google"), null);
           }
@@ -48,7 +58,9 @@ if (googleClientID && googleClientSecret && googleCallbackURL) {
               user.googleId = profile.id;
               user.authProvider = "google";
               user.isEmailVerified = true;
-              if (!user.avatar) user.avatar = profile.photos?.[0]?.value || "";
+              if (!user.avatar) {
+                user.avatar = profile.photos?.[0]?.value || "";
+              }
               await user.save();
             } else {
               user = await User.create({
@@ -71,7 +83,7 @@ if (googleClientID && googleClientSecret && googleCallbackURL) {
     )
   );
 } else {
-  console.log("⚠️ Google OAuth disabled (missing env variables)");
+  console.log("❌ Google OAuth NOT configured properly");
 }
 
 

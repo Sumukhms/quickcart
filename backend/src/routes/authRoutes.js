@@ -79,22 +79,37 @@ r.post("/resend-verification", otpLimiter,      resendVerificationOtp);
 r.post("/forgot-password",     otpLimiter,      forgotPassword);
 r.post("/reset-password",      otpLimiter,      ...resetPasswordValidation, resetPassword);
 
-// ── Google OAuth ───────────────────────────────────────────────
-r.get("/google",
-  passport.authenticate("google", {
-    scope: ["profile", "email"],
-    session: false,
-    prompt: "select_account",
-  })
-);
-r.get("/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=oauth_failed`,
-    session: false,
-  }),
-  googleCallback
-);
 
+const hasGoogleAuth =
+  process.env.GOOGLE_CLIENT_ID &&
+  process.env.GOOGLE_CLIENT_SECRET &&
+  process.env.GOOGLE_CALLBACK_URL;
+
+// ── Google OAuth ───────────────────────────────────────────────
+if (hasGoogleAuth) {
+  r.get("/google",
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+      session: false,
+      prompt: "select_account",
+    })
+  );
+
+  r.get("/google/callback",
+    passport.authenticate("google", {
+      failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=oauth_failed`,
+      session: false,
+    }),
+    googleCallback
+  );
+} else {
+  // fallback → prevents crash
+  r.get("/google", (req, res) => {
+    res.status(500).json({
+      message: "Google OAuth not configured properly",
+    });
+  });
+}
 // ── Protected profile routes ───────────────────────────────────
 r.get("/profile",                    protect, getProfile);
 r.put("/profile",                    protect, updateProfile);
