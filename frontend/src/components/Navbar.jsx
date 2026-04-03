@@ -127,7 +127,7 @@ export default function Navbar() {
             {/* Desktop nav links */}
             {isLoggedIn && (
               <nav className="hidden md:flex items-center gap-1 ml-2 overflow-x-auto scrollbar-hide">
-                {menuLinks.slice(0, user?.role === "store" ? 5 : menuLinks.length).map(({ to, icon: Icon, label }) => {
+                {menuLinks.slice(0, user?.role === "store" ? 6 : menuLinks.length).map(({ to, icon: Icon, label }) => {
                   const active = location.pathname === to || location.pathname.startsWith(to + "/");
                   return (
                     <Link key={`${to}-${label}`} to={to}
