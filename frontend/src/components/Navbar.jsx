@@ -19,12 +19,13 @@ import {
   ArrowRight,
   Shield,
   Tag,
-  BarChart3,  // inventory icon
+  BarChart3,
 } from "lucide-react";
-import { useTheme } from "../context/ThemeContext";
-import { useCart } from "../context/CartContext";
-import { useAuth } from "../context/AuthContext";
-import CartDrawer from "./cart/CartDrawer";
+import { useTheme }  from "../context/ThemeContext";
+import { useCart }   from "../context/CartContext";
+import { useAuth }   from "../context/AuthContext";
+import CartDrawer    from "./cart/CartDrawer";
+import NotificationBell from "./ui/NotificationBell";   // ← NEW
 
 function getNavLinks(user) {
   const storeShopLink = user?.storeId
@@ -33,24 +34,24 @@ function getNavLinks(user) {
 
   return {
     customer: [
-      { to: "/user/home",    icon: Home,         label: "Home" },
-      { to: "/user/orders",  icon: Package,       label: "Orders" },
-      { to: "/user/profile", icon: User,          label: "Profile" },
+      { to: "/user/home",    icon: Home,           label: "Home" },
+      { to: "/user/orders",  icon: Package,        label: "Orders" },
+      { to: "/user/profile", icon: User,           label: "Profile" },
     ],
     store: [
-      { to: storeShopLink,      icon: ShoppingBag,   label: "My Store" },
+      { to: storeShopLink,      icon: ShoppingBag,    label: "My Store" },
       { to: "/store/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/store/orders",    icon: ClipboardList, label: "Orders" },
-      { to: "/store/products",  icon: Package,       label: "Products" },
-      { to: "/store/inventory", icon: BarChart3,     label: "Inventory" },  // NEW
-      { to: "/store/coupons",   icon: Tag,           label: "Coupons" },
-      { to: "/store/settings",  icon: Settings,      label: "Settings" },
+      { to: "/store/orders",    icon: ClipboardList,  label: "Orders" },
+      { to: "/store/products",  icon: Package,        label: "Products" },
+      { to: "/store/inventory", icon: BarChart3,      label: "Inventory" },
+      { to: "/store/coupons",   icon: Tag,            label: "Coupons" },
+      { to: "/store/settings",  icon: Settings,       label: "Settings" },
     ],
     delivery: [
-      { to: "/user/home",           icon: Home,    label: "Browse" },
-      { to: "/delivery/dashboard",  icon: Truck,   label: "Dashboard" },
-      { to: "/delivery/active",     icon: MapPin,  label: "Active" },
-      { to: "/delivery/history",    icon: History, label: "History" },
+      { to: "/user/home",          icon: Home,   label: "Browse" },
+      { to: "/delivery/dashboard", icon: Truck,  label: "Dashboard" },
+      { to: "/delivery/active",    icon: MapPin, label: "Active" },
+      { to: "/delivery/history",   icon: History,label: "History" },
     ],
   };
 }
@@ -64,10 +65,10 @@ const ROLE_BADGE = {
 
 export default function Navbar() {
   const { isDark, toggleTheme } = useTheme();
-  const { count } = useCart();
+  const { count }               = useCart();
   const { user, logout, isLoggedIn, homeRoute } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const [cartOpen,     setCartOpen]     = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled,     setScrolled]     = useState(false);
@@ -123,7 +124,7 @@ export default function Navbar() {
               </span>
             </Link>
 
-            {/* Desktop nav links — truncate store links at md */}
+            {/* Desktop nav links */}
             {isLoggedIn && (
               <nav className="hidden md:flex items-center gap-1 ml-2 overflow-x-auto scrollbar-hide">
                 {menuLinks.slice(0, user?.role === "store" ? 5 : menuLinks.length).map(({ to, icon: Icon, label }) => {
@@ -153,6 +154,9 @@ export default function Navbar() {
                 style={{ background: "var(--elevated)", color: "var(--text-secondary)" }}>
                 {isDark ? <Moon size={16} /> : <Sun size={16} style={{ color: "#f59e0b" }} />}
               </button>
+
+              {/* ── NOTIFICATION BELL ── */}
+              {isLoggedIn && <NotificationBell />}
 
               {/* Cart */}
               {isLoggedIn && (
@@ -240,8 +244,8 @@ export default function Navbar() {
                             Personal Shopping
                           </p>
                           {[
-                            { to: "/user/home",   icon: Home,        label: "Browse Stores" },
-                            { to: "/user/orders", icon: ShoppingBag, label: "My Orders" },
+                            { to: "/user/home",   icon: Home,         label: "Browse Stores" },
+                            { to: "/user/orders", icon: ShoppingBag,  label: "My Orders" },
                             { to: "/user/cart",   icon: ShoppingCart, label: "My Cart" },
                           ].map(({ to, icon: Icon, label }) => (
                             <Link key={to} to={to} onClick={() => setUserMenuOpen(false)}

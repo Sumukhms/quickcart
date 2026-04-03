@@ -22,6 +22,7 @@ import {
   MAX_ORDER_VALUE,
   MIN_ORDER_VALUE,
 } from "../config/constants.js";
+import { notifyPayment } from "../services/notificationService.js";
 
 // ── Guard: warn at startup if keys are missing ─────────────────
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
@@ -282,12 +283,10 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
       createdAt: { $gte: new Date(Date.now() - 30_000) },
     });
     if (recentPending && !recentPending.paymentId) {
-      return res
-        .status(409)
-        .json({
-          message: "Duplicate order detected.",
-          orderId: recentPending._id,
-        });
+      return res.status(409).json({
+        message: "Duplicate order detected.",
+        orderId: recentPending._id,
+      });
     }
 
     // ── 5. Stock validation (race-condition safety net) ────────
@@ -366,6 +365,13 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
       ],
     });
 
+    notifyPayment(req.io, {
+      userId: req.user.userId,
+      orderId: order._id,
+      amount: computed.total,
+      status: "paid",
+    }).catch(() => {});
+
     // ── 8. Decrement stock atomically ─────────────────────────
     const productIds = items.filter((i) => i.productId).map((i) => i.productId);
     const bulkStockOps = items
@@ -413,10 +419,8 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
     res.status(201).json(order);
   } catch (e) {
     console.error("Payment verify error:", e);
-    res
-      .status(500)
-      .json({
-        message: e.message || "Server error during payment verification",
-      });
+    res.status(500).json({
+      message: e.message || "Server error during payment verification",
+    });
   }
 };

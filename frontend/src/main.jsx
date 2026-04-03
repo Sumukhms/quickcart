@@ -3,12 +3,13 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import App from "./App.jsx";
-import { ThemeProvider }    from "./context/ThemeContext.jsx";
-import { AuthProvider }     from "./context/AuthContext.jsx";
-import { CartProvider }     from "./context/CartContext.jsx";
-import { SocketProvider }   from "./context/SocketContext.jsx";
-import { FavoriteProvider } from "./context/FavoriteContext.jsx";
-import ErrorBoundary        from "./components/ui/ErrorBoundary.jsx";
+import { ThemeProvider }        from "./context/ThemeContext.jsx";
+import { AuthProvider }         from "./context/AuthContext.jsx";
+import { CartProvider }         from "./context/CartContext.jsx";
+import { SocketProvider }       from "./context/SocketContext.jsx";
+import { FavoriteProvider }     from "./context/FavoriteContext.jsx";
+import { NotificationProvider } from "./context/NotificationContext.jsx";  // NEW
+import ErrorBoundary            from "./components/ui/ErrorBoundary.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
@@ -19,7 +20,9 @@ createRoot(document.getElementById("root")).render(
             <CartProvider>
               <FavoriteProvider>
                 <SocketProvider>
-                  <App />
+                  <NotificationProvider>
+                    <App />
+                  </NotificationProvider>
                 </SocketProvider>
               </FavoriteProvider>
             </CartProvider>

@@ -19,54 +19,60 @@ import User from "../models/User.js";
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID:     process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL:  process.env.GOOGLE_CALLBACK_URL,
-      scope:        ["profile", "email"],
-    },
-    async (_accessToken, _refreshToken, profile, done) => {
-      try {
-        const email = profile.emails?.[0]?.value?.toLowerCase();
-        if (!email) {
-          return done(new Error("No email returned from Google"), null);
-        }
+const googleClientID = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const googleCallbackURL = process.env.GOOGLE_CALLBACK_URL;
 
-        // ── Find by googleId first, then by email ─────────
-        let user = await User.findOne({ googleId: profile.id });
-
-        if (!user) {
-          user = await User.findOne({ email });
-
-          if (user) {
-            // Existing local account — link Google to it
-            user.googleId       = profile.id;
-            user.authProvider   = "google";
-            user.isEmailVerified = true; // Google already verified the email
-            if (!user.avatar) user.avatar = profile.photos?.[0]?.value || "";
-            await user.save();
-          } else {
-            // Brand-new user via Google
-            user = await User.create({
-              name:            profile.displayName || email.split("@")[0],
-              email,
-              googleId:        profile.id,
-              authProvider:    "google",
-              isEmailVerified: true,
-              avatar:          profile.photos?.[0]?.value || "",
-              role:            "customer",
-            });
+if (googleClientID && googleClientSecret && googleCallbackURL) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: googleClientID,
+        clientSecret: googleClientSecret,
+        callbackURL: googleCallbackURL,
+        scope: ["profile", "email"],
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        try {
+          const email = profile.emails?.[0]?.value?.toLowerCase();
+          if (!email) {
+            return done(new Error("No email returned from Google"), null);
           }
-        }
 
-        return done(null, user);
-      } catch (err) {
-        return done(err, null);
+          let user = await User.findOne({ googleId: profile.id });
+
+          if (!user) {
+            user = await User.findOne({ email });
+
+            if (user) {
+              user.googleId = profile.id;
+              user.authProvider = "google";
+              user.isEmailVerified = true;
+              if (!user.avatar) user.avatar = profile.photos?.[0]?.value || "";
+              await user.save();
+            } else {
+              user = await User.create({
+                name: profile.displayName || email.split("@")[0],
+                email,
+                googleId: profile.id,
+                authProvider: "google",
+                isEmailVerified: true,
+                avatar: profile.photos?.[0]?.value || "",
+                role: "customer",
+              });
+            }
+          }
+
+          return done(null, user);
+        } catch (err) {
+          return done(err, null);
+        }
       }
-    }
-  )
-);
+    )
+  );
+} else {
+  console.log("⚠️ Google OAuth disabled (missing env variables)");
+}
+
 
 export default passport;

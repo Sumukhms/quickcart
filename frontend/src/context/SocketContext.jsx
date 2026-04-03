@@ -1,3 +1,10 @@
+/**
+ * SocketContext.jsx — UPDATED
+ *
+ * Change vs original: exposes `joinUserRoom` and emits "join_user_room"
+ * so NotificationContext can subscribe to user-specific notification events.
+ * All existing code is preserved unchanged.
+ */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
@@ -28,6 +35,11 @@ export function SocketProvider({ children }) {
       if (user?.role === "delivery") {
         socket.emit("join_delivery", user.id || user._id);
       }
+      // Auto-join user-specific notification room
+      const userId = user?.id || user?._id;
+      if (userId) {
+        socket.emit("join_user_room", userId.toString());
+      }
     });
 
     socket.on("disconnect", () => setConnected(false));
@@ -47,6 +59,11 @@ export function SocketProvider({ children }) {
     socketRef.current?.emit("join_store", storeId);
   };
 
+  // NEW: join user-specific room for notifications
+  const joinUserRoom = (userId) => {
+    socketRef.current?.emit("join_user_room", userId);
+  };
+
   const on = (event, handler) => {
     socketRef.current?.on(event, handler);
     return () => socketRef.current?.off(event, handler);
@@ -61,7 +78,18 @@ export function SocketProvider({ children }) {
   };
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, connected, joinOrderRoom, joinStoreRoom, on, off, emit }}>
+    <SocketContext.Provider
+      value={{
+        socket: socketRef.current,
+        connected,
+        joinOrderRoom,
+        joinStoreRoom,
+        joinUserRoom,   // NEW
+        on,
+        off,
+        emit,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );

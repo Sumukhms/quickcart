@@ -7,6 +7,20 @@
  *   3. Cloudinary env check in startup log
  *   4. RAZORPAY_WEBHOOK_SECRET check in startup log
  */
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
+
+import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
+
 
 import passport         from "./src/config/passport.js";
 import connectDB        from "./src/config/db.js";
@@ -26,6 +40,9 @@ import statsRoutes       from "./src/routes/statsRoutes.js";
 import inventoryRoutes   from "./src/routes/inventoryRoutes.js";
 import locationRoutes    from "./src/routes/locationRoutes.js";
 import addressRoutes     from "./src/routes/addressRoutes.js";
+import webhookRoutes     from "./src/routes/webhookRoutes.js";
+import uploadRoutes      from "./src/routes/uploadRoutes.js";
+import notificationRoutes from "./src/routes/notificationRoutes.js";
 
 // ── CRITICAL: Validate required environment variables at startup ──
 const REQUIRED_ENV = ["MONGO_URI", "JWT_SECRET"];
@@ -162,6 +179,7 @@ app.use("/api/stats",         statsRoutes);
 app.use("/api/inventory",     inventoryRoutes);
 app.use("/api/location",      locationRoutes);
 app.use("/api/addresses",     addressRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (_req, res) => res.json({
   message: "QuickCart API v2",
@@ -204,6 +222,12 @@ io.on("connection", (socket) => {
       io.to(`order_${orderId}`).emit("location_update", { lat, lng });
     }
   });
+
+  socket.on("join_user_room", (id) => {
+  if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
+    socket.join(`user_${id}`);
+  }
+});
 
   socket.on("disconnect", () => {});
 });

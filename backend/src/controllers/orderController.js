@@ -1,18 +1,21 @@
 /**
- * orderController.js — FIXED
+ * orderController.js — UPDATED with Notification hooks
  *
- * Bug fixes vs previous version:
- *   1. cancelOrder: after restoring stock, re-enables products that went from
- *      stock=0/available=false back to stock>0 (previously the available flag
- *      stayed false even after stock was refunded)
- *   2. placeOrder idempotency window increased to 60s for slower connections
- *   3. Minor: consistent error logging format
+ * Changes vs original:
+ *   • Import notificationService helpers
+ *   • Call notifyOrderStatus after every status change
+ *   • Call notifyDelivery when a rider accepts
+ *   • No existing logic changed — only additions
  */
 import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
 import Store from "../models/Store.js";
 import Product from "../models/Product.js";
 import { applyCoupon } from "./couponController.js";
+import {
+  notifyOrderStatus,
+  notifyDelivery,
+} from "../services/notificationService.js";
 import {
   DELIVERY_FEE,
   ORDER_CANCELLABLE_STATUSES,
@@ -168,7 +171,6 @@ export const placeOrder = async (req, res) => {
     if (bulkStockOps.length) {
       Product.bulkWrite(bulkStockOps)
         .then(() => {
-          // Mark out-of-stock items as unavailable
           Product.updateMany(
             { _id: { $in: productIds }, stock: { $lte: 0 } },
             { $set: { available: false } },
@@ -195,6 +197,15 @@ export const placeOrder = async (req, res) => {
         console.warn("Coupon usage increment failed:", e.message);
       }
     }
+
+    // ── Notify customer: order placed ────────────────────────
+    const store = await Store.findById(storeId).select("name").lean();
+    notifyOrderStatus(req.io, {
+      userId:    req.user.userId,
+      orderId:   order._id,
+      storeName: store?.name || "the store",
+      status:    "pending",
+    }).catch(() => {});
 
     res.status(201).json(order);
   } catch (e) {
@@ -332,6 +343,14 @@ export const updateOrderStatus = async (req, res) => {
       });
     }
 
+    // ── Notify customer of status change ─────────────────────
+    notifyOrderStatus(req.io, {
+      userId:    updated.userId._id || updated.userId,
+      orderId:   updated._id,
+      storeName: order.storeId?.name || "the store",
+      status:    toStatus,
+    }).catch(() => {});
+
     res.json(updated);
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -357,7 +376,7 @@ export const getAvailableOrders = async (req, res) => {
 
 export const acceptDelivery = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate("storeId", "name");
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (order.deliveryAgentId) {
       return res
@@ -389,6 +408,25 @@ export const acceptDelivery = async (req, res) => {
       agentId: req.user.userId,
     });
 
+    // ── Notify customer: rider accepted ──────────────────────
+    const agentUser = await import("../models/User.js")
+      .then((m) => m.default.findById(req.user.userId).select("name").lean())
+      .catch(() => null);
+
+    notifyDelivery(req.io, {
+      userId:    order.userId,
+      orderId:   order._id,
+      agentName: agentUser?.name || "A delivery partner",
+    }).catch(() => {});
+
+    // Also notify out_for_delivery status
+    notifyOrderStatus(req.io, {
+      userId:    order.userId,
+      orderId:   order._id,
+      storeName: order.storeId?.name || "the store",
+      status:    "out_for_delivery",
+    }).catch(() => {});
+
     res.json(order);
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -413,7 +451,7 @@ export const getMyDeliveries = async (req, res) => {
 
 export const markDelivered = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate("storeId", "name");
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (order.deliveryAgentId?.toString() !== req.user.userId) {
       return res.status(403).json({ message: "Not your delivery" });
@@ -431,6 +469,15 @@ export const markDelivered = async (req, res) => {
       status: "delivered",
       orderId: order._id,
     });
+
+    // ── Notify customer: delivered ───────────────────────────
+    notifyOrderStatus(req.io, {
+      userId:    order.userId,
+      orderId:   order._id,
+      storeName: order.storeId?.name || "the store",
+      status:    "delivered",
+    }).catch(() => {});
+
     res.json(order);
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -459,14 +506,11 @@ export const updateDeliveryLocation = async (req, res) => {
 };
 
 /**
- * cancelOrder
- *
- * FIXED: now also re-enables products whose stock goes from 0 to positive
- * after the cancelled items are refunded back to inventory.
+ * cancelOrder — with notification + stock restore
  */
 export const cancelOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id).populate("storeId", "name");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     if (order.userId.toString() !== req.user.userId) {
@@ -504,7 +548,6 @@ export const cancelOrder = async (req, res) => {
     if (bulkRestoreOps.length) {
       Product.bulkWrite(bulkRestoreOps)
         .then(() => {
-          // Re-enable products that are now back in stock (were marked unavailable)
           Product.updateMany(
             {
               _id: { $in: restoredProductIds },
@@ -532,6 +575,14 @@ export const cancelOrder = async (req, res) => {
       orderId: order._id,
       status: "cancelled",
     });
+
+    // ── Notify customer: cancelled ───────────────────────────
+    notifyOrderStatus(req.io, {
+      userId:    order.userId,
+      orderId:   order._id,
+      storeName: order.storeId?.name || "the store",
+      status:    "cancelled",
+    }).catch(() => {});
 
     res.json(order);
   } catch (e) {
