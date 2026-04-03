@@ -1,3 +1,10 @@
+/**
+ * AuthPages.jsx — FIXED
+ *
+ * Fixes:
+ *   1. Phone field in registration is limited to 10 numeric digits
+ *   2. Password field overlap fixed with explicit paddingRight
+ */
 import { useState } from "react";
 import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -13,6 +20,11 @@ const ROLES = [
   { id: "store",    emoji: "🏪", label: "Store Owner", sub: "Manage your store & products" },
   { id: "delivery", emoji: "🛵", label: "Delivery",    sub: "Earn by delivering orders" },
 ];
+
+/* ── Sanitise phone: digits only, max 10 ─────────────────── */
+function sanitizePhone(val) {
+  return val.replace(/\D/g, "").slice(0, 10);
+}
 
 // ── Shared sub-components ──────────────────────────────────────
 
@@ -44,7 +56,8 @@ function PasswordField({ label = "Password", value, onChange, showPw, setShowPw,
       <div className="relative">
         <input
           type={showPw ? "text" : "password"}
-          className="input-theme pr-11"
+          className="input-theme"
+          style={{ paddingRight: "2.75rem" }}
           placeholder={placeholder}
           value={value}
           onChange={e => onChange(e.target.value)}
@@ -55,6 +68,7 @@ function PasswordField({ label = "Password", value, onChange, showPw, setShowPw,
           type="button"
           onClick={() => setShowPw(!showPw)}
           className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity"
+          style={{ color: "var(--text-muted)" }}
         >
           {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
@@ -386,12 +400,12 @@ export function LoginPage() {
 
 // ── REGISTER PAGE ──────────────────────────────────────────────
 export function RegisterPage() {
-  const [form,          setForm]          = useState({ name: "", email: "", password: "", role: "customer", vehicleType: "bike" });
-  const [showPw,        setShowPw]        = useState(false);
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState("");
-  const [verifyScreen,  setVerifyScreen]  = useState(false);
-  const [emailError,    setEmailError]    = useState(false);
+  const [form,         setForm]         = useState({ name: "", email: "", password: "", phone: "", role: "customer", vehicleType: "bike" });
+  const [showPw,       setShowPw]       = useState(false);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [verifyScreen, setVerifyScreen] = useState(false);
+  const [emailError,   setEmailError]   = useState(false);
 
   const { register, updateUser } = useAuth();
   const { addToast }             = useCart();
@@ -402,6 +416,7 @@ export function RegisterPage() {
     setError(""); setEmailError(false); setLoading(true);
     try {
       const payload = { name: form.name, email: form.email, password: form.password, role: form.role };
+      if (form.phone.trim()) payload.phone = form.phone;
       if (form.role === "delivery") payload.vehicleType = form.vehicleType;
       const data = await register(payload);
 
@@ -459,6 +474,27 @@ export function RegisterPage() {
           showPw={showPw}
           setShowPw={setShowPw}
         />
+
+        {/* Phone — optional, 10 digits */}
+        <div>
+          <label className="block text-sm font-bold mb-1.5" style={{ color: "var(--text-secondary)" }}>
+            Phone Number <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
+          </label>
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            className="input-theme"
+            placeholder="10-digit mobile number"
+            value={form.phone}
+            onChange={e => setForm({ ...form, phone: sanitizePhone(e.target.value) })}
+          />
+          {form.phone && (
+            <p className="text-[10px] mt-1" style={{ color: form.phone.length === 10 ? "#22c55e" : "var(--text-muted)" }}>
+              {form.phone.length}/10 digits{form.phone.length === 10 ? " ✓" : ""}
+            </p>
+          )}
+        </div>
 
         {/* Role selection */}
         <div>
@@ -548,7 +584,6 @@ export function ForgotPasswordPage() {
     try {
       const { data } = await api.post("/auth/forgot-password", { email });
 
-      // Check if backend reported an email failure
       if (data.emailError) {
         setError(
           "OTP was generated but the email could not be sent. " +
@@ -562,7 +597,6 @@ export function ForgotPasswordPage() {
       startCooldown();
     } catch (err) {
       const msg = err.response?.data?.message || "Failed to send OTP";
-      // Surface email config errors clearly
       if (err.response?.data?.emailError) {
         setError(
           "The OTP could not be emailed. Server email configuration issue — " +
@@ -587,8 +621,7 @@ export function ForgotPasswordPage() {
       startCooldown();
     } catch {
       setError("Failed to resend OTP. Please try again.");
-    }
-    finally { setLoading(false); }
+    } finally { setLoading(false); }
   };
 
   const handleVerifyOtp = (e) => {

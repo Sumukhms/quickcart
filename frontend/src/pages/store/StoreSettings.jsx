@@ -1,10 +1,10 @@
 /**
- * StoreSettings.jsx — UPDATED with Cloudinary logo upload
+ * StoreSettings.jsx — FIXED
  *
- * Changes vs original:
- *   - Store image field replaced with <ImageUploader type="store" />
- *   - The uploader auto-saves the URL to DB when upload completes
- *   - Manual image URL field retained as fallback (hidden when uploader used)
+ * Fixes:
+ *   1. Input fields no longer overlap with icons (explicit paddingLeft on inputs)
+ *   2. Phone number limited to 10 digits
+ *   3. Logo upload with ImageUploader retained
  */
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -18,10 +18,10 @@ import { useCart } from "../../context/CartContext";
 import api from "../../api/api";
 import ImageUploader from "../../components/ui/ImageUploader.jsx";
 
-const CATEGORIES    = ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"];
+const CATEGORIES     = ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"];
 const DELIVERY_TIMES = ["8-12 min", "10-15 min", "12-18 min", "15-20 min", "20-30 min", "30-45 min"];
 
-const CAT_EMOJIS = { Groceries:"🛒", Food:"🍛", Snacks:"🍕", Beverages:"🧃", Medicines:"💊", Other:"🏪" };
+const CAT_EMOJIS = { Groceries: "🛒", Food: "🍛", Snacks: "🍕", Beverages: "🧃", Medicines: "💊", Other: "🏪" };
 const CAT_DESCRIPTIONS = {
   Groceries: "Fruits, veggies, dairy, staples",
   Food:      "Restaurant meals, tiffin, home food",
@@ -31,21 +31,36 @@ const CAT_DESCRIPTIONS = {
   Other:     "General merchandise",
 };
 
+/* ── Sanitise phone: digits only, max 10 ─────────────────── */
+function sanitizePhone(val) {
+  return val.replace(/\D/g, "").slice(0, 10);
+}
+
 function FieldLabel({ children }) {
   return (
-    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5"
-      style={{ color: "var(--text-muted)" }}>
+    <label
+      className="block text-xs font-bold uppercase tracking-wider mb-1.5"
+      style={{ color: "var(--text-muted)" }}
+    >
       {children}
     </label>
   );
 }
 
-function InputWithIcon({ icon: Icon, ...props }) {
+/** Icon-prefixed input — icon sits absolutely, input has explicit left padding */
+function InputWithIcon({ icon: Icon, iconColor, className = "", ...props }) {
   return (
     <div className="relative">
-      <Icon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-        style={{ color: "var(--text-muted)" }} />
-      <input className="input-theme pl-10 text-sm" {...props} />
+      <Icon
+        size={15}
+        className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ color: iconColor || "var(--text-muted)" }}
+      />
+      <input
+        className={`input-theme ${className}`}
+        style={{ paddingLeft: "2.5rem" }}
+        {...props}
+      />
     </div>
   );
 }
@@ -71,7 +86,8 @@ export default function StoreSettings() {
   useEffect(() => { fetchStore(); }, []);
 
   const fetchStore = async () => {
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
       const { data } = await api.get("/stores/mine");
       setStore(data);
@@ -98,6 +114,7 @@ export default function StoreSettings() {
   const validate = () => {
     if (!form.name.trim())    return "Store name is required";
     if (!form.phone.trim())   return "Phone number is required";
+    if (form.phone.replace(/\D/g, "").length !== 10) return "Phone number must be exactly 10 digits";
     if (!form.address.trim()) return "Address is required";
     if (!form.category)       return "Category is required";
     return null;
@@ -107,7 +124,8 @@ export default function StoreSettings() {
     e.preventDefault();
     const validationError = validate();
     if (validationError) { addToast(validationError, "error"); return; }
-    setSaving(true); setError("");
+    setSaving(true);
+    setError("");
     try {
       let result;
       if (isNewStore) {
@@ -135,8 +153,10 @@ export default function StoreSettings() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
-        <div className="w-8 h-8 border-2 rounded-full animate-spin"
-          style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }} />
+        <div
+          className="w-8 h-8 border-2 rounded-full animate-spin"
+          style={{ borderColor: "var(--border)", borderTopColor: "var(--brand)" }}
+        />
       </div>
     );
   }
@@ -147,8 +167,11 @@ export default function StoreSettings() {
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <Link to="/store/dashboard" className="p-2.5 rounded-xl transition-all hover:scale-110"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+          <Link
+            to="/store/dashboard"
+            className="p-2.5 rounded-xl transition-all hover:scale-110"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+          >
             <ChevronLeft size={18} />
           </Link>
           <div className="flex-1">
@@ -160,16 +183,21 @@ export default function StoreSettings() {
             </p>
           </div>
           {!isNewStore && (
-            <button onClick={fetchStore} className="p-2.5 rounded-xl transition-all hover:scale-110"
-              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+            <button
+              onClick={fetchStore}
+              className="p-2.5 rounded-xl transition-all hover:scale-110"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+            >
               <RefreshCw size={16} />
             </button>
           )}
         </div>
 
         {isNewStore && (
-          <div className="rounded-2xl p-4 mb-5 flex items-start gap-3"
-            style={{ background: "rgba(59,130,246,0.08)", border: "1.5px solid rgba(59,130,246,0.25)" }}>
+          <div
+            className="rounded-2xl p-4 mb-5 flex items-start gap-3"
+            style={{ background: "rgba(59,130,246,0.08)", border: "1.5px solid rgba(59,130,246,0.25)" }}
+          >
             <AlertCircle size={18} style={{ color: "#3b82f6", flexShrink: 0, marginTop: 1 }} />
             <div>
               <p className="font-bold text-sm" style={{ color: "#3b82f6" }}>No store yet</p>
@@ -181,18 +209,24 @@ export default function StoreSettings() {
         )}
 
         {error && (
-          <div className="rounded-xl p-3.5 mb-4 text-sm font-medium"
-            style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <div
+            className="rounded-xl p-3.5 mb-4 text-sm font-medium"
+            style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}
+          >
             {error}
           </div>
         )}
 
         {/* Store preview card */}
         {!isNewStore && store && (
-          <div className="rounded-2xl p-4 mb-5 flex items-center gap-4"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-            <div className="w-14 h-14 rounded-2xl flex-shrink-0 overflow-hidden flex items-center justify-center text-3xl"
-              style={{ background: "var(--elevated)" }}>
+          <div
+            className="rounded-2xl p-4 mb-5 flex items-center gap-4"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+          >
+            <div
+              className="w-14 h-14 rounded-2xl flex-shrink-0 overflow-hidden flex items-center justify-center text-3xl"
+              style={{ background: "var(--elevated)" }}
+            >
               {form.image
                 ? <img src={form.image} alt="logo" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                 : CAT_EMOJIS[form.category] || "🏪"}
@@ -204,12 +238,15 @@ export default function StoreSettings() {
                 <span>{form.category}</span>
               </div>
             </div>
-            <button type="button" onClick={() => set("isOpen", !form.isOpen)}
+            <button
+              type="button"
+              onClick={() => set("isOpen", !form.isOpen)}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all hover:scale-105"
               style={{
-                background: form.isOpen ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.08)",
+                background: form.isOpen ? "rgba(34,197,94,0.1)"  : "rgba(239,68,68,0.08)",
                 color:      form.isOpen ? "#22c55e"               : "#ef4444",
-              }}>
+              }}
+            >
               <span className={`w-1.5 h-1.5 rounded-full ${form.isOpen ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
               {form.isOpen ? "Open" : "Closed"}
             </button>
@@ -218,18 +255,22 @@ export default function StoreSettings() {
 
         <form onSubmit={handleSave} className="space-y-4">
 
-          {/* Basic Info */}
-          <div className="rounded-3xl overflow-hidden"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          {/* ── Basic Info ── */}
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+          >
             <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-              <h2 className="font-bold text-xs uppercase tracking-widest flex items-center gap-2"
-                style={{ color: "var(--text-muted)" }}>
+              <h2
+                className="font-bold text-xs uppercase tracking-widest flex items-center gap-2"
+                style={{ color: "var(--text-muted)" }}
+              >
                 <Store size={13} /> Basic Information
               </h2>
             </div>
             <div className="p-5 space-y-4">
 
-              {/* ── UPDATED: Cloudinary logo uploader ── */}
+              {/* Logo uploader */}
               <div>
                 <ImageUploader
                   type="store"
@@ -242,7 +283,6 @@ export default function StoreSettings() {
                   }}
                   onError={(msg) => addToast(msg, "error")}
                 />
-                {/* Fallback: manual URL entry */}
                 {!form.image && (
                   <div className="mt-2">
                     <p className="text-[10px] mb-1" style={{ color: "var(--text-muted)" }}>Or paste an image URL:</p>
@@ -257,42 +297,91 @@ export default function StoreSettings() {
                 )}
               </div>
 
+              {/* Store Name */}
               <div>
                 <FieldLabel>Store Name *</FieldLabel>
-                <InputWithIcon icon={Store} placeholder="e.g. FreshMart Express"
-                  required value={form.name} onChange={e => set("name", e.target.value)} />
+                <InputWithIcon
+                  icon={Store}
+                  placeholder="e.g. FreshMart Express"
+                  required
+                  value={form.name}
+                  onChange={e => set("name", e.target.value)}
+                />
               </div>
+
+              {/* Phone */}
               <div>
                 <FieldLabel>Phone Number *</FieldLabel>
-                <InputWithIcon icon={Phone} placeholder="+91 98765 43210"
-                  required value={form.phone} onChange={e => set("phone", e.target.value)} />
+                <div className="relative">
+                  <Phone
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <input
+                    className="input-theme text-sm"
+                    style={{ paddingLeft: "2.5rem" }}
+                    placeholder="10-digit mobile number"
+                    inputMode="numeric"
+                    required
+                    maxLength={10}
+                    value={form.phone}
+                    onChange={e => set("phone", sanitizePhone(e.target.value))}
+                  />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
+                  {form.phone.length}/10 digits
+                </p>
               </div>
+
+              {/* Address */}
               <div>
                 <FieldLabel>Store Address *</FieldLabel>
                 <div className="relative">
-                  <MapPin size={15} className="absolute left-3.5 top-3.5 pointer-events-none"
-                    style={{ color: "var(--text-muted)" }} />
-                  <textarea className="input-theme pl-10 text-sm resize-none" rows={2} required
+                  <MapPin
+                    size={15}
+                    className="absolute left-3.5 top-3.5 pointer-events-none"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <textarea
+                    className="input-theme text-sm resize-none"
+                    style={{ paddingLeft: "2.5rem" }}
+                    rows={2}
+                    required
                     placeholder="Full address including area and city"
-                    value={form.address} onChange={e => set("address", e.target.value)} />
+                    value={form.address}
+                    onChange={e => set("address", e.target.value)}
+                  />
                 </div>
               </div>
+
+              {/* Description */}
               <div>
                 <FieldLabel>Description</FieldLabel>
                 <div className="relative">
-                  <FileText size={15} className="absolute left-3.5 top-3.5 pointer-events-none"
-                    style={{ color: "var(--text-muted)" }} />
-                  <textarea className="input-theme pl-10 text-sm resize-none" rows={2}
+                  <FileText
+                    size={15}
+                    className="absolute left-3.5 top-3.5 pointer-events-none"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <textarea
+                    className="input-theme text-sm resize-none"
+                    style={{ paddingLeft: "2.5rem" }}
+                    rows={2}
                     placeholder="Tell customers what's special about your store..."
-                    value={form.description} onChange={e => set("description", e.target.value)} />
+                    value={form.description}
+                    onChange={e => set("description", e.target.value)}
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Category */}
-          <div className="rounded-3xl overflow-hidden"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          {/* ── Category ── */}
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+          >
             <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
               <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Store Category *
@@ -301,16 +390,22 @@ export default function StoreSettings() {
             <div className="p-5">
               <div className="grid grid-cols-2 gap-2.5">
                 {CATEGORIES.map(cat => (
-                  <button key={cat} type="button" onClick={() => set("category", cat)}
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => set("category", cat)}
                     className="flex items-center gap-3 p-3.5 rounded-2xl text-left transition-all hover:scale-[1.02]"
                     style={{
                       background: form.category === cat ? "rgba(255,107,53,0.08)" : "var(--elevated)",
                       border: `1.5px solid ${form.category === cat ? "var(--brand)" : "var(--border)"}`,
-                    }}>
+                    }}
+                  >
                     <span className="text-2xl flex-shrink-0">{CAT_EMOJIS[cat]}</span>
                     <div className="min-w-0">
-                      <p className="font-bold text-sm leading-tight"
-                        style={{ color: form.category === cat ? "var(--brand)" : "var(--text-primary)" }}>
+                      <p
+                        className="font-bold text-sm leading-tight"
+                        style={{ color: form.category === cat ? "var(--brand)" : "var(--text-primary)" }}
+                      >
                         {cat}
                       </p>
                       <p className="text-[10px] mt-0.5 leading-tight truncate" style={{ color: "var(--text-muted)" }}>
@@ -323,59 +418,89 @@ export default function StoreSettings() {
             </div>
           </div>
 
-          {/* Delivery Settings */}
-          <div className="rounded-3xl overflow-hidden"
-            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+          {/* ── Delivery Settings ── */}
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+          >
             <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
               <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
                 Delivery Settings
               </h2>
             </div>
             <div className="p-5 space-y-4">
+
               <div>
                 <FieldLabel>Estimated Delivery Time</FieldLabel>
                 <div className="grid grid-cols-3 gap-2">
                   {DELIVERY_TIMES.map(t => (
-                    <button key={t} type="button" onClick={() => set("deliveryTime", t)}
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => set("deliveryTime", t)}
                       className="py-2.5 px-1 rounded-xl text-xs font-semibold transition-all hover:scale-105 flex flex-col items-center gap-1"
                       style={{
                         background: form.deliveryTime === t ? "rgba(255,107,53,0.1)" : "var(--elevated)",
                         color:      form.deliveryTime === t ? "var(--brand)"           : "var(--text-secondary)",
                         border: `1px solid ${form.deliveryTime === t ? "var(--brand)" : "var(--border)"}`,
-                      }}>
+                      }}
+                    >
                       <Clock size={11} /> {t}
                     </button>
                   ))}
                 </div>
               </div>
+
               <div>
                 <FieldLabel>Minimum Order Amount (₹)</FieldLabel>
-                <InputWithIcon icon={DollarSign} type="number" placeholder="0 for no minimum" min="0"
-                  value={form.minOrder} onChange={e => set("minOrder", Number(e.target.value))} />
+                <div className="relative">
+                  <DollarSign
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <input
+                    className="input-theme text-sm"
+                    style={{ paddingLeft: "2.5rem" }}
+                    type="number"
+                    placeholder="0 for no minimum"
+                    min="0"
+                    value={form.minOrder}
+                    onChange={e => set("minOrder", Number(e.target.value))}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          <button type="submit" disabled={saving}
+          {/* Save Button */}
+          <button
+            type="submit"
+            disabled={saving}
             className="btn w-full justify-center py-4 text-base font-bold transition-all"
             style={{
               background:  saved ? "#22c55e" : "var(--brand)",
               color:       "white",
               boxShadow:   saved ? "0 0 20px rgba(34,197,94,0.3)" : "0 8px 24px rgba(255,107,53,0.3)",
-            }}>
+            }}
+          >
             {saving ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : saved ? (
               <><Check size={18} /> {isNewStore ? "Store Created!" : "Saved!"}</>
             ) : (
-              <>{isNewStore ? <><Plus size={18} /> Create Store</> : <><Save size={18} /> Save Settings</>}</>
+              isNewStore
+                ? <><Plus size={18} /> Create Store</>
+                : <><Save size={18} /> Save Settings</>
             )}
           </button>
         </form>
 
-        <button onClick={handleLogout}
+        <button
+          onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm mt-4 transition-all hover:scale-[1.01]"
-          style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1.5px solid rgba(239,68,68,0.18)" }}>
+          style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1.5px solid rgba(239,68,68,0.18)" }}
+        >
           <LogOut size={15} /> Sign Out
         </button>
       </div>
