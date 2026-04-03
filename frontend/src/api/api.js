@@ -3,10 +3,12 @@ import axios from "axios";
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
-  baseURL: BASE,
-  timeout: 30_000,
+  baseURL:         BASE,
+  timeout:         30_000,
+  withCredentials: true,   // ← REQUIRED: sends httpOnly refresh-token cookie automatically
 });
 
+// ── Request interceptor — attach access token ────────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("qc-token");
@@ -16,18 +18,84 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// ── Track whether a refresh is already in flight ─────────────
+let isRefreshing    = false;
+let refreshQueue    = [];   // { resolve, reject }[]
+
+function processQueue(error, token = null) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve(token);
+  });
+  refreshQueue = [];
+}
+
+// ── Response interceptor — handle 401 with token refresh ─────
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      const authPages = ["/login", "/register", "/forgot-password", "/auth/callback"];
-      const isAuthPage = authPages.some(p => window.location.pathname.startsWith(p));
-      if (!isAuthPage) {
+  async (err) => {
+    const originalRequest = err.config;
+
+    // Paths that should never trigger a refresh attempt
+    const skipRefresh = [
+      "/auth/login",
+      "/auth/register",
+      "/auth/refresh",
+      "/auth/logout",
+      "/auth/google",
+    ];
+    const isSkipped = skipRefresh.some((p) => originalRequest.url?.includes(p));
+
+    if (
+      err.response?.status === 401 &&
+      !originalRequest._retried &&
+      !isSkipped
+    ) {
+      originalRequest._retried = true;
+
+      if (isRefreshing) {
+        // Queue this request until the ongoing refresh resolves
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        // POST /auth/refresh — cookie is sent automatically (withCredentials)
+        const { data } = await api.post("/auth/refresh");
+        const newToken = data.token;
+
+        localStorage.setItem("qc-token",  newToken);
+        if (data.user) {
+          localStorage.setItem("qc-user", JSON.stringify(data.user));
+        }
+
+        processQueue(null, newToken);
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError);
+        // Refresh failed — clear local state and redirect to login
         localStorage.removeItem("qc-token");
         localStorage.removeItem("qc-user");
-        window.location.replace("/login");
+
+        const authPages = ["/login", "/register", "/forgot-password", "/auth/callback"];
+        const isAuthPage = authPages.some((p) => window.location.pathname.startsWith(p));
+        if (!isAuthPage) {
+          window.location.replace("/login");
+        }
+
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
+
     return Promise.reject(err);
   }
 );
@@ -48,7 +116,11 @@ export const authAPI = {
   addAddress:         (address) => api.post("/auth/addresses", { address }),
   removeAddress:      (index)   => api.delete(`/auth/addresses/${index}`),
   setDefaultAddress:  (index)   => api.patch(`/auth/addresses/${index}/default`),
-  deleteAccount:      (data)    => api.delete("/auth/account", { data }), // NEW
+  deleteAccount:      (data)    => api.delete("/auth/account", { data }),
+  // NEW
+  logout:             ()        => api.post("/auth/logout"),
+  logoutAll:          ()        => api.post("/auth/logout-all"),
+  refresh:            ()        => api.post("/auth/refresh"),
 };
 
 // ─── Stores ───────────────────────────────────────────────────
@@ -157,8 +229,6 @@ export const statsAPI = {
 };
 
 export const locationAPI = {
-    update: (orderId, lat, lng) =>
-      api.post(`/location/${orderId}`, { lat, lng }),
-    get:    (orderId) =>
-      api.get(`/location/${orderId}`),
+  update: (orderId, lat, lng) => api.post(`/location/${orderId}`, { lat, lng }),
+  get:    (orderId)           => api.get(`/location/${orderId}`),
 };

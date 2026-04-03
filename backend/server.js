@@ -1,16 +1,16 @@
-import express    from "express";
-import cors       from "cors";
-import helmet     from "helmet";
-import rateLimit  from "express-rate-limit";
-import compression from "compression";
-import morgan     from "morgan";
-import { createServer } from "http";
-import { Server }       from "socket.io";
-import "dotenv/config";
+/**
+ * server.js — UPDATED
+ *
+ * Changes vs original:
+ *   1. Webhook route mounted BEFORE express.json() so raw body is preserved
+ *   2. Upload route added: /api/upload
+ *   3. Cloudinary env check in startup log
+ *   4. RAZORPAY_WEBHOOK_SECRET check in startup log
+ */
+
 import passport         from "./src/config/passport.js";
 import connectDB        from "./src/config/db.js";
 import { verifyEmailConfig } from "./src/services/emailService.js";
-
 import authRoutes        from "./src/routes/authRoutes.js";
 import storeRoutes       from "./src/routes/storeRoutes.js";
 import productRoutes     from "./src/routes/productRoutes.js";
@@ -84,9 +84,10 @@ app.use(
             connectSrc: [
               "'self'",
               "https://api.razorpay.com",
+              "https://res.cloudinary.com",
               "wss:", // Socket.IO WebSocket
             ],
-            imgSrc: ["'self'", "data:", "https:"],
+            imgSrc: ["'self'", "data:", "https:", "https://res.cloudinary.com"],
             styleSrc: ["'self'", "'unsafe-inline'"],
           },
         },
@@ -133,7 +134,10 @@ connectDB();
 verifyEmailConfig().catch(() => {});
 
 // ── Body parsing ──────────────────────────────────────────────
+app.use("/api/webhook", webhookRoutes);
 app.use(express.json({ limit: "2mb" }));
+app.use("/api/upload", uploadRoutes);
+app.use(cookieParser());
 app.use(passport.initialize());
 app.use((req, _res, next) => { req.io = io; next(); });
 
@@ -222,7 +226,9 @@ const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   console.log(`🚀 QuickCart API on port ${PORT} [${process.env.NODE_ENV}]`);
   console.log(`   Frontend URLs: ${ALLOWED_ORIGINS.join(", ")}`);
-  console.log(`   Razorpay:      ${process.env.RAZORPAY_KEY_ID ? "✅ configured" : "⚠️  NOT SET"}`);
-  console.log(`   Email:         ${process.env.EMAIL_USER     ? "✅ configured" : "⚠️  NOT SET"}`);
-  console.log(`   Google OAuth:  ${process.env.GOOGLE_CLIENT_ID ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Razorpay:       ${process.env.RAZORPAY_KEY_ID       ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Webhook Secret: ${process.env.RAZORPAY_WEBHOOK_SECRET ? "✅ set"        : "⚠️  NOT SET (unsafe!)"}`);
+  console.log(`   Email:          ${process.env.EMAIL_USER             ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Google OAuth:   ${process.env.GOOGLE_CLIENT_ID       ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Cloudinary:     ${process.env.CLOUDINARY_CLOUD_NAME  ? "✅ configured" : "⚠️  NOT SET (uploads disabled)"}`);
 });

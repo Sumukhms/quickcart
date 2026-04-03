@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
   const _persist = (data) => {
     setUser(data.user);
     setToken(data.token);
-    localStorage.setItem("qc-user", JSON.stringify(data.user));
+    localStorage.setItem("qc-user",  JSON.stringify(data.user));
     localStorage.setItem("qc-token", data.token);
   };
 
@@ -34,20 +34,39 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    // Registration returns { requiresVerification, email } — no token yet
     return data;
   }, []);
 
-  const logout = useCallback(() => {
+  /**
+   * logout — always clears local state.
+   * Also calls the server endpoint to invalidate the refresh-token cookie.
+   * Fire-and-forget: even if the server call fails we clear locally.
+   */
+  const logout = useCallback(async () => {
+    // Best-effort server-side invalidation (clears the httpOnly cookie)
+    api.post("/auth/logout").catch(() => {});
+
     setUser(null);
     setToken(null);
-    localStorage.removeItem("qc-user");
     localStorage.removeItem("qc-token");
+    localStorage.removeItem("qc-user");
+  }, []);
+
+  /**
+   * logoutAll — invalidates ALL sessions for this user on the server.
+   * Requires a valid access token, so call while the user is still logged in.
+   */
+  const logoutAll = useCallback(async () => {
+    await api.post("/auth/logout-all").catch(() => {});
+
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("qc-token");
+    localStorage.removeItem("qc-user");
   }, []);
 
   const updateUser = useCallback((updates) => {
     if (!updates) return;
-    // If a full user object is passed (has _id or id), replace entirely
     const isFullObject = updates._id || updates.id;
     const updated = isFullObject
       ? { ...updates }
@@ -70,6 +89,7 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
+      logoutAll,
       updateUser,
       setTokenExternal,
       isLoggedIn:  !!user && !!token,

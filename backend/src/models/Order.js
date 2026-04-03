@@ -1,11 +1,14 @@
 /**
- * Order.js — UPDATED
+ * Order.js — UPDATED with refund tracking fields
  *
- * Changes:
- *   + paymentStatus: "pending" | "paid" | "failed"
- *   + paymentId:     String (Razorpay payment ID, stored after verification)
+ * New fields added:
+ *   refundId           - Razorpay refund ID (rfd_xxxxxxxxxxxx)
+ *   refundStatus       - "none" | "pending" | "refunded" | "manual_pending"
+ *   refundAmount       - amount refunded in ₹
+ *   refundReason       - reason string
+ *   refundInitiatedAt  - timestamp
  *
- * Everything else is unchanged from the original.
+ * All other fields unchanged from original.
  */
 import mongoose from "mongoose";
 
@@ -29,28 +32,45 @@ const orderSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      "pending",
-      "confirmed",
-      "preparing",
-      "packing",
-      "ready_for_pickup",
-      "out_for_delivery",
-      "delivered",
-      "cancelled",
+      "pending", "confirmed", "preparing", "packing",
+      "ready_for_pickup", "out_for_delivery", "delivered", "cancelled",
     ],
     default: "pending",
   },
 
   paymentMethod: { type: String, enum: ["cod", "online", "upi", "card"], default: "cod" },
 
-  // ── NEW: Razorpay payment tracking ───────────────────────
+  // ── Razorpay payment tracking ─────────────────────────────
   paymentStatus: {
     type:    String,
     enum:    ["pending", "paid", "failed"],
     default: "pending",
   },
   paymentId: {
-    type:    String,  // Razorpay payment_id e.g. "pay_xxxxxxxxxxxx"
+    type:    String,  // e.g. "pay_xxxxxxxxxxxx"
+    default: null,
+  },
+
+  // ── NEW: Refund tracking ──────────────────────────────────
+  refundId: {
+    type:    String,  // e.g. "rfd_xxxxxxxxxxxx"
+    default: null,
+  },
+  refundStatus: {
+    type:    String,
+    enum:    ["none", "pending", "refunded", "manual_pending", "failed"],
+    default: "none",
+  },
+  refundAmount: {
+    type:    Number,
+    default: null,
+  },
+  refundReason: {
+    type:    String,
+    default: null,
+  },
+  refundInitiatedAt: {
+    type:    Date,
     default: null,
   },
   // ─────────────────────────────────────────────────────────
@@ -58,8 +78,8 @@ const orderSchema = new mongoose.Schema({
   estimatedTime: { type: String, default: "30-40 min" },
 
   deliveryLocation: {
-    lat: { type: Number },
-    lng: { type: Number },
+    lat:       { type: Number },
+    lng:       { type: Number },
     updatedAt: { type: Date },
   },
 

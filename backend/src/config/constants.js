@@ -38,5 +38,20 @@ export const MAX_SAVED_ADDRESSES = 5;
 // ── Razorpay ──────────────────────────────────────────────────
 export const RAZORPAY_CURRENCY = process.env.RAZORPAY_CURRENCY || "INR";
 
-// ── JWT ───────────────────────────────────────────────────────
-export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+// ── JWT — Access token (short-lived) ──────────────────────────
+export const JWT_EXPIRES_IN          = process.env.JWT_EXPIRES_IN || "15m";
+
+// ── Refresh token ──────────────────────────────────────────────
+export const REFRESH_TOKEN_EXPIRES_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS) || 7;
+
+// Cookie name used for the refresh token
+export const REFRESH_COOKIE_NAME = "qc_rt";
+
+// Cookie options shared across set/clear operations
+export const REFRESH_COOKIE_OPTS = {
+  httpOnly: true,
+  secure:   process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+  maxAge:   REFRESH_TOKEN_EXPIRES_DAYS * 86_400_000, // ms
+  path:     "/",
+};

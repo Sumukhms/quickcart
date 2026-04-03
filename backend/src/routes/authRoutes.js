@@ -8,7 +8,9 @@ import {
   googleCallback,
   addAddress, removeAddress, setDefaultAddress,
   toggleDeliveryAvailability,
-  deleteAccount,  // NEW
+  deleteAccount,
+  // NEW
+  refresh, logout, logoutAll,
 } from "../controllers/authController.js";
 import {
   registerValidation,
@@ -47,9 +49,27 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Moderate limit for token refresh — called automatically by the frontend
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 1000 : 30,
+  message: { message: "Too many refresh requests." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isDev,
+});
+
 // ── Local auth ─────────────────────────────────────────────────
 r.post("/register",            registerLimiter, ...registerValidation,      register);
 r.post("/login",               loginLimiter,    ...loginValidation,         login);
+
+// ── Token management ───────────────────────────────────────────
+// POST /refresh — no auth middleware (access token may be expired)
+r.post("/refresh",             refreshLimiter,  refresh);
+// POST /logout — no auth required (cookie is enough to identify session)
+r.post("/logout",                               logout);
+// POST /logout-all — requires valid access token to identify the user
+r.post("/logout-all",          protect,         logoutAll);
 
 // ── Email verification ─────────────────────────────────────────
 r.post("/verify-email",        otpLimiter,      ...otpValidation,           verifyEmail);
@@ -84,6 +104,6 @@ r.delete("/addresses/:index",        protect, removeAddress);
 r.patch("/addresses/:index/default", protect, setDefaultAddress);
 
 // ── Account deletion ───────────────────────────────────────────
-r.delete("/account",                 protect, deleteAccount);   // NEW
+r.delete("/account",                 protect, deleteAccount);
 
 export default r;

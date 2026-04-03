@@ -1,19 +1,51 @@
-import User  from "../models/User.js";
-import Otp   from "../models/Otp.js";
-import Cart  from "../models/Cart.js";
-import Order from "../models/Order.js";
-import Store from "../models/Store.js";
-import bcrypt from "bcryptjs";
-import jwt    from "jsonwebtoken";
+import User         from "../models/User.js";
+import Otp          from "../models/Otp.js";
+import Cart         from "../models/Cart.js";
+import Order        from "../models/Order.js";
+import Store        from "../models/Store.js";
+import RefreshToken from "../models/RefreshToken.js";
+import bcrypt       from "bcryptjs";
+import jwt          from "jsonwebtoken";
+import crypto       from "crypto";
 import { sendOtpEmail, sendWelcomeEmail } from "../services/emailService.js";
+import {
+  JWT_EXPIRES_IN,
+  REFRESH_TOKEN_EXPIRES_DAYS,
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_OPTS,
+} from "../config/constants.js";
 
 // ── Helpers ───────────────────────────────────────────────────
-const signToken = (user) =>
+
+/** Sign a short-lived access token (15 min by default) */
+const signAccessToken = (user) =>
   jwt.sign(
     { userId: user._id, role: user.role, name: user.name },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+    { expiresIn: JWT_EXPIRES_IN }
   );
+
+/**
+ * Issue both tokens and set the refresh-token cookie.
+ * Returns the raw access token string.
+ *
+ * family — groups tokens across rotations; allows reuse-attack detection.
+ */
+const issueTokens = async (user, res, { family, userAgent, ip } = {}) => {
+  const accessToken  = signAccessToken(user);
+  const rawRefresh   = RefreshToken.generate();
+  const tokenFamily  = family || crypto.randomBytes(16).toString("hex");
+
+  await RefreshToken.store(user._id, rawRefresh, tokenFamily, {
+    userAgent: userAgent || "",
+    ip:        ip        || "",
+    expiresInDays: REFRESH_TOKEN_EXPIRES_DAYS,
+  });
+
+  res.cookie(REFRESH_COOKIE_NAME, rawRefresh, REFRESH_COOKIE_OPTS);
+
+  return { accessToken, family: tokenFamily };
+};
 
 const ROLE_REDIRECT = {
   customer: "/user/home",
@@ -64,7 +96,7 @@ export const register = async (req, res) => {
       if (existingUser.isEmailVerified) {
         return res.status(400).json({ message: "Email already registered. Please log in." });
       }
-      const otp = await Otp.createOtp(normalizedEmail, "verify_email");
+      const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
       const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
       if (!sent) {
         return res.status(500).json({
@@ -91,7 +123,6 @@ export const register = async (req, res) => {
     if (userRole === "delivery" && vehicleType) userData.vehicleType = vehicleType;
 
     const user = await User.create(userData);
-
     const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
     const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
@@ -141,10 +172,14 @@ export const verifyEmail = async (req, res) => {
 
     sendWelcomeEmail(normalizedEmail, user.name).catch(console.error);
 
-    const token = signToken(user);
+    const { accessToken } = await issueTokens(user, res, {
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+    });
+
     res.json({
       message:    "Email verified successfully! Welcome to QuickCart.",
-      token,
+      token:      accessToken,
       user:       safeUser(user),
       redirectTo: ROLE_REDIRECT[user.role] || "/user/home",
     });
@@ -215,14 +250,111 @@ export const login = async (req, res) => {
       });
     }
 
-    const token = signToken(user);
+    const { accessToken } = await issueTokens(user, res, {
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+    });
+
     res.json({
-      token,
+      token:      accessToken,
       user:       safeUser(user),
       redirectTo: ROLE_REDIRECT[user.role] || "/user/home",
     });
   } catch (e) {
     console.error("[Login] Error:", e.message);
+    res.status(500).json({ message: e.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// REFRESH — issue a new access token using the http-only cookie
+// ─────────────────────────────────────────────────────────────
+export const refresh = async (req, res) => {
+  try {
+    const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+    if (!rawToken) {
+      return res.status(401).json({ message: "No refresh token" });
+    }
+
+    // Find the stored token record
+    const record = await RefreshToken.findValid(rawToken);
+
+    if (!record) {
+      // Token not found — it may have been used already (reuse attack).
+      // Check if a same-family token was previously issued and revoke everything.
+      const hash = RefreshToken.hash(rawToken);
+      const anyFamily = await RefreshToken.findOne({ tokenHash: hash }).lean();
+      if (anyFamily) {
+        await RefreshToken.revokeFamily(anyFamily.family);
+        console.warn(`[refresh] Reuse attack detected for family ${anyFamily.family} — all sessions revoked`);
+      }
+
+      // Clear the cookie and force re-login
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+      return res.status(401).json({ message: "Invalid or expired refresh token. Please log in again." });
+    }
+
+    const user = await User.findById(record.userId);
+    if (!user) {
+      await record.deleteOne();
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Token rotation — delete old record and issue a new pair with the same family
+    const oldFamily = record.family;
+    await record.deleteOne();
+
+    const { accessToken } = await issueTokens(user, res, {
+      family:    oldFamily,
+      userAgent: req.headers["user-agent"],
+      ip:        req.ip,
+    });
+
+    res.json({
+      token: accessToken,
+      user:  safeUser(user),
+    });
+  } catch (e) {
+    console.error("[Refresh] Error:", e.message);
+    res.status(500).json({ message: e.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// LOGOUT — invalidate refresh token + clear cookie
+// ─────────────────────────────────────────────────────────────
+export const logout = async (req, res) => {
+  try {
+    const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+
+    if (rawToken) {
+      const record = await RefreshToken.findValid(rawToken);
+      if (record) await record.deleteOne();
+    }
+
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+    res.json({ message: "Logged out successfully" });
+  } catch (e) {
+    console.error("[Logout] Error:", e.message);
+    // Still clear the cookie even on error
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+    res.json({ message: "Logged out" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// LOGOUT ALL SESSIONS
+// ─────────────────────────────────────────────────────────────
+export const logoutAll = async (req, res) => {
+  try {
+    // req.user is populated by the protect middleware (access token still valid)
+    await RefreshToken.deleteMany({ userId: req.user.userId });
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+    res.json({ message: "All sessions logged out" });
+  } catch (e) {
+    console.error("[LogoutAll] Error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
@@ -241,9 +373,7 @@ export const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user || user.authProvider === "google") {
-      return res.json({
-        message: "If that email exists, an OTP has been sent.",
-      });
+      return res.json({ message: "If that email exists, an OTP has been sent." });
     }
 
     const otp  = await Otp.createOtp(normalizedEmail, "reset_password");
@@ -287,6 +417,10 @@ export const resetPassword = async (req, res) => {
     );
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    // Invalidate all sessions after password reset for security
+    await RefreshToken.deleteMany({ userId: user._id });
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+
     res.json({ message: "Password reset successfully. You can now log in." });
   } catch (e) {
     console.error("[ResetPassword] Error:", e.message);
@@ -299,13 +433,17 @@ export const resetPassword = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const googleCallback = async (req, res) => {
   try {
-    const user  = req.user;
-    const token = signToken(user);
-    const redirectTo = ROLE_REDIRECT[user.role] || "/user/home";
+    const user = req.user;
+    const { accessToken } = await issueTokens(user, res, {
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+    });
+    const redirectTo  = ROLE_REDIRECT[user.role] || "/user/home";
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
+    // Note: refresh token is in httpOnly cookie; only access token goes in URL fragment
     res.redirect(
-      `${frontendUrl}/auth/callback#token=${token}&redirectTo=${encodeURIComponent(redirectTo)}`
+      `${frontendUrl}/auth/callback#token=${accessToken}&redirectTo=${encodeURIComponent(redirectTo)}`
     );
   } catch (e) {
     console.error("[GoogleCallback] Error:", e.message);
@@ -315,7 +453,7 @@ export const googleCallback = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// PROFILE MANAGEMENT
+// PROFILE MANAGEMENT (unchanged)
 // ─────────────────────────────────────────────────────────────
 export const getProfile = async (req, res) => {
   try {
@@ -419,7 +557,6 @@ export const deleteAccount = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // For local auth users, verify password
     if (user.authProvider === "local" && user.password) {
       if (!password) {
         return res.status(400).json({ message: "Password is required to delete your account" });
@@ -430,7 +567,7 @@ export const deleteAccount = async (req, res) => {
       }
     }
 
-    // Cancel any active orders
+    // Cancel active orders, clear cart, close store
     await Order.updateMany(
       { userId, status: { $in: ["pending", "confirmed"] } },
       {
@@ -438,22 +575,19 @@ export const deleteAccount = async (req, res) => {
         $push: { statusHistory: { status: "cancelled", timestamp: new Date(), updatedBy: userId } },
       }
     );
-
-    // Clear their cart
     await Cart.findOneAndDelete({ userId });
-
-    // If store owner, close their store
     if (user.role === "store") {
       await Store.findOneAndUpdate({ ownerId: userId }, { isOpen: false });
     }
-
-    // Remove from other users' favoriteStores
     await User.updateMany(
       { favoriteStores: userId },
       { $pull: { favoriteStores: userId } }
     );
 
-    // Delete the user
+    // Revoke all refresh tokens
+    await RefreshToken.deleteMany({ userId });
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
+
     await User.findByIdAndDelete(userId);
 
     res.json({ message: "Your account has been permanently deleted." });

@@ -26,6 +26,7 @@ import UserOrders from "./pages/user/UserOrders.jsx";
 import UserTrack from "./pages/user/UserTrack.jsx";
 import UserProfile from "./pages/user/UserProfile.jsx";
 import CheckoutPage from "./pages/user/Checkoutpage.jsx";
+import PaymentFailurePage from "./pages/user/PaymentFailurePage.jsx";
 
 // Store Owner pages
 import StoreDashboard from "./pages/store/StoreDashboard.jsx";
@@ -92,7 +93,8 @@ export default function App() {
           <Route path="/user/orders" element={<ProtectedRoute><UserOrders /></ProtectedRoute>} />
           <Route path="/user/orders/:id" element={<ProtectedRoute><UserTrack /></ProtectedRoute>} />
           <Route path="/user/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-
+          <Route path="/payment/failure" element={<ProtectedRoute><PaymentFailurePage /></ProtectedRoute>} />
+          
           {/* Store Owner routes */}
           <Route path="/store/dashboard" element={<StoreRoute><StoreDashboard /></StoreRoute>} />
           <Route path="/store/products"  element={<StoreRoute><StoreProducts /></StoreRoute>} />
