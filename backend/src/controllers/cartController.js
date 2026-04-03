@@ -1,16 +1,18 @@
 /**
- * cartController — UPDATED
+ * cartController — PRODUCTION FIXED
  *
- * Changes:
- *   1. addToCart: validates product.stock > 0 before adding
- *   2. addToCart: validates requested quantity does not exceed stock
- *   3. updateCartItem: re-checks stock when increasing quantity
- *
- * These guards mirror the frontend UX (disabled button) but enforce
- * the rule server-side so API calls cannot bypass the UI.
+ * Fixes:
+ *   1. ObjectId validation on productId before DB queries (prevents Mongoose cast errors / 500s)
+ *   2. Stock guards (already in place, kept)
+ *   3. Consistent error response format
  */
 import Cart    from "../models/Cart.js";
 import Product from "../models/Product.js";
+import mongoose from "mongoose";
+
+function isValidObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id);
+}
 
 export const getCart = async (req, res) => {
   try {
@@ -27,15 +29,18 @@ export const addToCart = async (req, res) => {
   try {
     const { productId, quantity = 1 } = req.body;
     const qty = Number(quantity);
-    if (!productId || isNaN(qty) || qty < 1) {
-      return res.status(400).json({ message: "Invalid product or quantity" });
+
+    if (!productId || !isValidObjectId(productId)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+    if (isNaN(qty) || qty < 1 || qty > 100) {
+      return res.status(400).json({ message: "Quantity must be between 1 and 100" });
     }
 
     const product = await Product.findById(productId);
-    if (!product)        return res.status(404).json({ message: "Product not found" });
+    if (!product)          return res.status(404).json({ message: "Product not found" });
     if (!product.available) return res.status(400).json({ message: "Product is not available" });
 
-    // ── NEW: stock check ────────────────────────────────────
     if (product.stock !== undefined && product.stock !== null && product.stock <= 0) {
       return res.status(400).json({ message: "Product is out of stock" });
     }
@@ -50,13 +55,12 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    const idx = cart.items.findIndex((i) => i.productId.toString() === productId);
+    const idx    = cart.items.findIndex((i) => i.productId.toString() === productId);
     const newQty = idx > -1 ? cart.items[idx].quantity + qty : qty;
 
-    // ── NEW: quantity vs stock validation ───────────────────
     if (product.stock !== undefined && product.stock !== null && newQty > product.stock) {
       return res.status(400).json({
-        message: `Only ${product.stock} unit${product.stock > 1 ? "s" : ""} available`,
+        message:   `Only ${product.stock} unit${product.stock > 1 ? "s" : ""} available`,
         available: product.stock,
       });
     }
@@ -77,6 +81,10 @@ export const updateCartItem = async (req, res) => {
     const { productId, quantity } = req.body;
     const qty = Number(quantity);
 
+    if (!productId || !isValidObjectId(productId)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
     const cart = await Cart.findOne({ userId: req.user.userId });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
@@ -86,20 +94,15 @@ export const updateCartItem = async (req, res) => {
     if (qty <= 0) {
       cart.items.splice(idx, 1);
     } else {
-      // ── NEW: stock check when increasing quantity ────────
       if (qty > cart.items[idx].quantity) {
         const product = await Product.findById(productId);
         if (product) {
           if (!product.available) {
             return res.status(400).json({ message: "Product is no longer available" });
           }
-          if (
-            product.stock !== undefined &&
-            product.stock !== null &&
-            qty > product.stock
-          ) {
+          if (product.stock !== undefined && product.stock !== null && qty > product.stock) {
             return res.status(400).json({
-              message: `Only ${product.stock} unit${product.stock > 1 ? "s" : ""} available`,
+              message:   `Only ${product.stock} unit${product.stock > 1 ? "s" : ""} available`,
               available: product.stock,
             });
           }

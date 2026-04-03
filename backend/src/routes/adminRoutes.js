@@ -1,4 +1,5 @@
-import express from "express";
+import express    from "express";
+import rateLimit  from "express-rate-limit";
 import {
   getStats, getUsers, getAllOrders,
   createCoupon, listCoupons, deleteCoupon, toggleCoupon,
@@ -9,7 +10,17 @@ import { protect, restrictTo } from "../middleware/authMiddleware.js";
 const r = express.Router();
 const adminOnly = restrictTo("admin");
 
-r.use(protect, adminOnly);
+// Admin-specific rate limiter (stricter than global)
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max:      60,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message: { message: "Too many admin requests, please slow down." },
+  skip: () => process.env.NODE_ENV === "development",
+});
+
+r.use(protect, adminOnly, adminLimiter);
 
 r.get("/stats",                getStats);
 r.get("/users",                getUsers);

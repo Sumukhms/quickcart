@@ -5,9 +5,8 @@ export const validateCoupon = async (req, res) => {
     const { code, orderTotal, storeCategory, storeId } = req.body;
     if (!code) return res.status(400).json({ message: "Coupon code required" });
 
-    // Look for coupon that is either platform-wide or belongs to this specific store
     const query = {
-      code:     code.toUpperCase(),
+      code:     code.toUpperCase().trim(),
       isActive: true,
       $or: [
         { storeId: null },
@@ -27,8 +26,11 @@ export const validateCoupon = async (req, res) => {
     if (orderTotal < coupon.minOrderAmount) {
       return res.status(400).json({ message: `Minimum order ₹${coupon.minOrderAmount} required` });
     }
-    if (coupon.applicableCategories.length > 0 && storeCategory &&
-        !coupon.applicableCategories.includes(storeCategory)) {
+    if (
+      coupon.applicableCategories.length > 0 &&
+      storeCategory &&
+      !coupon.applicableCategories.includes(storeCategory)
+    ) {
       return res.status(400).json({ message: "Coupon not valid for this store category" });
     }
 
@@ -54,13 +56,32 @@ export const validateCoupon = async (req, res) => {
         discountAmount,
         freeDelivery,
         storeSpecific: !!coupon.storeId,
-      }
+      },
     });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
+/**
+ * FIXED: Atomic increment with usageLimit guard to prevent race-condition over-use.
+ * Uses findOneAndUpdate with $inc so two concurrent requests cannot both succeed
+ * when usedCount is exactly at usageLimit - 1.
+ */
 export const applyCoupon = async (couponCode) => {
-  await Coupon.findOneAndUpdate({ code: couponCode }, { $inc: { usedCount: 1 } });
+  const result = await Coupon.findOneAndUpdate(
+    {
+      code: couponCode,
+      isActive: true,
+      $or: [
+        { usageLimit: null },
+        { $expr: { $lt: ["$usedCount", "$usageLimit"] } },
+      ],
+    },
+    { $inc: { usedCount: 1 } },
+    { new: true }
+  );
+  if (!result) {
+    throw new Error(`Coupon ${couponCode} could not be applied (limit reached or inactive)`);
+  }
 };
 
 export const createCoupon = async (req, res) => {
@@ -72,9 +93,8 @@ export const createCoupon = async (req, res) => {
 
 export const listCoupons = async (req, res) => {
   try {
-    // Only return platform-wide coupons on the public endpoint
     const coupons = await Coupon.find({
-      $or: [{ storeId: null }, { storeId: { $exists: false } }]
+      $or: [{ storeId: null }, { storeId: { $exists: false } }],
     }).sort({ createdAt: -1 });
     res.json(coupons);
   } catch (e) { res.status(500).json({ message: e.message }); }
