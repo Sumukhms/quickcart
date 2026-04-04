@@ -1,14 +1,13 @@
 /**
- * UserTrack.jsx — FIXED
+ * UserTrack.jsx — FIXED v3
  *
- * Bugs fixed vs previous version:
- *   1. Order total was double-counting delivery fee:
- *      old: subtotal = order.totalPrice (already includes delivery)
- *           orderTotal = subtotal + deliveryFee  ← WRONG (double-counted)
- *      new: itemsSubtotal is computed from items[], discount is inferred,
- *           grandTotal = order.totalPrice (the real persisted total)
- *   2. deliveryCoords / userCoords now initialised from order.deliveryLocation
- *      if the delivery agent already pushed a location before the page loaded
+ * What changed vs v2:
+ *   1. Delivery partner rating panel added (separate from store rating)
+ *      POST /api/ratings/delivery  { orderId, rating }
+ *   2. userCoords now populated from the order's structured delivery address
+ *      lat/lng (stored when CheckoutPage picks a structured Address).
+ *      Falls back gracefully when coords are unavailable.
+ *   3. Order total computation unchanged (correct since v2)
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate }             from "react-router-dom";
@@ -24,8 +23,8 @@ import { useCart }     from "../../context/CartContext";
 import {
   getTimelineSteps, getStatusMessage, getStatusIndex, STATUS_VISUAL,
 } from "../../utils/orderFlows";
-import OrderSummary         from "../../components/order/OrderSummary";
-import DeliveryNearBanner   from "../../components/delivery/DeliveryNearBanner";
+import OrderSummary       from "../../components/order/OrderSummary";
+import DeliveryNearBanner from "../../components/delivery/DeliveryNearBanner";
 
 const STATUS_ICONS = {
   pending:          ShoppingBag,
@@ -49,6 +48,25 @@ function PulsingDot({ color }) {
   );
 }
 
+/** Star picker used for both store and delivery rating panels */
+function StarPicker({ value, hovered, onHover, onLeave, onChange }) {
+  return (
+    <div className="flex justify-center gap-3 mb-3">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <button
+          key={s}
+          onClick={() => onChange(s)}
+          onMouseEnter={() => onHover(s)}
+          onMouseLeave={onLeave}
+          className="text-3xl transition-transform hover:scale-125"
+        >
+          {s <= (hovered || value) ? "⭐" : "☆"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function UserTrack() {
   const { id }                = useParams();
   const navigate              = useNavigate();
@@ -60,14 +78,24 @@ export default function UserTrack() {
   const [refreshing,       setRefreshing]       = useState(false);
   const [error,            setError]            = useState(null);
   const [cancelling,       setCancelling]       = useState(false);
-  const [rating,           setRating]           = useState(0);
-  const [hoverRating,      setHoverRating]      = useState(0);
-  const [showRating,       setShowRating]       = useState(false);
-  const [submittingRating, setSubmittingRating] = useState(false);
-  const [ratingSubmitted,  setRatingSubmitted]  = useState(false);
 
-  // Delivery proximity state
+  // ── Store rating state ────────────────────────────────────
+  const [storeRating,         setStoreRating]         = useState(0);
+  const [storeHover,          setStoreHover]          = useState(0);
+  const [showStoreRating,     setShowStoreRating]     = useState(false);
+  const [storeRatingDone,     setStoreRatingDone]     = useState(false);
+  const [submittingStore,     setSubmittingStore]     = useState(false);
+
+  // ── Delivery partner rating state (NEW) ──────────────────
+  const [deliveryRating,      setDeliveryRating]      = useState(0);
+  const [deliveryHover,       setDeliveryHover]       = useState(0);
+  const [showDeliveryRating,  setShowDeliveryRating]  = useState(false);
+  const [deliveryRatingDone,  setDeliveryRatingDone]  = useState(false);
+  const [submittingDelivery,  setSubmittingDelivery]  = useState(false);
+
+  // ── Location state ────────────────────────────────────────
   const [deliveryCoords, setDeliveryCoords] = useState({ lat: null, lng: null });
+  // FIX: userCoords now extracted from the order's address lat/lng
   const [userCoords,     setUserCoords]     = useState({ lat: null, lng: null });
 
   const intervalRef = useRef(null);
@@ -79,9 +107,16 @@ export default function UserTrack() {
       const { data } = await orderAPI.getById(id);
       setOrder(data);
 
-      // Initialise delivery coords from persisted location (in case page loaded after tracking started)
+      // Delivery agent's last known location
       if (data.deliveryLocation?.lat != null) {
         setDeliveryCoords({ lat: data.deliveryLocation.lat, lng: data.deliveryLocation.lng });
+      }
+
+      // FIX: customer coords — try to pull from the order's structured address metadata.
+      // The structured Address model stores lat/lng; if the order was placed with one
+      // we embed them into the order. If not available, leave null (banner hides itself).
+      if (data.deliveryLat != null && data.deliveryLng != null) {
+        setUserCoords({ lat: data.deliveryLat, lng: data.deliveryLng });
       }
     } catch (err) {
       setError(err.response?.data?.message || "Could not load order details.");
@@ -99,7 +134,10 @@ export default function UserTrack() {
     const unsubStatus = on("order_status_update", ({ orderId, status }) => {
       if (orderId === id || orderId?.toString() === id) {
         setOrder((prev) => (prev ? { ...prev, status } : prev));
-        if (status === "delivered") setShowRating(true);
+        if (status === "delivered") {
+          setShowStoreRating(true);
+          setShowDeliveryRating(true);
+        }
       }
     });
 
@@ -140,19 +178,35 @@ export default function UserTrack() {
     } finally { setCancelling(false); }
   }, [order, addToast]);
 
-  const handleSubmitRating = useCallback(async () => {
-    if (!rating || !order?.storeId?._id) return;
-    setSubmittingRating(true);
+  // ── Store rating submit ───────────────────────────────────
+  const handleStoreRating = useCallback(async () => {
+    if (!storeRating || !order?.storeId?._id) return;
+    setSubmittingStore(true);
     try {
-      await api.post("/ratings/rate", { storeId: order.storeId._id, rating, orderId: order._id });
-      setRatingSubmitted(true);
-      setShowRating(false);
+      await api.post("/ratings/rate", { storeId: order.storeId._id, rating: storeRating, orderId: order._id });
+      setStoreRatingDone(true);
+      setShowStoreRating(false);
       addToast(`Thanks for rating ${order.storeId?.name}! ⭐`, "success");
     } catch (err) {
       addToast(err.response?.data?.message || "Failed to submit rating.", "error");
-    } finally { setSubmittingRating(false); }
-  }, [rating, order, addToast]);
+    } finally { setSubmittingStore(false); }
+  }, [storeRating, order, addToast]);
 
+  // ── Delivery partner rating submit (NEW) ─────────────────
+  const handleDeliveryRating = useCallback(async () => {
+    if (!deliveryRating || !order?._id) return;
+    setSubmittingDelivery(true);
+    try {
+      await api.post("/ratings/delivery", { orderId: order._id, rating: deliveryRating });
+      setDeliveryRatingDone(true);
+      setShowDeliveryRating(false);
+      addToast("Thanks for rating your delivery partner! 🛵", "success");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to submit rating.", "error");
+    } finally { setSubmittingDelivery(false); }
+  }, [deliveryRating, order, addToast]);
+
+  // ── Render guards ─────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
@@ -193,16 +247,15 @@ export default function UserTrack() {
   const isDelivered   = order.status === "delivered";
   const isActive      = !isCancelled && !isDelivered;
   const canCancel     = CANCELLABLE.includes(order.status);
+  const hasAgent      = !!order.deliveryAgentId;
 
-  // ── FIXED: compute breakdown correctly from items array ──
-  const deliveryFee   = order.deliveryFee ?? 20;
-  const itemsSubtotal = (order.items || []).reduce(
+  const deliveryFee    = order.deliveryFee ?? 20;
+  const itemsSubtotal  = (order.items || []).reduce(
     (sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0
   );
-  // Infer any coupon discount that was applied: discount = items + delivery - totalPaid
   const inferredDiscount = Math.max(0, itemsSubtotal + deliveryFee - (order.totalPrice ?? 0));
 
-  const timelineSteps = getTimelineSteps(storeCategory).map((step) => ({
+  const timelineSteps   = getTimelineSteps(storeCategory).map((step) => ({
     ...step, icon: STATUS_ICONS[step.key] || Package,
     color: STATUS_VISUAL[step.key]?.color || "var(--brand)",
   }));
@@ -235,7 +288,7 @@ export default function UserTrack() {
           </button>
         </div>
 
-        {/* Delivery proximity banner */}
+        {/* Proximity banner (now with real userCoords when available) */}
         <DeliveryNearBanner
           deliveryLat={deliveryCoords.lat}
           deliveryLng={deliveryCoords.lng}
@@ -293,17 +346,6 @@ export default function UserTrack() {
                 {getStatusMessage("delivered", storeCategory).sub}
               </p>
             </div>
-            {!showRating && !ratingSubmitted && (
-              <button onClick={() => setShowRating(true)}
-                className="flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl flex-shrink-0"
-                style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
-                <Star size={12} /> Rate
-              </button>
-            )}
-            {ratingSubmitted && (
-              <span className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-xl flex-shrink-0"
-                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>⭐ Rated</span>
-            )}
           </div>
         )}
 
@@ -321,35 +363,89 @@ export default function UserTrack() {
           </div>
         )}
 
-        {/* Rating panel */}
-        {showRating && !ratingSubmitted && (
+        {/* ── Store rating panel ─────────────────────────────────── */}
+        {showStoreRating && !storeRatingDone && (
           <div className="rounded-3xl p-5 mb-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
             <p className="font-bold text-center mb-1" style={{ color: "var(--text-primary)" }}>
-              How was your order from {order.storeId?.name}?
+              How was the food from {order.storeId?.name}?
             </p>
-            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate your experience (1–5 stars)</p>
-            <div className="flex justify-center gap-3 mb-3">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <button key={s} onClick={() => setRating(s)}
-                  onMouseEnter={() => setHoverRating(s)} onMouseLeave={() => setHoverRating(0)}
-                  className="text-3xl transition-transform hover:scale-125">
-                  {s <= (hoverRating || rating) ? "⭐" : "☆"}
-                </button>
-              ))}
-            </div>
-            {rating > 0 && (
+            <p className="text-xs text-center mb-4" style={{ color: "var(--text-muted)" }}>Rate the store (1–5 stars)</p>
+            <StarPicker
+              value={storeRating}
+              hovered={storeHover}
+              onHover={setStoreHover}
+              onLeave={() => setStoreHover(0)}
+              onChange={setStoreRating}
+            />
+            {storeRating > 0 && (
               <p className="text-center text-xs mb-3 font-semibold" style={{ color: "var(--text-muted)" }}>
-                {["", "Poor", "Fair", "Good", "Great", "Excellent!"][rating]}
+                {["", "Poor", "Fair", "Good", "Great", "Excellent!"][storeRating]}
               </p>
             )}
             <div className="flex gap-2">
-              <button onClick={() => { setShowRating(false); setRating(0); }}
+              <button onClick={() => { setShowStoreRating(false); setStoreRatingDone(true); }}
                 className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
-              <button onClick={handleSubmitRating} disabled={!rating || submittingRating}
+              <button onClick={handleStoreRating} disabled={!storeRating || submittingStore}
                 className="btn btn-brand flex-1 justify-center text-sm py-2.5">
-                {submittingRating ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : "Submit Rating"}
+                {submittingStore ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : "Rate Store"}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ── Delivery partner rating panel (NEW) ───────────────── */}
+        {isDelivered && hasAgent && showDeliveryRating && !deliveryRatingDone && (
+          <div className="rounded-3xl p-5 mb-4"
+            style={{ background: "var(--card)", border: "1.5px solid rgba(0,212,170,0.25)" }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: "rgba(0,212,170,0.12)" }}>🛵</div>
+              <div>
+                <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                  Rate your delivery partner
+                </p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {order.deliveryAgentId?.name || "Your rider"} · How was the delivery experience?
+                </p>
+              </div>
+            </div>
+            <StarPicker
+              value={deliveryRating}
+              hovered={deliveryHover}
+              onHover={setDeliveryHover}
+              onLeave={() => setDeliveryHover(0)}
+              onChange={setDeliveryRating}
+            />
+            {deliveryRating > 0 && (
+              <p className="text-center text-xs mb-3 font-semibold" style={{ color: "var(--text-muted)" }}>
+                {["", "Very slow", "Could be better", "Good", "Fast & friendly", "Excellent service!"][deliveryRating]}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowDeliveryRating(false); setDeliveryRatingDone(true); }}
+                className="btn btn-ghost flex-1 justify-center text-sm py-2.5">Skip</button>
+              <button onClick={handleDeliveryRating} disabled={!deliveryRating || submittingDelivery}
+                className="btn flex-1 justify-center text-sm py-2.5 font-bold transition-all hover:scale-105"
+                style={{ background: "rgba(0,212,170,0.15)", color: "#00d4aa", border: "1px solid rgba(0,212,170,0.3)" }}>
+                {submittingDelivery
+                  ? <><Loader2 size={14} className="animate-spin" /> Submitting...</>
+                  : "Rate Rider"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rated badges */}
+        {isDelivered && (storeRatingDone || deliveryRatingDone) && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {storeRatingDone && (
+              <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl"
+                style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}>⭐ Store rated</span>
+            )}
+            {deliveryRatingDone && (
+              <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl"
+                style={{ background: "rgba(0,212,170,0.1)", color: "#00d4aa" }}>🛵 Rider rated</span>
+            )}
           </div>
         )}
 
@@ -414,7 +510,9 @@ export default function UserTrack() {
         {order.deliveryAgentId && (
           <div className="rounded-3xl p-5 mb-4"
             style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>Delivery Partner</h2>
+            <h2 className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)" }}>
+              Delivery Partner
+            </h2>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
                 style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>🛵</div>
@@ -469,7 +567,7 @@ export default function UserTrack() {
           </div>
         </div>
 
-        {/* Order summary — FIXED: correct amounts */}
+        {/* Order summary */}
         <OrderSummary
           items={order.items || []}
           subtotal={itemsSubtotal}

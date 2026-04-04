@@ -1,14 +1,16 @@
 /**
- * Order.js — UPDATED with refund tracking fields
+ * Order.js — UPDATED
  *
- * New fields added:
- *   refundId           - Razorpay refund ID (rfd_xxxxxxxxxxxx)
- *   refundStatus       - "none" | "pending" | "refunded" | "manual_pending"
- *   refundAmount       - amount refunded in ₹
- *   refundReason       - reason string
- *   refundInitiatedAt  - timestamp
+ * New fields:
+ *   deliveryLat  {Number}  customer's delivery address latitude (from structured Address)
+ *   deliveryLng  {Number}  customer's delivery address longitude (from structured Address)
  *
- * All other fields unchanged from original.
+ * These are populated in orderController.placeOrder and paymentController.verifyPaymentAndCreateOrder
+ * when the request body includes { deliveryLat, deliveryLng } from the frontend checkout.
+ *
+ * Used by:
+ *   - DeliveryNearBanner  — compares rider GPS vs customer coords
+ *   - UserTrack           — passes userCoords to DeliveryNearBanner
  */
 import mongoose from "mongoose";
 
@@ -29,6 +31,11 @@ const orderSchema = new mongoose.Schema({
   deliveryFee:     { type: Number, default: 20 },
   deliveryAddress: { type: String, required: true },
 
+  // ── NEW: customer's GPS coordinates for proximity banner ──────
+  deliveryLat: { type: Number, default: null },
+  deliveryLng: { type: Number, default: null },
+  // ─────────────────────────────────────────────────────────────
+
   status: {
     type: String,
     enum: [
@@ -40,40 +47,23 @@ const orderSchema = new mongoose.Schema({
 
   paymentMethod: { type: String, enum: ["cod", "online", "upi", "card"], default: "cod" },
 
-  // ── Razorpay payment tracking ─────────────────────────────
   paymentStatus: {
     type:    String,
     enum:    ["pending", "paid", "failed"],
     default: "pending",
   },
-  paymentId: {
-    type:    String,  // e.g. "pay_xxxxxxxxxxxx"
-    default: null,
-  },
+  paymentId: { type: String, default: null },
 
-  // ── NEW: Refund tracking ──────────────────────────────────
-  refundId: {
-    type:    String,  // e.g. "rfd_xxxxxxxxxxxx"
-    default: null,
-  },
+  // Refund tracking
+  refundId:          { type: String,  default: null },
   refundStatus: {
     type:    String,
     enum:    ["none", "pending", "refunded", "manual_pending", "failed"],
     default: "none",
   },
-  refundAmount: {
-    type:    Number,
-    default: null,
-  },
-  refundReason: {
-    type:    String,
-    default: null,
-  },
-  refundInitiatedAt: {
-    type:    Date,
-    default: null,
-  },
-  // ─────────────────────────────────────────────────────────
+  refundAmount:      { type: Number, default: null },
+  refundReason:      { type: String, default: null },
+  refundInitiatedAt: { type: Date,   default: null },
 
   estimatedTime: { type: String, default: "30-40 min" },
 

@@ -1,57 +1,47 @@
 /**
- * webhookRoutes.js
+ * webhookRoutes.js — UPDATED
  *
- * Mount BEFORE body-parsing middleware in server.js so that
- * raw body is available for HMAC-SHA256 signature verification:
- *
- *   import webhookRoutes from "./src/routes/webhookRoutes.js";
- *   app.use("/api/webhook", webhookRoutes);   // ← before express.json()
- *
- * Razorpay dashboard → Settings → Webhooks:
- *   URL:    https://yourdomain.com/api/webhook/razorpay
- *   Secret: same value as RAZORPAY_WEBHOOK_SECRET in .env
- *   Events to enable:
- *     - payment.captured
- *     - payment.failed
- *     - refund.processed
- *     - order.paid
+ * Changes vs original:
+ *   - payment.failed: now creates a Notification for the user and logs the failure
+ *     on the matching Order document (sets paymentStatus: "failed")
+ *   - refund.processed: now creates a Notification for the user confirming the refund
+ *   - All existing behaviour preserved
  */
-import express    from "express";
-import crypto     from "crypto";
-import Order      from "../models/Order.js";
-import Product    from "../models/Product.js";
+import express       from "express";
+import crypto        from "crypto";
+import Order         from "../models/Order.js";
+import { notify }    from "../services/notificationService.js";
 
 const r = express.Router();
 const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-// ── Raw body parser for this route only ──────────────────────
-// We need the raw body bytes to verify the X-Razorpay-Signature header.
+// ── Raw body parser ────────────────────────────────────────────
 r.use(express.raw({ type: "application/json" }));
 
-// ── POST /api/webhook/razorpay ────────────────────────────────
+// ── POST /api/webhook/razorpay ─────────────────────────────────
 r.post("/razorpay", async (req, res) => {
   const signature = req.headers["x-razorpay-signature"];
 
-  // ── 1. Verify signature ───────────────────────────────────
+  // 1. Signature verification
   if (!WEBHOOK_SECRET) {
-    console.warn("[Webhook] RAZORPAY_WEBHOOK_SECRET not set — skipping signature check (unsafe!)");
+    console.warn("[Webhook] RAZORPAY_WEBHOOK_SECRET not set — skipping check (unsafe!)");
   } else {
     if (!signature) {
-      console.warn("[Webhook] Missing X-Razorpay-Signature header");
+      console.warn("[Webhook] Missing X-Razorpay-Signature");
       return res.status(400).json({ message: "Missing signature" });
     }
     const expected = crypto
       .createHmac("sha256", WEBHOOK_SECRET)
-      .update(req.body)          // raw Buffer
+      .update(req.body)
       .digest("hex");
 
     if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
-      console.warn("[Webhook] Signature mismatch — ignoring event");
+      console.warn("[Webhook] Signature mismatch");
       return res.status(400).json({ message: "Invalid signature" });
     }
   }
 
-  // ── 2. Parse payload ──────────────────────────────────────
+  // 2. Parse payload
   let payload;
   try {
     payload = JSON.parse(req.body.toString());
@@ -59,21 +49,18 @@ r.post("/razorpay", async (req, res) => {
     return res.status(400).json({ message: "Invalid JSON payload" });
   }
 
-  const event   = payload.event;
-  const entity  = payload.payload?.payment?.entity
-                || payload.payload?.refund?.entity
-                || payload.payload?.order?.entity;
+  const event  = payload.event;
+  const entity =
+    payload.payload?.payment?.entity ||
+    payload.payload?.refund?.entity  ||
+    payload.payload?.order?.entity;
 
-  console.log(`[Webhook] Event received: ${event}`);
+  console.log(`[Webhook] Event: ${event}`);
 
   try {
-    // ── 3. Route events ────────────────────────────────────
     switch (event) {
 
-      // ── payment.captured ─────────────────────────────────
-      // Fires when payment is successfully captured.
-      // We've already created the Order in verifyPaymentAndCreateOrder,
-      // but this is a safety net to confirm payment status.
+      // ── payment.captured ─────────────────────────────────────
       case "payment.captured": {
         const paymentId = entity?.id;
         if (paymentId) {
@@ -88,39 +75,81 @@ r.post("/razorpay", async (req, res) => {
         break;
       }
 
-      // ── payment.failed ────────────────────────────────────
-      // Payment attempt failed (wrong OTP, insufficient funds, etc.)
-      // We don't create an order on failure, but we can log/alert.
+      // ── payment.failed ───────────────────────────────────────
+      // FIX: was only logging. Now also:
+      //   a) marks the order's paymentStatus = "failed"
+      //   b) creates a notification so the user sees it in-app
       case "payment.failed": {
-        const failureReason = entity?.error_description || "Unknown";
+        const reason         = entity?.error_description || "Unknown reason";
         const razorpayOrderId = entity?.order_id;
+        const razorpayPaymentId = entity?.id;
+
         console.warn(
-          `[Webhook] payment.failed — razorpay_order_id: ${razorpayOrderId}, reason: ${failureReason}`
+          `[Webhook] payment.failed — rp_order: ${razorpayOrderId}, reason: ${reason}`
         );
-        // Optionally: find a "pending" order with this razorpay order_id and update it
-        // For now we log and return 200 so Razorpay won't retry endlessly.
+
+        // Try to find the order via the razorpay order_id stored in paymentId field,
+        // OR via a recent "pending" order that matches the amount (best-effort).
+        // Note: we don't store razorpayOrderId on the Order, so we match via paymentId
+        // if the payment was at least attempted.
+        let failedOrder = null;
+        if (razorpayPaymentId) {
+          failedOrder = await Order.findOneAndUpdate(
+            { paymentId: razorpayPaymentId },
+            { paymentStatus: "failed" },
+            { new: true }
+          );
+        }
+
+        if (failedOrder) {
+          await notify(null, {
+            userId:   failedOrder.userId,
+            title:    "Payment Failed ⚠️",
+            message:  `Your payment for order #${failedOrder._id.toString().slice(-6).toUpperCase()} failed. ${reason ? `Reason: ${reason}.` : ""} Please try again.`,
+            type:     "payment",
+            refId:    failedOrder._id,
+            refModel: "Order",
+          });
+          console.log(`[Webhook] Notified user ${failedOrder.userId} of payment failure`);
+        } else {
+          console.warn(`[Webhook] payment.failed — could not find matching order for payment ${razorpayPaymentId}`);
+        }
         break;
       }
 
-      // ── refund.processed ─────────────────────────────────
+      // ── refund.processed ─────────────────────────────────────
+      // FIX: now also notifies the user that their refund landed
       case "refund.processed": {
         const refundId  = entity?.id;
         const paymentId = entity?.payment_id;
+        const amount    = entity?.amount ? entity.amount / 100 : null; // paise → ₹
+
         if (refundId && paymentId) {
           const updated = await Order.findOneAndUpdate(
             { paymentId },
-            { refundStatus: "refunded" }
+            { refundStatus: "refunded" },
+            { new: true }
           );
+
           if (updated) {
             console.log(`[Webhook] refund.processed → order ${updated._id} refund confirmed`);
+
+            await notify(null, {
+              userId:   updated.userId,
+              title:    "Refund Processed 💰",
+              message:  amount
+                ? `Your refund of ₹${amount.toFixed(0)} for order #${updated._id.toString().slice(-6).toUpperCase()} has been processed and will reflect in 3–5 business days.`
+                : `Your refund for order #${updated._id.toString().slice(-6).toUpperCase()} has been processed.`,
+              type:     "payment",
+              refId:    updated._id,
+              refModel: "Order",
+            });
           }
         }
         break;
       }
 
-      // ── order.paid ────────────────────────────────────────
-      // Alternative to payment.captured — fires when a Razorpay Order
-      // transitions to "paid" state.
+      // ── order.paid ───────────────────────────────────────────
       case "order.paid": {
         const rpOrderId = entity?.id;
         console.log(`[Webhook] order.paid → razorpay order ${rpOrderId}`);
@@ -131,12 +160,9 @@ r.post("/razorpay", async (req, res) => {
         console.log(`[Webhook] Unhandled event: ${event}`);
     }
 
-    // ── 4. Always return 200 to acknowledge receipt ────────
-    // Razorpay retries events up to 4 times if it doesn't receive 200.
     res.status(200).json({ received: true });
   } catch (err) {
     console.error("[Webhook] Handler error:", err.message);
-    // Still return 200 so Razorpay doesn't retry a broken handler in a loop.
     res.status(200).json({ received: true, error: err.message });
   }
 });

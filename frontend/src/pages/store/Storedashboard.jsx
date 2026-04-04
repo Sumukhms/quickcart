@@ -27,14 +27,21 @@ import {
   Phone,
   Tag,
 } from "lucide-react";
-import { useAuth }   from "../../context/AuthContext";
-import { useCart }   from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
+import { useCart } from "../../context/CartContext";
 import { useSocket } from "../../context/SocketContext";
 import { storeAPI, orderAPI, adminAPI } from "../../api/api";
+import StoreAnalytics from "../../components/store/StoreAnalytics";
 import { STATUS_VISUAL } from "../../utils/orderFlows";
 
 // ── Statuses the store owner is allowed to set (backend mirrors this) ──
-const STORE_ALLOWED_STATUSES = ["confirmed", "preparing", "packing", "ready_for_pickup", "cancelled"];
+const STORE_ALLOWED_STATUSES = [
+  "confirmed",
+  "preparing",
+  "packing",
+  "ready_for_pickup",
+  "cancelled",
+];
 
 /**
  * Get the next status action for store owners only.
@@ -42,7 +49,8 @@ const STORE_ALLOWED_STATUSES = ["confirmed", "preparing", "packing", "ready_for_
  */
 function getStoreNextAction(currentStatus, storeCategory) {
   // Delivery partner / terminal states — store has no action
-  if (["delivered", "cancelled", "out_for_delivery"].includes(currentStatus)) return null;
+  if (["delivered", "cancelled", "out_for_delivery"].includes(currentStatus))
+    return null;
 
   const isFood = storeCategory === "Food";
 
@@ -60,22 +68,32 @@ function getStoreNextAction(currentStatus, storeCategory) {
   const vis = STATUS_VISUAL[next];
   return {
     nextStatus: next,
-    label:      vis?.label || next,
-    emoji:      vis?.emoji || "",
-    color:      vis?.color || "var(--brand)",
+    label: vis?.label || next,
+    emoji: vis?.emoji || "",
+    color: vis?.color || "var(--brand)",
   };
 }
 
 // ─── Order card ───────────────────────────────────────────────
 function OrderCard({ order, storeCategory, onStatusUpdate, updatingId }) {
-  const sc         = STATUS_VISUAL[order.status] || STATUS_VISUAL.pending;
+  const sc = STATUS_VISUAL[order.status] || STATUS_VISUAL.pending;
   const nextAction = getStoreNextAction(order.status, storeCategory);
   const isUpdating = updatingId === order._id;
 
   // Read-only status context messages for states beyond store control
   const getReadOnlyMessage = (status) => {
-    if (status === "out_for_delivery") return { text: "Delivery partner is on the way", color: "var(--brand)", bg: "rgba(255,107,53,0.08)" };
-    if (status === "delivered")        return { text: "Successfully delivered! 🎉", color: "#22c55e", bg: "rgba(34,197,94,0.08)" };
+    if (status === "out_for_delivery")
+      return {
+        text: "Delivery partner is on the way",
+        color: "var(--brand)",
+        bg: "rgba(255,107,53,0.08)",
+      };
+    if (status === "delivered")
+      return {
+        text: "Successfully delivered! 🎉",
+        color: "#22c55e",
+        bg: "rgba(34,197,94,0.08)",
+      };
     return null;
   };
 
@@ -94,21 +112,31 @@ function OrderCard({ order, storeCategory, onStatusUpdate, updatingId }) {
         <div className="flex items-center gap-3">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-            style={{ background: "linear-gradient(135deg, var(--brand), #ff8c5a)" }}
+            style={{
+              background: "linear-gradient(135deg, var(--brand), #ff8c5a)",
+            }}
           >
             {order.userId?.name?.[0] || "C"}
           </div>
           <div>
-            <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+            <p
+              className="font-bold text-sm"
+              style={{ color: "var(--text-primary)" }}
+            >
               {order.userId?.name || "Customer"}
             </p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+              {new Date(order.createdAt).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          <p className="font-bold text-base" style={{ color: "var(--brand)" }}>₹{order.totalPrice}</p>
+          <p className="font-bold text-base" style={{ color: "var(--brand)" }}>
+            ₹{order.totalPrice}
+          </p>
           <span
             className="tag text-[10px] font-semibold"
             style={{ background: sc.bg, color: sc.color }}
@@ -120,17 +148,22 @@ function OrderCard({ order, storeCategory, onStatusUpdate, updatingId }) {
 
       {/* Phone + address */}
       {order.userId?.phone && (
-        <a href={`tel:${order.userId.phone}`}
+        <a
+          href={`tel:${order.userId.phone}`}
           className="flex items-center gap-1 text-xs mb-1"
-          style={{ color: "var(--brand)" }}>
+          style={{ color: "var(--brand)" }}
+        >
           <Phone size={11} /> {order.userId.phone}
         </a>
       )}
       <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
         📍 {order.deliveryAddress}
       </p>
-      <p className="text-xs mb-3 truncate" style={{ color: "var(--text-secondary)" }}>
-        {order.items?.map(i => `${i.name}×${i.quantity || 1}`).join(", ")}
+      <p
+        className="text-xs mb-3 truncate"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        {order.items?.map((i) => `${i.name}×${i.quantity || 1}`).join(", ")}
       </p>
 
       {/* Read-only context for delivery partner states */}
@@ -155,7 +188,9 @@ function OrderCard({ order, storeCategory, onStatusUpdate, updatingId }) {
             {isUpdating ? (
               <Loader2 size={12} className="animate-spin" />
             ) : (
-              <><Check size={12} /> {nextAction.emoji} {nextAction.label}</>
+              <>
+                <Check size={12} /> {nextAction.emoji} {nextAction.label}
+              </>
             )}
           </button>
           {/* Cancel only for pending/confirmed */}
@@ -176,19 +211,45 @@ function OrderCard({ order, storeCategory, onStatusUpdate, updatingId }) {
 }
 
 // ─── Create-store form ────────────────────────────────────────
-const CATEGORIES    = ["Groceries", "Food", "Snacks", "Beverages", "Medicines", "Other"];
-const CAT_EMOJIS    = { Groceries: "🛒", Food: "🍛", Snacks: "🍿", Beverages: "🧃", Medicines: "💊", Other: "🏪" };
-const DELIVERY_TIMES = ["8-12 min", "10-15 min", "15-20 min", "20-30 min", "30-45 min"];
+const CATEGORIES = [
+  "Groceries",
+  "Food",
+  "Snacks",
+  "Beverages",
+  "Medicines",
+  "Other",
+];
+const CAT_EMOJIS = {
+  Groceries: "🛒",
+  Food: "🍛",
+  Snacks: "🍿",
+  Beverages: "🧃",
+  Medicines: "💊",
+  Other: "🏪",
+};
+const DELIVERY_TIMES = [
+  "8-12 min",
+  "10-15 min",
+  "15-20 min",
+  "20-30 min",
+  "30-45 min",
+];
 
 function CreateStoreForm({ onCreated }) {
   const { addToast } = useCart();
   const [form, setForm] = useState({
-    name: "", phone: "", address: "", category: "Groceries",
-    deliveryTime: "20-30 min", minOrder: 0, image: "", description: "",
+    name: "",
+    phone: "",
+    address: "",
+    category: "Groceries",
+    deliveryTime: "20-30 min",
+    minOrder: 0,
+    image: "",
+    description: "",
   });
   const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState("");
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -196,87 +257,207 @@ function CreateStoreForm({ onCreated }) {
       setError("Name, phone and address are required");
       return;
     }
-    setSaving(true); setError("");
+    setSaving(true);
+    setError("");
     try {
       const { data } = await storeAPI.create(form);
       addToast("Store created! 🎉 Now add your products.", "success");
       onCreated(data);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create store. Please try again.");
-    } finally { setSaving(false); }
+      setError(
+        err.response?.data?.message ||
+          "Failed to create store. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="min-h-screen page-enter flex items-center justify-center px-4 py-12" style={{ backgroundColor: "var(--bg)" }}>
+    <div
+      className="min-h-screen page-enter flex items-center justify-center px-4 py-12"
+      style={{ backgroundColor: "var(--bg)" }}
+    >
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4"
-            style={{ background: "linear-gradient(135deg, var(--brand), #ff8c5a)", boxShadow: "0 8px 24px rgba(255,107,53,0.3)" }}>
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4"
+            style={{
+              background: "linear-gradient(135deg, var(--brand), #ff8c5a)",
+              boxShadow: "0 8px 24px rgba(255,107,53,0.3)",
+            }}
+          >
             🏪
           </div>
-          <h1 className="font-display font-bold text-3xl mb-2" style={{ color: "var(--text-primary)" }}>Create Your Store</h1>
-          <p style={{ color: "var(--text-muted)" }}>Set up your store to start receiving orders</p>
+          <h1
+            className="font-display font-bold text-3xl mb-2"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Create Your Store
+          </h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Set up your store to start receiving orders
+          </p>
         </div>
-        <div className="rounded-3xl p-6 shadow-2xl" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+        <div
+          className="rounded-3xl p-6 shadow-2xl"
+          style={{
+            backgroundColor: "var(--card)",
+            border: "1px solid var(--border)",
+          }}
+        >
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl mb-4 text-sm"
-              style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <div
+              className="flex items-center gap-2 p-3 rounded-xl mb-4 text-sm"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                color: "#ef4444",
+                border: "1px solid rgba(239,68,68,0.2)",
+              }}
+            >
               <AlertCircle size={15} /> {error}
             </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Store Name *</label>
-              <input className="input-theme text-sm" placeholder="e.g. FreshMart Express" value={form.name} onChange={e => set("name", e.target.value)} required />
+              <label
+                className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Store Name *
+              </label>
+              <input
+                className="input-theme text-sm"
+                placeholder="e.g. FreshMart Express"
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+                required
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Phone *</label>
-                <input className="input-theme text-sm" placeholder="+91 98765 43210" value={form.phone} onChange={e => set("phone", e.target.value)} required />
+                <label
+                  className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Phone *
+                </label>
+                <input
+                  className="input-theme text-sm"
+                  placeholder="+91 98765 43210"
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                  required
+                />
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Min Order (₹)</label>
-                <input type="number" min="0" className="input-theme text-sm" placeholder="0" value={form.minOrder} onChange={e => set("minOrder", Number(e.target.value))} />
+                <label
+                  className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Min Order (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input-theme text-sm"
+                  placeholder="0"
+                  value={form.minOrder}
+                  onChange={(e) => set("minOrder", Number(e.target.value))}
+                />
               </div>
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-muted)" }}>Address *</label>
-              <textarea className="input-theme text-sm resize-none" rows={2} placeholder="Full store address" value={form.address} onChange={e => set("address", e.target.value)} required />
+              <label
+                className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Address *
+              </label>
+              <textarea
+                className="input-theme text-sm resize-none"
+                rows={2}
+                placeholder="Full store address"
+                value={form.address}
+                onChange={(e) => set("address", e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: "var(--text-muted)" }}>Category *</label>
+              <label
+                className="text-xs font-bold uppercase tracking-wider mb-2 block"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Category *
+              </label>
               <div className="grid grid-cols-3 gap-2">
-                {CATEGORIES.map(cat => (
-                  <button key={cat} type="button" onClick={() => set("category", cat)}
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => set("category", cat)}
                     className="py-3 px-2 rounded-xl text-xs font-bold text-center transition-all hover:scale-105"
                     style={{
-                      background: form.category === cat ? "rgba(255,107,53,0.1)" : "var(--elevated)",
-                      color:      form.category === cat ? "var(--brand)"          : "var(--text-secondary)",
+                      background:
+                        form.category === cat
+                          ? "rgba(255,107,53,0.1)"
+                          : "var(--elevated)",
+                      color:
+                        form.category === cat
+                          ? "var(--brand)"
+                          : "var(--text-secondary)",
                       border: `1.5px solid ${form.category === cat ? "var(--brand)" : "var(--border)"}`,
-                    }}>
-                    <div className="text-xl mb-1">{CAT_EMOJIS[cat]}</div>{cat}
+                    }}
+                  >
+                    <div className="text-xl mb-1">{CAT_EMOJIS[cat]}</div>
+                    {cat}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: "var(--text-muted)" }}>Delivery Time</label>
+              <label
+                className="text-xs font-bold uppercase tracking-wider mb-2 block"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Delivery Time
+              </label>
               <div className="flex flex-wrap gap-2">
-                {DELIVERY_TIMES.map(t => (
-                  <button key={t} type="button" onClick={() => set("deliveryTime", t)}
+                {DELIVERY_TIMES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => set("deliveryTime", t)}
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:scale-105"
                     style={{
-                      background: form.deliveryTime === t ? "rgba(255,107,53,0.1)" : "var(--elevated)",
-                      color:      form.deliveryTime === t ? "var(--brand)"          : "var(--text-secondary)",
+                      background:
+                        form.deliveryTime === t
+                          ? "rgba(255,107,53,0.1)"
+                          : "var(--elevated)",
+                      color:
+                        form.deliveryTime === t
+                          ? "var(--brand)"
+                          : "var(--text-secondary)",
                       border: `1px solid ${form.deliveryTime === t ? "var(--brand)" : "var(--border)"}`,
-                    }}>
+                    }}
+                  >
                     {t}
                   </button>
                 ))}
               </div>
             </div>
-            <button type="submit" disabled={saving} className="btn btn-brand w-full justify-center py-4 text-base">
-              {saving ? <Loader2 size={18} className="animate-spin" /> : <><Store size={16} /> Create Store</>}
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn btn-brand w-full justify-center py-4 text-base"
+            >
+              {saving ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <>
+                  <Store size={16} /> Create Store
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -285,68 +466,22 @@ function CreateStoreForm({ onCreated }) {
   );
 }
 
-// ─── Analytics ─────────────────────────────────────────────────
-function StoreAnalytics({ storeId }) {
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    adminAPI.getAnalytics()
-      .then(r => setData(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [storeId]);
-
-  if (loading || !data?.topProducts?.length) return null;
-
-  const maxSold = Math.max(...data.topProducts.map(p => p.totalSold), 1);
-
-  return (
-    <div className="rounded-2xl overflow-hidden mb-5" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-      <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-        <h2 className="font-bold text-sm uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Top Selling Products</h2>
-      </div>
-      <div className="p-5 space-y-3">
-        {data.topProducts.map((p, i) => (
-          <div key={p.name}>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-semibold truncate mr-3" style={{ color: "var(--text-primary)" }}>
-                {i + 1}. {p.name}
-              </p>
-              <div className="flex items-center gap-3 text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                <span>{p.totalSold} sold</span>
-                <span className="font-semibold" style={{ color: "var(--brand)" }}>₹{p.revenue}</span>
-              </div>
-            </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--elevated)" }}>
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${(p.totalSold / maxSold) * 100}%`, background: "var(--brand)" }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Dashboard ───────────────────────────────────────────
 export default function StoreDashboard() {
-  const { user, isLoggedIn }          = useAuth();
-  const { addToast }                  = useCart();
-  const { joinStoreRoom, on }         = useSocket();
-  const navigate                      = useNavigate();
+  const { user, isLoggedIn } = useAuth();
+  const { addToast } = useCart();
+  const { joinStoreRoom, on } = useSocket();
+  const navigate = useNavigate();
 
-  const [store,          setStore]         = useState(null);
-  const [orders,         setOrders]        = useState([]);
-  const [loading,        setLoading]       = useState(true);
-  const [storeLoading,   setStoreLoading]  = useState(true);
-  const [refreshing,     setRefreshing]    = useState(false);
-  const [statusFilter,   setStatusFilter]  = useState("active");
-  const [updatingId,     setUpdatingId]    = useState(null);
-  const [error,          setError]         = useState("");
-  const [newOrderAlert,  setNewOrderAlert] = useState(false);
+  const [store, setStore] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [storeLoading, setStoreLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("active");
+  const [updatingId, setUpdatingId] = useState(null);
+  const [error, setError] = useState("");
+  const [newOrderAlert, setNewOrderAlert] = useState(false);
 
   const fetchStore = useCallback(async () => {
     setStoreLoading(true);
@@ -359,18 +494,33 @@ export default function StoreDashboard() {
     } catch (err) {
       if (err.response?.status === 404) setStore(null);
       else setError(err.response?.data?.message || "Failed to load store data");
-    } finally { setStoreLoading(false); setLoading(false); }
+    } finally {
+      setStoreLoading(false);
+      setLoading(false);
+    }
   }, []); // eslint-disable-line
 
-  const fetchOrders = useCallback(async (storeId, silent = false) => {
-    if (!silent) setLoading(true); else setRefreshing(true);
-    try {
-      const { data } = await orderAPI.getStoreOrders(storeId || store?._id, { limit: 100 });
-      setOrders(data);
-    } catch (err) {
-      addToast(err.response?.data?.message || "Failed to load orders", "error");
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [store?._id, addToast]);
+  const fetchOrders = useCallback(
+    async (storeId, silent = false) => {
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
+      try {
+        const { data } = await orderAPI.getStoreOrders(storeId || store?._id, {
+          limit: 100,
+        });
+        setOrders(data);
+      } catch (err) {
+        addToast(
+          err.response?.data?.message || "Failed to load orders",
+          "error",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [store?._id, addToast],
+  );
 
   useEffect(() => {
     if (isLoggedIn && user?.role === "store") fetchStore();
@@ -379,13 +529,15 @@ export default function StoreDashboard() {
   // Socket listeners
   useEffect(() => {
     const unsubNew = on("new_order", ({ order: newOrder }) => {
-      setOrders(prev => [newOrder, ...prev]);
+      setOrders((prev) => [newOrder, ...prev]);
       setNewOrderAlert(true);
       addToast("🔔 New order received!", "info");
       setTimeout(() => setNewOrderAlert(false), 10_000);
     });
     const unsubUpd = on("order_updated", ({ orderId, status }) => {
-      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status } : o));
+      setOrders((prev) =>
+        prev.map((o) => (o._id === orderId ? { ...o, status } : o)),
+      );
     });
     return () => {
       if (typeof unsubNew === "function") unsubNew();
@@ -393,38 +545,63 @@ export default function StoreDashboard() {
     };
   }, [on, addToast]);
 
-  const updateOrderStatus = useCallback(async (orderId, newStatus) => {
-    setUpdatingId(orderId);
-    try {
-      await orderAPI.updateStatus(orderId, newStatus);
-      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
-      const vis = STATUS_VISUAL[newStatus];
-      addToast(`Order → ${vis?.label || newStatus}`, "success");
-    } catch (err) {
-      addToast(err.response?.data?.message || "Failed to update order status", "error");
-    } finally { setUpdatingId(null); }
-  }, [addToast]);
+  const updateOrderStatus = useCallback(
+    async (orderId, newStatus) => {
+      setUpdatingId(orderId);
+      try {
+        await orderAPI.updateStatus(orderId, newStatus);
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === orderId ? { ...o, status: newStatus } : o,
+          ),
+        );
+        const vis = STATUS_VISUAL[newStatus];
+        addToast(`Order → ${vis?.label || newStatus}`, "success");
+      } catch (err) {
+        addToast(
+          err.response?.data?.message || "Failed to update order status",
+          "error",
+        );
+      } finally {
+        setUpdatingId(null);
+      }
+    },
+    [addToast],
+  );
 
   const toggleStoreOpen = useCallback(async () => {
     const newIsOpen = !store.isOpen;
-    setStore(s => ({ ...s, isOpen: newIsOpen }));
+    setStore((s) => ({ ...s, isOpen: newIsOpen }));
     try {
       const { data } = await storeAPI.update(store._id, { isOpen: newIsOpen });
       setStore(data);
-      addToast(newIsOpen ? "Store is now open! 🟢" : "Store is now closed", newIsOpen ? "success" : "warning");
+      addToast(
+        newIsOpen ? "Store is now open! 🟢" : "Store is now closed",
+        newIsOpen ? "success" : "warning",
+      );
     } catch {
-      setStore(s => ({ ...s, isOpen: !newIsOpen }));
+      setStore((s) => ({ ...s, isOpen: !newIsOpen }));
       addToast("Failed to update store status", "error");
     }
   }, [store, addToast]);
 
   if (!isLoggedIn || user?.role !== "store") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: "var(--bg)" }}
+      >
         <div className="text-center px-4">
           <div className="text-6xl mb-4">🏪</div>
-          <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>Store owners only</h2>
-          <Link to="/login" className="btn btn-brand">Sign In</Link>
+          <h2
+            className="font-bold text-xl mb-2"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Store owners only
+          </h2>
+          <Link to="/login" className="btn btn-brand">
+            Sign In
+          </Link>
         </div>
       </div>
     );
@@ -432,49 +609,89 @@ export default function StoreDashboard() {
 
   if (storeLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg)" }}>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: "var(--bg)" }}
+      >
         <div className="flex flex-col items-center gap-3">
-          <Loader2 size={32} className="animate-spin" style={{ color: "var(--brand)" }} />
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading your store...</p>
+          <Loader2
+            size={32}
+            className="animate-spin"
+            style={{ color: "var(--brand)" }}
+          />
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Loading your store...
+          </p>
         </div>
       </div>
     );
   }
 
-  if (!store) return <CreateStoreForm onCreated={s => { setStore(s); fetchOrders(s._id); joinStoreRoom(s._id); }} />;
+  if (!store)
+    return (
+      <CreateStoreForm
+        onCreated={(s) => {
+          setStore(s);
+          fetchOrders(s._id);
+          joinStoreRoom(s._id);
+        }}
+      />
+    );
 
   const storeCategory = store.category || "Other";
-  const pendingOrders = orders.filter(o => o.status === "pending");
-  const activeOrders  = orders.filter(o => !["delivered", "cancelled"].includes(o.status));
-  const todayRevenue  = orders
-    .filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString() && o.status !== "cancelled")
+  const pendingOrders = orders.filter((o) => o.status === "pending");
+  const activeOrders = orders.filter(
+    (o) => !["delivered", "cancelled"].includes(o.status),
+  );
+  const todayRevenue = orders
+    .filter(
+      (o) =>
+        new Date(o.createdAt).toDateString() === new Date().toDateString() &&
+        o.status !== "cancelled",
+    )
     .reduce((s, o) => s + o.totalPrice, 0);
-  const totalRevenue  = orders.filter(o => o.status !== "cancelled").reduce((s, o) => s + o.totalPrice, 0);
+  const totalRevenue = orders
+    .filter((o) => o.status !== "cancelled")
+    .reduce((s, o) => s + o.totalPrice, 0);
 
   // Filtered orders for dashboard view
   const filteredOrders =
-    statusFilter === "active"    ? activeOrders :
-    statusFilter === "pending"   ? pendingOrders :
-    statusFilter === "delivered" ? orders.filter(o => o.status === "delivered") :
-    orders;
+    statusFilter === "active"
+      ? activeOrders
+      : statusFilter === "pending"
+        ? pendingOrders
+        : statusFilter === "delivered"
+          ? orders.filter((o) => o.status === "delivered")
+          : orders;
 
   return (
-    <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
+    <div
+      className="min-h-screen page-enter"
+      style={{ backgroundColor: "var(--bg)" }}
+    >
       <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
-
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="font-display font-bold text-2xl" style={{ color: "var(--text-primary)" }}>{store.name}</h1>
+            <h1
+              className="font-display font-bold text-2xl"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {store.name}
+            </h1>
             <button
               onClick={toggleStoreOpen}
               className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg mt-1 transition-all hover:scale-105"
               style={{
-                background: store.isOpen ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)",
-                color:      store.isOpen ? "#22c55e"               : "#ef4444",
+                background: store.isOpen
+                  ? "rgba(34,197,94,0.12)"
+                  : "rgba(239,68,68,0.1)",
+                color: store.isOpen ? "#22c55e" : "#ef4444",
               }}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+              />
               {store.isOpen ? "Open — tap to close" : "Closed — tap to open"}
             </button>
           </div>
@@ -482,24 +699,42 @@ export default function StoreDashboard() {
             <span
               className="text-xs font-bold px-2.5 py-1.5 rounded-xl"
               style={{
-                background: storeCategory === "Food" ? "rgba(249,115,22,0.1)" : "rgba(6,182,212,0.1)",
-                color:      storeCategory === "Food" ? "#f97316"               : "#06b6d4",
+                background:
+                  storeCategory === "Food"
+                    ? "rgba(249,115,22,0.1)"
+                    : "rgba(6,182,212,0.1)",
+                color: storeCategory === "Food" ? "#f97316" : "#06b6d4",
                 border: `1px solid ${storeCategory === "Food" ? "rgba(249,115,22,0.2)" : "rgba(6,182,212,0.2)"}`,
               }}
             >
               {storeCategory === "Food" ? "🍛 Food flow" : "📦 Grocery flow"}
             </span>
-            <button onClick={() => fetchOrders(store._id, true)}
+            <button
+              onClick={() => fetchOrders(store._id, true)}
               className="p-2.5 rounded-xl transition-all hover:scale-110"
-              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <RefreshCw
+                size={16}
+                className={refreshing ? "animate-spin" : ""}
+              />
             </button>
           </div>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 p-3 rounded-xl mb-5 text-sm"
-            style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <div
+            className="flex items-center gap-2 p-3 rounded-xl mb-5 text-sm"
+            style={{
+              background: "rgba(239,68,68,0.1)",
+              color: "#ef4444",
+              border: "1px solid rgba(239,68,68,0.2)",
+            }}
+          >
             <AlertCircle size={15} /> {error}
           </div>
         )}
@@ -508,13 +743,23 @@ export default function StoreDashboard() {
         {(pendingOrders.length > 0 || newOrderAlert) && (
           <div
             className="rounded-2xl p-4 mb-5 flex items-center gap-3 cursor-pointer"
-            style={{ background: "rgba(245,158,11,0.1)", border: "1.5px solid rgba(245,158,11,0.3)" }}
+            style={{
+              background: "rgba(245,158,11,0.1)",
+              border: "1.5px solid rgba(245,158,11,0.3)",
+            }}
             onClick={() => setStatusFilter("pending")}
           >
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#f59e0b" }} />
+            <div
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{ background: "#f59e0b" }}
+            />
             <Bell size={14} style={{ color: "#f59e0b" }} />
-            <p className="font-bold text-sm flex-1" style={{ color: "#f59e0b" }}>
-              {pendingOrders.length} new order{pendingOrders.length > 1 ? "s" : ""} waiting!
+            <p
+              className="font-bold text-sm flex-1"
+              style={{ color: "#f59e0b" }}
+            >
+              {pendingOrders.length} new order
+              {pendingOrders.length > 1 ? "s" : ""} waiting!
             </p>
             <ChevronRight size={16} style={{ color: "#f59e0b" }} />
           </div>
@@ -523,31 +768,76 @@ export default function StoreDashboard() {
         {/* Store role guidance banner */}
         <div
           className="rounded-xl p-3.5 mb-5 flex items-center gap-2.5 text-xs"
-          style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.15)", color: "#3b82f6" }}
+          style={{
+            background: "rgba(59,130,246,0.06)",
+            border: "1px solid rgba(59,130,246,0.15)",
+            color: "#3b82f6",
+          }}
         >
           <span>ℹ️</span>
           <div>
             <span className="font-semibold">Your control ends at: </span>
-            <strong>{storeCategory === "Food" ? "Ready for Pickup" : "Packing"}</strong>
-            {" "}— delivery partners handle the rest.
+            <strong>
+              {storeCategory === "Food" ? "Ready for Pickup" : "Packing"}
+            </strong>{" "}
+            — delivery partners handle the rest.
           </div>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
-            { label: "Today's Revenue", value: `₹${todayRevenue}`,  icon: DollarSign, color: "var(--brand)" },
-            { label: "Active Orders",   value: activeOrders.length,  icon: ShoppingBag, color: "#3b82f6" },
-            { label: "Total Delivered", value: orders.filter(o => o.status === "delivered").length, icon: Package, color: "#22c55e" },
-            { label: "Total Revenue",   value: `₹${totalRevenue}`,  icon: TrendingUp,  color: "#8b5cf6" },
+            {
+              label: "Today's Revenue",
+              value: `₹${todayRevenue}`,
+              icon: DollarSign,
+              color: "var(--brand)",
+            },
+            {
+              label: "Active Orders",
+              value: activeOrders.length,
+              icon: ShoppingBag,
+              color: "#3b82f6",
+            },
+            {
+              label: "Total Delivered",
+              value: orders.filter((o) => o.status === "delivered").length,
+              icon: Package,
+              color: "#22c55e",
+            },
+            {
+              label: "Total Revenue",
+              value: `₹${totalRevenue}`,
+              icon: TrendingUp,
+              color: "#8b5cf6",
+            },
           ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="rounded-2xl p-4 transition-all hover:-translate-y-1"
-              style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: color + "15" }}>
+            <div
+              key={label}
+              className="rounded-2xl p-4 transition-all hover:-translate-y-1"
+              style={{
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center mb-2"
+                style={{ background: color + "15" }}
+              >
                 <Icon size={15} style={{ color }} />
               </div>
-              <p className="font-display font-black text-2xl" style={{ color: "var(--text-primary)" }}>{value}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{label}</p>
+              <p
+                className="font-display font-black text-2xl"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {value}
+              </p>
+              <p
+                className="text-xs mt-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {label}
+              </p>
             </div>
           ))}
         </div>
@@ -555,17 +845,51 @@ export default function StoreDashboard() {
         {/* Quick nav */}
         <div className="grid grid-cols-4 gap-3 mb-6">
           {[
-            { to: "/store/products",  icon: Package,    label: "Products", sub: storeCategory === "Food" ? "Menu" : "Manage", color: "var(--brand)" },
-            { to: "/store/orders",    icon: ShoppingBag, label: "Orders",   sub: "All orders",  color: "#3b82f6" },
-            { to: "/store/coupons",   icon: Tag,         label: "Coupons",  sub: "Discounts",   color: "#22c55e" },
-            { to: "/store/settings",  icon: Store,       label: "Settings", sub: "Store info",  color: "#8b5cf6" },
+            {
+              to: "/store/products",
+              icon: Package,
+              label: "Products",
+              sub: storeCategory === "Food" ? "Menu" : "Manage",
+              color: "var(--brand)",
+            },
+            {
+              to: "/store/orders",
+              icon: ShoppingBag,
+              label: "Orders",
+              sub: "All orders",
+              color: "#3b82f6",
+            },
+            {
+              to: "/store/coupons",
+              icon: Tag,
+              label: "Coupons",
+              sub: "Discounts",
+              color: "#22c55e",
+            },
+            {
+              to: "/store/settings",
+              icon: Store,
+              label: "Settings",
+              sub: "Store info",
+              color: "#8b5cf6",
+            },
           ].map(({ to, icon: Icon, label, sub, color }) => (
-            <Link key={to} to={to}
+            <Link
+              key={to}
+              to={to}
               className="flex flex-col items-center gap-1 py-4 rounded-2xl text-center transition-all hover:scale-105"
-              style={{ background: color + "12", border: `1px solid ${color}30` }}>
+              style={{
+                background: color + "12",
+                border: `1px solid ${color}30`,
+              }}
+            >
               <Icon size={20} style={{ color }} />
-              <p className="font-bold text-sm" style={{ color }}>{label}</p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>
+              <p className="font-bold text-sm" style={{ color }}>
+                {label}
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {sub}
+              </p>
             </Link>
           ))}
         </div>
@@ -576,20 +900,35 @@ export default function StoreDashboard() {
         {/* Orders */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-lg" style={{ color: "var(--text-primary)" }}>Orders</h2>
+            <h2
+              className="font-display font-bold text-lg"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Orders
+            </h2>
             <div className="flex gap-1">
               {[
-                { id: "active",    label: "Active" },
-                { id: "pending",   label: pendingOrders.length > 0 ? `New (${pendingOrders.length})` : "New" },
+                { id: "active", label: "Active" },
+                {
+                  id: "pending",
+                  label:
+                    pendingOrders.length > 0
+                      ? `New (${pendingOrders.length})`
+                      : "New",
+                },
                 { id: "delivered", label: "Done" },
-                { id: "all",       label: "All" },
+                { id: "all", label: "All" },
               ].map(({ id, label }) => (
-                <button key={id} onClick={() => setStatusFilter(id)}
+                <button
+                  key={id}
+                  onClick={() => setStatusFilter(id)}
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
                   style={{
-                    background: statusFilter === id ? "var(--brand)" : "var(--elevated)",
-                    color:      statusFilter === id ? "white"         : "var(--text-muted)",
-                  }}>
+                    background:
+                      statusFilter === id ? "var(--brand)" : "var(--elevated)",
+                    color: statusFilter === id ? "white" : "var(--text-muted)",
+                  }}
+                >
                   {label}
                 </button>
               ))}
@@ -598,23 +937,41 @@ export default function StoreDashboard() {
 
           {loading ? (
             <div className="flex justify-center py-16">
-              <Loader2 size={32} className="animate-spin" style={{ color: "var(--brand)" }} />
+              <Loader2
+                size={32}
+                className="animate-spin"
+                style={{ color: "var(--brand)" }}
+              />
             </div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-14 rounded-2xl" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div
+              className="text-center py-14 rounded-2xl"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+              }}
+            >
               <div className="text-4xl mb-3">📦</div>
-              <p className="font-semibold" style={{ color: "var(--text-secondary)" }}>
-                {orders.length === 0 ? "No orders yet" : "No orders in this filter"}
+              <p
+                className="font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {orders.length === 0
+                  ? "No orders yet"
+                  : "No orders in this filter"}
               </p>
               {orders.length === 0 && (
-                <Link to="/store/products" className="btn btn-brand text-sm mt-4">
+                <Link
+                  to="/store/products"
+                  className="btn btn-brand text-sm mt-4"
+                >
                   <Plus size={14} /> Add Products
                 </Link>
               )}
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredOrders.map(order => (
+              {filteredOrders.map((order) => (
                 <OrderCard
                   key={order._id}
                   order={order}

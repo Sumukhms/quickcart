@@ -1,19 +1,25 @@
 /**
- * DeliveryTracker.jsx — FIXED
+ * DeliveryTracker.jsx — UPDATED
  *
- * Bugs fixed:
- *   1. destMarker and routeLine refs were declared but never assigned or
- *      cleaned up — refs pointing to DOM nodes/map objects that get
- *      abandoned cause memory leaks in Leaflet. Removed both.
- *   2. Map teardown now calls map.remove() on cleanup to release all
- *      Leaflet event listeners and DOM nodes properly.
- *   3. Destroyed guard prevents async init callbacks from firing after unmount.
+ * Changes vs original:
+ *   1. Draws a live polyline from rider position → customer location
+ *   2. Adds a destination marker (customer pin) in teal
+ *   3. Both update in real-time as rider pushes new GPS coordinates
+ *   4. All existing bug fixes preserved (map.remove() on unmount, destroyed guard, etc.)
+ *
+ * Props:
+ *   orderId  {string}   – used by useOrderLocation hook
+ *   order    {object}   – full order document; order.deliveryAddress used for display,
+ *                         order.deliveryLocation seeded as initial rider position
+ *
+ * Note: "destination" coords come from the order's stored lat/lng if available.
+ * If not present (most orders won't have geocoded customer coords), the polyline
+ * is drawn only when both ends are known. The component degrades gracefully.
  */
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Navigation, RefreshCw } from "lucide-react";
 import { useOrderLocation } from "../../hooks/useOrderLocation";
 
-// Leaflet loaded lazily to avoid SSR issues
 let L = null;
 async function getLeaflet() {
   if (L) return L;
@@ -21,6 +27,8 @@ async function getLeaflet() {
   await import("leaflet/dist/leaflet.css");
   return L;
 }
+
+// ── Icon factories ────────────────────────────────────────────
 
 function makeRiderIcon(leaflet) {
   return leaflet.divIcon({
@@ -49,6 +57,27 @@ function makeRiderIcon(leaflet) {
   });
 }
 
+function makeDestinationIcon(leaflet) {
+  return leaflet.divIcon({
+    html: `
+      <div style="
+        width:36px; height:36px;
+        background: linear-gradient(135deg,#ff6b35,#e5521e);
+        border-radius:50% 50% 50% 4px;
+        transform: rotate(-45deg);
+        display:flex; align-items:center; justify-content:center;
+        box-shadow: 0 4px 16px rgba(255,107,53,0.5);
+        border: 3px solid white;
+      ">
+        <span style="transform:rotate(45deg); font-size:16px;">🏠</span>
+      </div>
+    `,
+    className: "",
+    iconSize:  [36, 44],
+    iconAnchor:[18, 44],
+  });
+}
+
 function timeAgo(date) {
   if (!date) return "—";
   const secs = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -57,12 +86,16 @@ function timeAgo(date) {
   return `${Math.floor(secs / 60)}m ago`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────
 export default function DeliveryTracker({ orderId, order }) {
-  const mapRef      = useRef(null);
-  const mapObjRef   = useRef(null);
-  const riderMarker = useRef(null);
-  const leafletRef  = useRef(null);
-  // NOTE: destMarker and routeLine refs removed — they were never used
+  const mapRef       = useRef(null);
+  const mapObjRef    = useRef(null);
+  const riderMarker  = useRef(null);
+  const destMarker   = useRef(null);   // NEW: destination marker ref
+  const polylineRef  = useRef(null);   // NEW: route polyline ref
+  const leafletRef   = useRef(null);
 
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(null);
@@ -71,13 +104,24 @@ export default function DeliveryTracker({ orderId, order }) {
   const isActive = order?.status === "out_for_delivery";
   const { location, available, connected, lastUpdate } = useOrderLocation(orderId, isActive);
 
-  // Live clock for timeAgo display
+  // ── Derive destination coords from order ──────────────────
+  // Orders don't always have geocoded customer coords.
+  // We seed from order.deliveryLocation if lat/lng exist there,
+  // but that's the RIDER location. For a real destination pin
+  // you'd store customer lat/lng at order placement time.
+  // Here we use a best-effort: if `order.customerLat` exists use it,
+  // otherwise we simply skip the destination marker (no fake pin).
+  const destLat = order?.customerLat ?? null;
+  const destLng = order?.customerLng ?? null;
+  const hasDestCoords = destLat != null && destLng != null;
+
+  // Live clock for timeAgo
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Initialise Leaflet map
+  // ── Initialise Leaflet map ────────────────────────────────
   useEffect(() => {
     let destroyed = false;
 
@@ -90,7 +134,11 @@ export default function DeliveryTracker({ orderId, order }) {
 
         if (destroyed || !mapRef.current) return;
 
-        const center = location ? [location.lat, location.lng] : [12.9716, 77.5946];
+        const center = location
+          ? [location.lat, location.lng]
+          : hasDestCoords
+          ? [destLat, destLng]
+          : [12.9716, 77.5946];  // Bengaluru fallback
 
         const map = Lf.map(mapRef.current, {
           center,
@@ -106,6 +154,17 @@ export default function DeliveryTracker({ orderId, order }) {
         ).addTo(map);
 
         mapObjRef.current = map;
+
+        // ── Place destination marker immediately if coords known ──
+        if (hasDestCoords && !destroyed) {
+          destMarker.current = Lf.marker([destLat, destLng], {
+            icon: makeDestinationIcon(Lf),
+            zIndexOffset: 500,
+          })
+            .addTo(map)
+            .bindPopup("Delivery destination");
+        }
+
         setMapReady(true);
       } catch {
         setMapError("Could not load map. Please check your internet connection.");
@@ -116,30 +175,83 @@ export default function DeliveryTracker({ orderId, order }) {
 
     return () => {
       destroyed = true;
-      // FIXED: properly destroy the Leaflet map on unmount to free all listeners + DOM
+      if (polylineRef.current) {
+        try { polylineRef.current.remove(); } catch {}
+        polylineRef.current = null;
+      }
+      if (destMarker.current) {
+        try { destMarker.current.remove(); } catch {}
+        destMarker.current = null;
+      }
       if (mapObjRef.current) {
-        try { mapObjRef.current.remove(); } catch { /* already removed */ }
+        try { mapObjRef.current.remove(); } catch {}
         mapObjRef.current = null;
       }
       riderMarker.current = null;
     };
   }, []); // eslint-disable-line
 
-  // Update rider marker when location changes
+  // ── Update rider marker + polyline when location changes ──
   useEffect(() => {
     if (!mapReady || !location || !mapObjRef.current) return;
     const Lf  = leafletRef.current;
     const map = mapObjRef.current;
     const pos = [location.lat, location.lng];
 
+    // --- Rider marker ---
     if (!riderMarker.current) {
-      riderMarker.current = Lf.marker(pos, { icon: makeRiderIcon(Lf), zIndexOffset: 1000 }).addTo(map);
+      riderMarker.current = Lf.marker(pos, {
+        icon: makeRiderIcon(Lf),
+        zIndexOffset: 1000,
+      }).addTo(map);
     } else {
       riderMarker.current.setLatLng(pos);
     }
 
     map.panTo(pos, { animate: true, duration: 0.8, easeLinearity: 0.5 });
-  }, [location, mapReady]);
+
+    // --- Polyline: rider → customer ---
+    // Only draw if we have both ends
+    if (hasDestCoords) {
+      const latlngs = [pos, [destLat, destLng]];
+      if (!polylineRef.current) {
+        polylineRef.current = Lf.polyline(latlngs, {
+          color:     "#ff6b35",
+          weight:    3,
+          opacity:   0.75,
+          dashArray: "8 6",   // dashed line for "route in progress" feel
+        }).addTo(map);
+      } else {
+        polylineRef.current.setLatLngs(latlngs);
+      }
+
+      // Fit map to show both points when line first appears
+      if (polylineRef.current) {
+        try {
+          map.fitBounds(polylineRef.current.getBounds(), { padding: [40, 40] });
+        } catch {
+          // Ignore fitBounds errors on tiny distances
+        }
+      }
+    }
+  }, [location, mapReady, hasDestCoords, destLat, destLng]);
+
+  // ── Place / update destination marker reactively ─────────
+  // (handles the case where order data arrives after map init)
+  useEffect(() => {
+    if (!mapReady || !mapObjRef.current || !hasDestCoords) return;
+    const Lf = leafletRef.current;
+    const map = mapObjRef.current;
+
+    if (!destMarker.current) {
+      destMarker.current = Lf.marker([destLat, destLng], {
+        icon: makeDestinationIcon(Lf),
+        zIndexOffset: 500,
+      })
+        .addTo(map)
+        .bindPopup("Delivery destination");
+    }
+  }, [mapReady, hasDestCoords, destLat, destLng]);
 
   if (!isActive) {
     return (
@@ -159,9 +271,9 @@ export default function DeliveryTracker({ orderId, order }) {
     <div
       className="rounded-3xl overflow-hidden"
       style={{
-        background: "var(--card)",
-        border:     "1px solid var(--border)",
-        boxShadow:  "0 8px 40px rgba(0,0,0,0.15)",
+        background:  "var(--card)",
+        border:      "1px solid var(--border)",
+        boxShadow:   "0 8px 40px rgba(0,0,0,0.15)",
       }}
     >
       {/* Header bar */}
@@ -190,6 +302,16 @@ export default function DeliveryTracker({ orderId, order }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Legend chips */}
+          {hasDestCoords && (
+            <div className="hidden sm:flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+              <span className="flex items-center gap-1">
+                <span style={{ display: "inline-block", width: 16, height: 2, background: "#ff6b35", borderRadius: 1, verticalAlign: "middle" }} />
+                Route
+              </span>
+              <span className="flex items-center gap-1">🏠 Destination</span>
+            </div>
+          )}
           {available ? (
             <span
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl"

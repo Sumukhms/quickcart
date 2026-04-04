@@ -391,6 +391,7 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1);
   const [addresses, setAddresses] = useState(initialAddresses);
   const [selectedAddr, setSelectedAddr] = useState(initialAddresses[0] || "");
+  const [selectedAddrObj, setSelectedAddrObj] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -509,6 +510,8 @@ export default function CheckoutPage() {
       paymentMethod,
       notes: notes?.trim() || undefined,
       couponCode: appliedCoupon?.code,
+      deliveryLat: selectedAddrObj?.lat ?? null,
+      deliveryLng: selectedAddrObj?.lng ?? null,
     };
 
     try {
@@ -859,7 +862,10 @@ export default function CheckoutPage() {
                   <AddressSelector
                     addresses={addresses}
                     selected={selectedAddr}
-                    onSelect={setSelectedAddr}
+                    onSelect={(addr) => {
+                      setSelectedAddrObj(null);
+                      setSelectedAddr(addr);
+                    }}
                     onAdd={handleAddAddress}
                     onDelete={handleDeleteAddress}
                   />

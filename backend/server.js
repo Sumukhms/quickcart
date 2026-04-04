@@ -43,6 +43,7 @@ import addressRoutes     from "./src/routes/addressRoutes.js";
 import webhookRoutes     from "./src/routes/webhookRoutes.js";
 import uploadRoutes      from "./src/routes/uploadRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
+import deliveryRoutes from "./src/routes/deliveryRoutes.js";
 
 // ── CRITICAL: Validate required environment variables at startup ──
 const REQUIRED_ENV = ["MONGO_URI", "JWT_SECRET"];
@@ -179,6 +180,7 @@ app.use("/api/stats",         statsRoutes);
 app.use("/api/inventory",     inventoryRoutes);
 app.use("/api/location",      locationRoutes);
 app.use("/api/addresses",     addressRoutes);
+app.use("/api/delivery", deliveryRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (_req, res) => res.json({
