@@ -3,6 +3,7 @@ import Order  from "../models/Order.js";
 import Store  from "../models/Store.js";
 import Coupon from "../models/Coupon.js";
 import Banner from "../models/Banner.js";
+import PayoutRequest from "../models/PayoutRequest.js";
 
 export const getStats = async (req, res) => {
   try {
@@ -128,5 +129,60 @@ export const toggleBanner = async (req, res) => {
     banner.isActive = !banner.isActive;
     await banner.save();
     res.json(banner);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+// ── GET /api/admin/payouts ─────────────────────────────────────
+export const getPendingPayouts = async (req, res) => {
+  try {
+    const { status = "pending", limit = 50, skip = 0 } = req.query;
+    const filter = status === "all" ? {} : { status };
+
+    const [requests, total] = await Promise.all([
+      PayoutRequest.find(filter)
+        .populate("deliveryPartnerId", "name email phone vehicleType rating totalDeliveries")
+        .sort({ createdAt: -1 })
+        .limit(Number(limit))
+        .skip(Number(skip)),
+      PayoutRequest.countDocuments(filter),
+    ]);
+
+    res.json({ requests, total });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+// ── PATCH /api/admin/payout/:id ────────────────────────────────
+export const processPayout = async (req, res) => {
+  try {
+    const { action, note = "" } = req.body; // action: "approved" | "rejected"
+
+    if (!["approved", "rejected"].includes(action)) {
+      return res.status(400).json({ message: "action must be 'approved' or 'rejected'" });
+    }
+
+    const request = await PayoutRequest.findById(req.params.id)
+      .populate("deliveryPartnerId", "name email");
+
+    if (!request) {
+      return res.status(404).json({ message: "Payout request not found" });
+    }
+
+    // Prevent double-processing
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        message: `This request has already been ${request.status}. No changes made.`,
+        currentStatus: request.status,
+      });
+    }
+
+    request.status      = action;
+    request.processedAt = new Date();
+    request.note        = note.trim();
+    await request.save();
+
+    res.json({
+      message: `Payout ${action} successfully.`,
+      request,
+    });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };

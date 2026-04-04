@@ -14,6 +14,7 @@ import crypto from "crypto";
 import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
+import Address from "../models/Address.js";
 import Coupon from "../models/Coupon.js";
 import { applyCoupon } from "./couponController.js";
 import {
@@ -345,13 +346,32 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
       couponCode,
     } = orderData;
 
+    // ✅ Resolve structured address before Order.create
+    let resolvedDeliveryAddress = deliveryAddress?.trim();
+    let resolvedLat = orderData.deliveryLat ?? null;
+    let resolvedLng = orderData.deliveryLng ?? null;
+
+    if (orderData.addressId) {
+      const addrDoc = await Address.findOne({
+        _id: orderData.addressId,
+        userId: req.user.userId,
+      });
+      if (addrDoc) {
+        resolvedDeliveryAddress = addrDoc.toOneLiner();
+        resolvedLat = addrDoc.lat;
+        resolvedLng = addrDoc.lng;
+      }
+    }
+
     const order = await Order.create({
       userId: req.user.userId,
       storeId,
       items,
       totalPrice: computed.total,
       deliveryFee: computed.deliveryFee,
-      deliveryAddress,
+      deliveryAddress: resolvedDeliveryAddress,
+      deliveryLat:    resolvedLat,
+      deliveryLng:    resolvedLng,
       paymentMethod: paymentMethod || "online",
       notes,
       paymentStatus: "paid",

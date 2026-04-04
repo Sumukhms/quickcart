@@ -6,6 +6,7 @@ import {
   listBanners, createBanner, updateBanner, deleteBanner, toggleBanner,
 } from "../controllers/adminController.js";
 import { protect, restrictTo } from "../middleware/authMiddleware.js";
+import { getPendingPayouts, processPayout } from "../controllers/adminController.js";
 
 const r = express.Router();
 const adminOnly = restrictTo("admin");
@@ -38,5 +39,8 @@ r.post("/banners",             createBanner);
 r.put("/banners/:id",          updateBanner);
 r.delete("/banners/:id",       deleteBanner);
 r.patch("/banners/:id/toggle", toggleBanner);
+
+r.get("/payouts",          getPendingPayouts);
+r.patch("/payout/:id",     processPayout);
 
 export default r;

@@ -1,12 +1,3 @@
-/**
- * orderController.js — UPDATED with Notification hooks
- *
- * Changes vs original:
- *   • Import notificationService helpers
- *   • Call notifyOrderStatus after every status change
- *   • Call notifyDelivery when a rider accepts
- *   • No existing logic changed — only additions
- */
 import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
 import Store from "../models/Store.js";
@@ -23,6 +14,9 @@ import {
   MAX_ORDER_VALUE,
   MIN_ORDER_VALUE,
 } from "../config/constants.js";
+import Address from "../models/Address.js";
+import User from "../models/User.js";
+import { sendOrderEmail } from "../services/emailService.js";
 
 // ─── Flow helpers ──────────────────────────────────────────────
 const FOOD_CATEGORIES = ["Food"];
@@ -141,13 +135,32 @@ export const placeOrder = async (req, res) => {
       }
     }
 
+    // ✅ Resolve structured address in placeOrder, after items validation
+    let resolvedDeliveryAddress = deliveryAddress?.trim();
+    let resolvedLat = req.body.deliveryLat ?? null;
+    let resolvedLng = req.body.deliveryLng ?? null;
+
+    if (req.body.addressId) {
+      const addrDoc = await Address.findOne({
+        _id: req.body.addressId,
+        userId: req.user.userId,
+      });
+      if (addrDoc) {
+        resolvedDeliveryAddress = addrDoc.toOneLiner();
+        resolvedLat = addrDoc.lat;
+        resolvedLng = addrDoc.lng;
+      }
+    }
+
     const order = await Order.create({
       userId: req.user.userId,
       storeId,
       items,
       totalPrice,
       deliveryFee: DELIVERY_FEE,
-      deliveryAddress,
+      deliveryAddress: resolvedDeliveryAddress,
+      deliveryLat: resolvedLat,
+      deliveryLng: resolvedLng,
       paymentMethod: paymentMethod || "cod",
       notes,
       statusHistory: [
@@ -201,11 +214,28 @@ export const placeOrder = async (req, res) => {
     // ── Notify customer: order placed ────────────────────────
     const store = await Store.findById(storeId).select("name").lean();
     notifyOrderStatus(req.io, {
-      userId:    req.user.userId,
-      orderId:   order._id,
+      userId: req.user.userId,
+      orderId: order._id,
       storeName: store?.name || "the store",
-      status:    "pending",
+      status: "pending",
     }).catch(() => {});
+
+    // ── Email customer: order placed ─────────────────────────────
+    User.findById(req.user.userId)
+      .select("name email")
+      .lean()
+      .then((customer) => {
+        if (customer?.email) {
+          sendOrderEmail(customer.email, customer.name, {
+            status: "pending",
+            orderId: order._id,
+            storeName: store?.name || "the store",
+            totalPrice: order.totalPrice,
+            deliveryAddress: order.deliveryAddress,
+          });
+        }
+      })
+      .catch(() => {});
 
     res.status(201).json(order);
   } catch (e) {
@@ -292,11 +322,9 @@ export const updateOrderStatus = async (req, res) => {
       actorRole === "delivery" &&
       !DELIVERY_ALLOWED_STATUSES.includes(toStatus)
     ) {
-      return res
-        .status(403)
-        .json({
-          message: `Delivery partners cannot set status to "${toStatus}"`,
-        });
+      return res.status(403).json({
+        message: `Delivery partners cannot set status to "${toStatus}"`,
+      });
     }
 
     if (!isValidTransition(order.status, toStatus, storeCategory)) {
@@ -345,11 +373,31 @@ export const updateOrderStatus = async (req, res) => {
 
     // ── Notify customer of status change ─────────────────────
     notifyOrderStatus(req.io, {
-      userId:    updated.userId._id || updated.userId,
-      orderId:   updated._id,
+      userId: updated.userId._id || updated.userId,
+      orderId: updated._id,
       storeName: order.storeId?.name || "the store",
-      status:    toStatus,
+      status: toStatus,
     }).catch(() => {});
+
+    // ── Email customer on key status changes ──────────────────────
+    if (["out_for_delivery", "delivered"].includes(toStatus)) {
+      const customerId = updated.userId?._id || updated.userId;
+      User.findById(customerId)
+        .select("name email")
+        .lean()
+        .then((customer) => {
+          if (customer?.email) {
+            sendOrderEmail(customer.email, customer.name, {
+              status: toStatus,
+              orderId: updated._id,
+              storeName: order.storeId?.name || "the store",
+              totalPrice: updated.totalPrice,
+              deliveryAddress: updated.deliveryAddress,
+            });
+          }
+        })
+        .catch(() => {});
+    }
 
     res.json(updated);
   } catch (e) {
@@ -376,7 +424,10 @@ export const getAvailableOrders = async (req, res) => {
 
 export const acceptDelivery = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate("storeId", "name");
+    const order = await Order.findById(req.params.id).populate(
+      "storeId",
+      "name",
+    );
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (order.deliveryAgentId) {
       return res
@@ -414,17 +465,17 @@ export const acceptDelivery = async (req, res) => {
       .catch(() => null);
 
     notifyDelivery(req.io, {
-      userId:    order.userId,
-      orderId:   order._id,
+      userId: order.userId,
+      orderId: order._id,
       agentName: agentUser?.name || "A delivery partner",
     }).catch(() => {});
 
     // Also notify out_for_delivery status
     notifyOrderStatus(req.io, {
-      userId:    order.userId,
-      orderId:   order._id,
+      userId: order.userId,
+      orderId: order._id,
       storeName: order.storeId?.name || "the store",
-      status:    "out_for_delivery",
+      status: "out_for_delivery",
     }).catch(() => {});
 
     res.json(order);
@@ -451,7 +502,10 @@ export const getMyDeliveries = async (req, res) => {
 
 export const markDelivered = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate("storeId", "name");
+    const order = await Order.findById(req.params.id).populate(
+      "storeId",
+      "name",
+    );
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (order.deliveryAgentId?.toString() !== req.user.userId) {
       return res.status(403).json({ message: "Not your delivery" });
@@ -472,11 +526,28 @@ export const markDelivered = async (req, res) => {
 
     // ── Notify customer: delivered ───────────────────────────
     notifyOrderStatus(req.io, {
-      userId:    order.userId,
-      orderId:   order._id,
+      userId: order.userId,
+      orderId: order._id,
       storeName: order.storeId?.name || "the store",
-      status:    "delivered",
+      status: "delivered",
     }).catch(() => {});
+
+    // ── Email customer: delivered ─────────────────────────────────
+    User.findById(order.userId)
+      .select("name email")
+      .lean()
+      .then((customer) => {
+        if (customer?.email) {
+          sendOrderEmail(customer.email, customer.name, {
+            status: "delivered",
+            orderId: order._id,
+            storeName: order.storeId?.name || "the store",
+            totalPrice: order.totalPrice,
+            deliveryAddress: order.deliveryAddress,
+          });
+        }
+      })
+      .catch(() => {});
 
     res.json(order);
   } catch (e) {
@@ -510,7 +581,10 @@ export const updateDeliveryLocation = async (req, res) => {
  */
 export const cancelOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate("storeId", "name");
+    const order = await Order.findById(req.params.id).populate(
+      "storeId",
+      "name",
+    );
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     if (order.userId.toString() !== req.user.userId) {
@@ -578,10 +652,10 @@ export const cancelOrder = async (req, res) => {
 
     // ── Notify customer: cancelled ───────────────────────────
     notifyOrderStatus(req.io, {
-      userId:    order.userId,
-      orderId:   order._id,
+      userId: order.userId,
+      orderId: order._id,
       storeName: order.storeId?.name || "the store",
-      status:    "cancelled",
+      status: "cancelled",
     }).catch(() => {});
 
     res.json(order);

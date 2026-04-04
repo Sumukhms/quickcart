@@ -207,3 +207,83 @@ export async function verifyEmailConfig() {
     return false;
   }
 }
+
+// ── Order notification email ────────────────────────────────────
+/**
+ * Sends a transactional order status email to the customer.
+ * Non-blocking — errors are logged but never thrown.
+ *
+ * @param {string} email       - customer email
+ * @param {string} name        - customer name
+ * @param {object} opts
+ * @param {string} opts.status - order status key
+ * @param {string} opts.orderId
+ * @param {string} opts.storeName
+ * @param {number} [opts.totalPrice]
+ * @param {string} [opts.deliveryAddress]
+ */
+export async function sendOrderEmail(email, name, { status, orderId, storeName, totalPrice, deliveryAddress }) {
+  const shortId = orderId?.toString().slice(-8).toUpperCase();
+
+  const STATUS_CONTENT = {
+    pending: {
+      subject: `Order #${shortId} placed — QuickCart`,
+      headline: "Order Placed! 🛒",
+      body: `
+        <p style="margin:0 0 12px;color:#6b7280;font-size:15px;line-height:1.6;">
+          Hi <strong>${name}</strong>, your order from <strong>${storeName}</strong> has been received.
+        </p>
+        <div style="background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:16px;">
+          <p style="margin:0 0 4px;font-size:13px;color:#9ca3af;">Order ID</p>
+          <p style="margin:0;font-size:18px;font-weight:900;color:#111827;font-family:monospace;">#${shortId}</p>
+          ${totalPrice ? `<p style="margin:6px 0 0;font-size:14px;color:#374151;">Total: <strong>₹${totalPrice}</strong></p>` : ""}
+          ${deliveryAddress ? `<p style="margin:4px 0 0;font-size:13px;color:#6b7280;">📍 ${deliveryAddress}</p>` : ""}
+        </div>
+        <p style="margin:0;color:#6b7280;font-size:14px;">
+          You can track your order status in real-time on QuickCart.
+        </p>`,
+    },
+    out_for_delivery: {
+      subject: `Your order #${shortId} is on the way! 🛵`,
+      headline: "Out for Delivery! 🛵",
+      body: `
+        <p style="margin:0 0 12px;color:#6b7280;font-size:15px;line-height:1.6;">
+          Great news, <strong>${name}</strong>! A delivery partner has picked up your order from
+          <strong>${storeName}</strong> and is heading to you now.
+        </p>
+        <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:16px;margin-bottom:16px;text-align:center;">
+          <p style="margin:0;font-size:28px;">🛵</p>
+          <p style="margin:8px 0 0;font-weight:700;color:#ea580c;">Order #${shortId} is on the way</p>
+          ${deliveryAddress ? `<p style="margin:4px 0 0;font-size:13px;color:#9a3412;">Delivering to: ${deliveryAddress}</p>` : ""}
+        </div>
+        <p style="margin:0;color:#6b7280;font-size:14px;">Open the app to track your rider's live location.</p>`,
+    },
+    delivered: {
+      subject: `Order #${shortId} delivered! Thanks for ordering 🎉`,
+      headline: "Order Delivered! 🎉",
+      body: `
+        <p style="margin:0 0 12px;color:#6b7280;font-size:15px;line-height:1.6;">
+          Hey <strong>${name}</strong>, your order from <strong>${storeName}</strong> has been delivered. Enjoy!
+        </p>
+        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:16px;margin-bottom:16px;text-align:center;">
+          <p style="margin:0;font-size:28px;">✅</p>
+          <p style="margin:8px 0 0;font-weight:700;color:#16a34a;">Order #${shortId} — Delivered</p>
+          ${totalPrice ? `<p style="margin:4px 0 0;font-size:13px;color:#15803d;">You paid ₹${totalPrice}</p>` : ""}
+        </div>
+        <p style="margin:0 0 8px;color:#6b7280;font-size:14px;">
+          Please rate your experience on QuickCart to help us improve.
+        </p>
+        <p style="margin:0;color:#9ca3af;font-size:13px;">Thanks for choosing QuickCart ⚡</p>`,
+    },
+  };
+
+  const content = STATUS_CONTENT[status];
+  if (!content) return; // skip statuses we don't email for
+
+  const html = htmlWrapper(content.headline, content.body);
+  const fromAddress = process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
+
+  // Fire-and-forget — never block the order flow
+  sendWithRetry({ from: fromAddress, to: email, subject: content.subject, html })
+    .catch((err) => console.error(`[OrderEmail] Failed for status=${status} orderId=${shortId}:`, err.message));
+}

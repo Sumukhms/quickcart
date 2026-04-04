@@ -1,14 +1,3 @@
-/**
- * CheckoutPage — FIXED v2
- *
- * Critical fixes:
- *   1. Stock is validated client-side BEFORE opening Razorpay popup
- *      (createRazorpayOrder now validates stock on server — surfaces error early)
- *   2. Cart items with insufficient stock are visually flagged
- *   3. Clear stock error display with product name and available count
- *   4. paymentAPI.createOrder passes items correctly for server validation
- *   5. Better error handling for stockError responses
- */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
@@ -34,7 +23,8 @@ import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { orderAPI, couponAPI, authAPI, paymentAPI } from "../../api/api";
 import { useRazorpay } from "../../hooks/useRazorpay";
-import AddressSelector from "../../components/address/AddressSelector";
+import AddressManager from "../../components/address/AddressManager";
+import { formatAddress } from "../../api/addressAPI";
 import OrderSummary from "../../components/order/OrderSummary";
 
 const PAYMENT_METHODS = [
@@ -381,17 +371,9 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const placingRef = useRef(false);
 
-  const initialAddresses = (() => {
-    const saved = user?.addresses || [];
-    const legacy = user?.address;
-    if (legacy && !saved.includes(legacy)) return [legacy, ...saved];
-    return saved;
-  })();
-
   const [step, setStep] = useState(1);
-  const [addresses, setAddresses] = useState(initialAddresses);
-  const [selectedAddr, setSelectedAddr] = useState(initialAddresses[0] || "");
   const [selectedAddrObj, setSelectedAddrObj] = useState(null);
+  const selectedAddr = selectedAddrObj ? formatAddress(selectedAddrObj) : "";
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -415,42 +397,6 @@ export default function CheckoutPage() {
   const grandTotal = Math.max(
     0,
     total + effectiveDel - (freeDelivery ? 0 : couponDiscount),
-  );
-
-  const handleAddAddress = useCallback(
-    async (addr) => {
-      try {
-        const { data } = await authAPI.addAddress(addr);
-        setAddresses(data.addresses);
-        setSelectedAddr(addr);
-        updateUser({ addresses: data.addresses, address: data.address });
-      } catch (err) {
-        addToast(
-          err.response?.data?.message || "Failed to save address",
-          "error",
-        );
-      }
-    },
-    [addToast, updateUser],
-  );
-
-  const handleDeleteAddress = useCallback(
-    async (index) => {
-      try {
-        const { data } = await authAPI.removeAddress(index);
-        const updated = data.addresses;
-        setAddresses(updated);
-        if (selectedAddr === addresses[index])
-          setSelectedAddr(updated[0] || "");
-        updateUser({ addresses: updated, address: data.address });
-      } catch (err) {
-        addToast(
-          err.response?.data?.message || "Failed to remove address",
-          "error",
-        );
-      }
-    },
-    [addresses, selectedAddr, addToast, updateUser],
   );
 
   const applyCoupon = useCallback(
@@ -484,7 +430,7 @@ export default function CheckoutPage() {
 
   const placeOrder = useCallback(async () => {
     if (placingRef.current) return;
-    if (!selectedAddr?.trim()) {
+    if (!selectedAddrObj) {
       addToast("Please select a delivery address", "error");
       return;
     }
@@ -507,6 +453,7 @@ export default function CheckoutPage() {
       items: serialisedItems,
       totalPrice: grandTotal,
       deliveryAddress: selectedAddr,
+      addressId: selectedAddrObj?._id,
       paymentMethod,
       notes: notes?.trim() || undefined,
       couponCode: appliedCoupon?.code,
@@ -859,15 +806,10 @@ export default function CheckoutPage() {
 
               {step === 1 && (
                 <div className="px-5 pb-5 pt-3 space-y-4">
-                  <AddressSelector
-                    addresses={addresses}
-                    selected={selectedAddr}
-                    onSelect={(addr) => {
-                      setSelectedAddrObj(null);
-                      setSelectedAddr(addr);
-                    }}
-                    onAdd={handleAddAddress}
-                    onDelete={handleDeleteAddress}
+                  <AddressManager
+                    selected={selectedAddrObj?._id}
+                    onSelect={(addr) => setSelectedAddrObj(addr)}
+                    showActions={false}
                   />
                   <div>
                     <label
@@ -885,7 +827,7 @@ export default function CheckoutPage() {
                   </div>
                   <button
                     onClick={() => {
-                      if (!selectedAddr.trim()) {
+                      if (!selectedAddrObj) {
                         addToast("Please select a delivery address", "error");
                         return;
                       }
