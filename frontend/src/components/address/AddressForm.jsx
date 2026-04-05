@@ -7,11 +7,6 @@
  *   - Field-level validation
  *   - Label selector (Home / Work / Other)
  *   - Loading + error states
- *
- * Props:
- *   address   {object|null}  – existing address to edit, or null for new
- *   onSave    {fn}           – called with the saved Address document
- *   onClose   {fn}           – close the modal
  */
 import { useState } from "react";
 import {
@@ -84,15 +79,16 @@ export default function AddressForm({ address, onSave, onClose }) {
       : { ...EMPTY_FORM }
   );
 
-  const [errors,      setErrors]      = useState({});
-  const [saving,      setSaving]      = useState(false);
-  const [gpsLoading,  setGpsLoading]  = useState(false);
-  const [gpsError,    setGpsError]    = useState("");
-  const [saveError,   setSaveError]   = useState("");
+  const [errors,     setErrors]     = useState({});
+  const [saving,     setSaving]     = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError,   setGpsError]   = useState("");
+  const [saveError,  setSaveError]  = useState("");
 
   const set = (k, v) => {
     setForm((f) => ({ ...f, [k]: v }));
     setErrors((e) => ({ ...e, [k]: "" }));
+    setSaveError("");
   };
 
   // ── GPS auto-fill ─────────────────────────────────────────
@@ -326,6 +322,7 @@ export default function AddressForm({ address, onSave, onClose }) {
             />
           </Field>
 
+          {/* Save error */}
           {saveError && (
             <div
               className="flex items-center gap-2 p-3 rounded-xl text-sm"

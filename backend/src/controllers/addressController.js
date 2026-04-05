@@ -13,13 +13,6 @@
  */
 import Address from "../models/Address.js";
 
-// ── Helpers ─────────────────────────────────────────────────
-function buildOneLiner(addr) {
-  return [addr.street, addr.area, addr.city, addr.state, addr.pincode]
-    .filter(Boolean)
-    .join(", ");
-}
-
 function sanitize(body) {
   return {
     label:    body.label    || "Home",
@@ -56,8 +49,12 @@ export const addAddress = async (req, res) => {
     if (!/^\d{6}$/.test(data.pincode))
       return res.status(400).json({ message: "Pincode must be exactly 6 digits" });
 
-    // If this is the first address for the user, make it default
+    // Check limit BEFORE creating (avoids Mongoose pre-save hook edge cases with Express v5)
     const existing = await Address.countDocuments({ userId: req.user.userId });
+    if (existing >= 5) {
+      return res.status(400).json({ message: "Maximum 5 addresses allowed per account" });
+    }
+
     const isDefault = existing === 0 ? true : !!req.body.isDefault;
 
     const address = await Address.create({
@@ -68,7 +65,8 @@ export const addAddress = async (req, res) => {
 
     res.status(201).json(address);
   } catch (e) {
-    if (e.message.includes("Maximum 5 addresses")) {
+    // Catch any error (including the pre-save hook throwing)
+    if (e.message?.includes("Maximum 5 addresses")) {
       return res.status(400).json({ message: e.message });
     }
     res.status(500).json({ message: e.message });
@@ -104,7 +102,10 @@ export const deleteAddress = async (req, res) => {
     // If we deleted the default, promote the oldest remaining to default
     if (address.isDefault) {
       const next = await Address.findOne({ userId: req.user.userId }).sort({ createdAt: 1 });
-      if (next) { next.isDefault = true; await next.save(); }
+      if (next) {
+        next.isDefault = true;
+        await next.save();
+      }
     }
 
     res.json({ message: "Address deleted" });
@@ -119,7 +120,7 @@ export const setDefaultAddress = async (req, res) => {
     const address = await Address.findOne({ _id: req.params.id, userId: req.user.userId });
     if (!address) return res.status(404).json({ message: "Address not found" });
 
-    address.isDefault = true;   // pre-save hook clears others
+    address.isDefault = true;
     await address.save();
 
     const all = await Address.find({ userId: req.user.userId }).sort({ isDefault: -1, createdAt: 1 });
@@ -130,8 +131,6 @@ export const setDefaultAddress = async (req, res) => {
 };
 
 // ── POST /api/addresses/from-coords ──────────────────────────
-// Uses OpenStreetMap Nominatim (free, no API key) to reverse-geocode
-// a lat/lng into structured address fields.
 export const addressFromCoords = async (req, res) => {
   try {
     const { lat, lng } = req.body;
@@ -157,7 +156,6 @@ export const addressFromCoords = async (req, res) => {
 
     const a = data.address || {};
 
-    // Map OSM fields → our schema
     const prefilled = {
       street:   [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(", "),
       area:     a.suburb || a.neighbourhood || a.quarter || a.city_district || "",
@@ -167,7 +165,6 @@ export const addressFromCoords = async (req, res) => {
       landmark: a.amenity || a.building || "",
       lat:      Number(lat),
       lng:      Number(lng),
-      // raw display name for the user to review
       displayName: data.display_name || "",
     };
 

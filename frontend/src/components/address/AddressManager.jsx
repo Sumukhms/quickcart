@@ -1,11 +1,8 @@
 /**
- * AddressManager.jsx — FIXED
+ * AddressManager.jsx
  *
- * Fixes:
- *   1. selected prop: accepts either _id string OR full Address object
- *   2. Auto-select default address on first load even when selected is already set
- *   3. onSelect guard: never calls onSelect with undefined
- *   4. Loading state flicker fixed
+ * Shows saved structured addresses. Lets user select, add, edit, delete, set default.
+ * Uses only the new Address model — no legacy string-address system.
  */
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -14,13 +11,12 @@ import {
 import { addressAPI, formatAddress } from "../../api/addressAPI.js";
 import AddressForm from "./AddressForm.jsx";
 
-const LABEL_ICONS = { Home, Work: Briefcase, Other: Map };
-const LABEL_COLORS = { Home: "#22c55e", Work: "#3b82f6", Other: "#8b5cf6" };
+const LABEL_ICONS   = { Home, Work: Briefcase, Other: Map };
+const LABEL_COLORS  = { Home: "#22c55e", Work: "#3b82f6", Other: "#8b5cf6" };
 
 function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault, showActions }) {
   const Icon  = LABEL_ICONS[addr.label] || MapPin;
   const color = LABEL_COLORS[addr.label] || "var(--brand)";
-  // ✅ FIX: compare by _id string regardless of whether selected is string or object
   const selectedId = typeof selected === "object" ? selected?._id : selected;
   const isSelected = selectedId === addr._id;
 
@@ -32,11 +28,11 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
       onKeyDown={(e) => e.key === "Enter" && onSelect && onSelect(addr)}
       className="relative group cursor-pointer w-full text-left transition-all hover:scale-[1.01]"
       style={{
-        background:    isSelected ? "rgba(255,107,53,0.05)" : "var(--elevated)",
-        border:        `1.5px solid ${isSelected ? "var(--brand)" : "var(--border)"}`,
-        borderRadius:  "16px",
-        padding:       "14px 16px",
-        boxShadow:     isSelected ? "0 0 0 1px rgba(255,107,53,0.15)" : "none",
+        background:   isSelected ? "rgba(255,107,53,0.05)" : "var(--elevated)",
+        border:       `1.5px solid ${isSelected ? "var(--brand)" : "var(--border)"}`,
+        borderRadius: "16px",
+        padding:      "14px 16px",
+        boxShadow:    isSelected ? "0 0 0 1px rgba(255,107,53,0.15)" : "none",
       }}
     >
       <div className="flex items-start gap-3">
@@ -130,11 +126,11 @@ export default function AddressManager({
   showActions = false,
   compact     = false,
 }) {
-  const [addresses, setAddresses]     = useState([]);
-  const [loading,   setLoading]       = useState(true);
-  const [showForm,  setShowForm]      = useState(false);
-  const [editAddr,  setEditAddr]      = useState(null);
-  const [error,     setError]         = useState("");
+  const [addresses, setAddresses] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [showForm,  setShowForm]  = useState(false);
+  const [editAddr,  setEditAddr]  = useState(null);
+  const [error,     setError]     = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -143,8 +139,7 @@ export default function AddressManager({
       const { data } = await addressAPI.list();
       setAddresses(data);
 
-      // ✅ FIX: auto-select default only if no address is currently selected
-      // selected can be an _id string or a full object — normalize for comparison
+      // Auto-select default if nothing selected yet
       const selectedId = typeof selected === "object" ? selected?._id : selected;
       if (onSelect && data.length > 0 && !selectedId) {
         const def = data.find((a) => a.isDefault) || data[0];
@@ -184,6 +179,8 @@ export default function AddressManager({
         if (onSelect && selectedId === id && next.length > 0) {
           const def = next.find((a) => a.isDefault) || next[0];
           onSelect(def);
+        } else if (onSelect && selectedId === id) {
+          onSelect(null);
         }
         return next;
       });
