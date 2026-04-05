@@ -5,10 +5,9 @@ const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const api = axios.create({
   baseURL: BASE,
   timeout: 30_000,
-  withCredentials: true, // ← REQUIRED: sends httpOnly refresh-token cookie automatically
+  withCredentials: true,
 });
 
-// ── Request interceptor — attach access token ────────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("qc-token");
@@ -18,9 +17,8 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// ── Track whether a refresh is already in flight ─────────────
 let isRefreshing = false;
-let refreshQueue = []; // { resolve, reject }[]
+let refreshQueue = [];
 
 function processQueue(error, token = null) {
   refreshQueue.forEach(({ resolve, reject }) => {
@@ -30,13 +28,11 @@ function processQueue(error, token = null) {
   refreshQueue = [];
 }
 
-// ── Response interceptor — handle 401 with token refresh ─────
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const originalRequest = err.config;
 
-    // Paths that should never trigger a refresh attempt
     const skipRefresh = [
       "/auth/login",
       "/auth/register",
@@ -54,7 +50,6 @@ api.interceptors.response.use(
       originalRequest._retried = true;
 
       if (isRefreshing) {
-        // Queue this request until the ongoing refresh resolves
         return new Promise((resolve, reject) => {
           refreshQueue.push({ resolve, reject });
         }).then((token) => {
@@ -66,7 +61,6 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // POST /auth/refresh — cookie is sent automatically (withCredentials)
         const { data } = await api.post("/auth/refresh");
         const newToken = data.token;
 
@@ -80,7 +74,6 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        // Refresh failed — clear local state and redirect to login
         localStorage.removeItem("qc-token");
         localStorage.removeItem("qc-user");
 
@@ -121,11 +114,11 @@ export const authAPI = {
   getProfile: () => api.get("/auth/profile"),
   updateProfile: (data) => api.put("/auth/profile", data),
   toggleAvailability: () => api.patch("/auth/availability"),
+  // ✅ FIX: keep old string-address endpoints for backward compat on profile page
   addAddress: (address) => api.post("/auth/addresses", { address }),
   removeAddress: (index) => api.delete(`/auth/addresses/${index}`),
   setDefaultAddress: (index) => api.patch(`/auth/addresses/${index}/default`),
   deleteAccount: (data) => api.delete("/auth/account", { data }),
-  // NEW
   logout: () => api.post("/auth/logout"),
   logoutAll: () => api.post("/auth/logout-all"),
   refresh: () => api.post("/auth/refresh"),
@@ -138,6 +131,7 @@ export const storeAPI = {
   getMine: () => api.get("/stores/mine"),
   create: (data) => api.post("/stores", data),
   update: (id, data) => api.put(`/stores/${id}`, data),
+  // ✅ FIX: analytics endpoint is on /stores/analytics (store-protected route)
   getAnalytics: () => api.get("/stores/analytics"),
 };
 
@@ -173,6 +167,7 @@ export const orderAPI = {
   accept: (id) => api.post(`/orders/${id}/accept`),
   updateLocation: (id, lat, lng) =>
     api.put(`/orders/${id}/location`, { lat, lng }),
+  // ✅ FIX: cancel uses POST /:id/cancel (not DELETE)
   cancel: (id) => api.post(`/orders/${id}/cancel`),
 };
 
@@ -233,6 +228,9 @@ export const adminAPI = {
   updateBanner: (id, data) => api.put(`/admin/banners/${id}`, data),
   deleteBanner: (id) => api.delete(`/admin/banners/${id}`),
   toggleBanner: (id) => api.patch(`/admin/banners/${id}/toggle`),
+  // ✅ FIX: store analytics is a store-protected route, admin uses it via store owner context
+  // Admin panel's StoreAnalytics component calls this — it works because admin role
+  // bypasses restrictTo("store") check. But to be safe, use the direct store route.
   getAnalytics: () => api.get("/stores/analytics"),
   getPayouts: (params) => api.get("/admin/payouts", { params }),
   processPayout: (id, action, note) => api.patch(`/admin/payout/${id}`, { action, note }),

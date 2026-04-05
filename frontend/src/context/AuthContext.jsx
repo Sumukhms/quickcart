@@ -10,19 +10,32 @@ export const ROLE_HOME = {
   admin:    "/admin",
 };
 
+// ✅ FIX: normalize user object so both user.id and user._id always exist
+function normalizeUser(user) {
+  if (!user) return null;
+  return {
+    ...user,
+    // ✅ Backend returns _id for mongoose docs, id for safeUser() output
+    // Ensure both are always present
+    id: user.id || user._id,
+    _id: user._id || user.id,
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const raw = localStorage.getItem("qc-user");
-      return raw ? JSON.parse(raw) : null;
+      return raw ? normalizeUser(JSON.parse(raw)) : null;
     } catch { return null; }
   });
   const [token, setToken] = useState(() => localStorage.getItem("qc-token") || null);
 
   const _persist = (data) => {
-    setUser(data.user);
+    const normalized = normalizeUser(data.user);
+    setUser(normalized);
     setToken(data.token);
-    localStorage.setItem("qc-user",  JSON.stringify(data.user));
+    localStorage.setItem("qc-user",  JSON.stringify(normalized));
     localStorage.setItem("qc-token", data.token);
   };
 
@@ -37,28 +50,16 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  /**
-   * logout — always clears local state.
-   * Also calls the server endpoint to invalidate the refresh-token cookie.
-   * Fire-and-forget: even if the server call fails we clear locally.
-   */
   const logout = useCallback(async () => {
-    // Best-effort server-side invalidation (clears the httpOnly cookie)
     api.post("/auth/logout").catch(() => {});
-
     setUser(null);
     setToken(null);
     localStorage.removeItem("qc-token");
     localStorage.removeItem("qc-user");
   }, []);
 
-  /**
-   * logoutAll — invalidates ALL sessions for this user on the server.
-   * Requires a valid access token, so call while the user is still logged in.
-   */
   const logoutAll = useCallback(async () => {
     await api.post("/auth/logout-all").catch(() => {});
-
     setUser(null);
     setToken(null);
     localStorage.removeItem("qc-token");
@@ -68,14 +69,14 @@ export function AuthProvider({ children }) {
   const updateUser = useCallback((updates) => {
     if (!updates) return;
     const isFullObject = updates._id || updates.id;
-    const updated = isFullObject
+    const merged = isFullObject
       ? { ...updates }
       : { ...(user || {}), ...updates };
-    setUser(updated);
-    localStorage.setItem("qc-user", JSON.stringify(updated));
+    const normalized = normalizeUser(merged);
+    setUser(normalized);
+    localStorage.setItem("qc-user", JSON.stringify(normalized));
   }, [user]);
 
-  // Called by OAuthCallback after parsing token from URL hash
   const setTokenExternal = useCallback((t) => {
     if (!t) return;
     setToken(t);

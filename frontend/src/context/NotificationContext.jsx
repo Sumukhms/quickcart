@@ -1,17 +1,8 @@
 /**
- * NotificationContext.jsx
+ * NotificationContext.jsx — FIXED
  *
- * Provides notification state + actions to the whole app.
- *
- * Responsibilities:
- *   1. Loads existing notifications on mount (REST API)
- *   2. Listens to Socket.IO "notification" events → prepend to list
- *   3. Shows a toast for every incoming real-time notification
- *   4. Exposes markRead / markAllRead / deleteNotification actions
- *   5. Joins "user_<userId>" socket room so the backend can target us
- *
- * Usage:
- *   const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+ * Fix: user?.id vs user?._id — both are now normalized in AuthContext,
+ * but this adds a fallback chain to handle both safely.
  */
 import {
   createContext,
@@ -23,12 +14,11 @@ import {
 } from "react";
 import { useAuth }   from "./AuthContext";
 import { useSocket } from "./SocketContext";
-import { useCart }   from "./CartContext";   // for addToast
+import { useCart }   from "./CartContext";
 import api           from "../api/api";
 
 const NotificationContext = createContext(null);
 
-// ── Type → emoji mapping for toasts ──────────────────────────
 const TYPE_EMOJI = {
   order:    "📦",
   payment:  "💳",
@@ -46,7 +36,6 @@ export function NotificationProvider({ children }) {
   const [loading,       setLoading]       = useState(false);
   const mountedRef = useRef(true);
 
-  // ── Fetch initial notifications ───────────────────────────
   const fetchNotifications = useCallback(async () => {
     if (!isLoggedIn) return;
     setLoading(true);
@@ -72,26 +61,23 @@ export function NotificationProvider({ children }) {
     return () => { mountedRef.current = false; };
   }, [isLoggedIn, fetchNotifications]);
 
-  // ── Join user-specific socket room ────────────────────────
-  // Backend emits to "user_<userId>" room
+  // ✅ FIX: use normalized user ID (both id and _id are set in AuthContext)
   useEffect(() => {
-    if (!isLoggedIn || !user?.id) return;
+    if (!isLoggedIn || !user) return;
+    // AuthContext normalizes both user.id and user._id
     const userId = user.id || user._id;
-    if (userId) emit("join_user_room", userId.toString());
+    if (userId) {
+      emit("join_user_room", String(userId));
+    }
   }, [isLoggedIn, user, emit]);
 
-  // ── Listen for incoming real-time notifications ───────────
   useEffect(() => {
     if (!isLoggedIn) return;
 
     const unsub = on("notification", (notif) => {
       if (!mountedRef.current) return;
-
-      // Prepend to list
       setNotifications((prev) => [notif, ...prev.slice(0, 49)]);
       setUnreadCount((c) => c + 1);
-
-      // Show toast
       const emoji = TYPE_EMOJI[notif.type] || "🔔";
       addToast(`${emoji} ${notif.title}`, notif.type === "order" ? "info" : "success");
     });
@@ -99,9 +85,7 @@ export function NotificationProvider({ children }) {
     return () => { if (typeof unsub === "function") unsub(); };
   }, [isLoggedIn, on, addToast]);
 
-  // ── Mark single as read ───────────────────────────────────
   const markRead = useCallback(async (id) => {
-    // Optimistic update
     setNotifications((prev) =>
       prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)),
     );
@@ -110,7 +94,6 @@ export function NotificationProvider({ children }) {
     try {
       await api.patch(`/notifications/${id}/read`);
     } catch {
-      // revert on failure
       setNotifications((prev) =>
         prev.map((n) => (n._id === id ? { ...n, isRead: false } : n)),
       );
@@ -118,18 +101,16 @@ export function NotificationProvider({ children }) {
     }
   }, []);
 
-  // ── Mark all as read ──────────────────────────────────────
   const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
     try {
       await api.patch("/notifications/read-all");
     } catch {
-      fetchNotifications(); // revert via re-fetch
+      fetchNotifications();
     }
   }, [fetchNotifications]);
 
-  // ── Delete notification ───────────────────────────────────
   const deleteNotification = useCallback(async (id) => {
     const removed = notifications.find((n) => n._id === id);
     setNotifications((prev) => prev.filter((n) => n._id !== id));

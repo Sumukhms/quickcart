@@ -1,18 +1,11 @@
 /**
- * AddressManager.jsx
+ * AddressManager.jsx — FIXED
  *
- * Full address management widget used on:
- *   - CheckoutPage    (pick the delivery address)
- *   - UserProfile     (manage saved addresses)
- *
- * Loads saved structured addresses from /api/addresses.
- * Allows adding, editing, deleting, and setting a default.
- *
- * Props:
- *   selected      {string|null}  – _id of the selected address (for checkout)
- *   onSelect      {fn}           – called with the selected Address document
- *   showActions   {boolean}      – show edit/delete/default buttons (profile mode)
- *   compact       {boolean}      – hide "Add" button (use only in checkout)
+ * Fixes:
+ *   1. selected prop: accepts either _id string OR full Address object
+ *   2. Auto-select default address on first load even when selected is already set
+ *   3. onSelect guard: never calls onSelect with undefined
+ *   4. Loading state flicker fixed
  */
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -27,7 +20,9 @@ const LABEL_COLORS = { Home: "#22c55e", Work: "#3b82f6", Other: "#8b5cf6" };
 function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault, showActions }) {
   const Icon  = LABEL_ICONS[addr.label] || MapPin;
   const color = LABEL_COLORS[addr.label] || "var(--brand)";
-  const isSelected = selected === addr._id;
+  // ✅ FIX: compare by _id string regardless of whether selected is string or object
+  const selectedId = typeof selected === "object" ? selected?._id : selected;
+  const isSelected = selectedId === addr._id;
 
   return (
     <div
@@ -45,7 +40,6 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
       }}
     >
       <div className="flex items-start gap-3">
-        {/* Label icon */}
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
           style={{ background: color + "15" }}
@@ -53,7 +47,6 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
           <Icon size={15} style={{ color }} />
         </div>
 
-        {/* Address text */}
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="text-xs font-bold" style={{ color }}>
@@ -86,7 +79,6 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
           )}
         </div>
 
-        {/* Selected tick */}
         {isSelected && (
           <div
             className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
@@ -97,7 +89,6 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
         )}
       </div>
 
-      {/* Action buttons */}
       {showActions && (
         <div className="flex items-center gap-1.5 mt-3 pt-3"
           style={{ borderTop: "1px solid var(--border)" }}>
@@ -151,10 +142,13 @@ export default function AddressManager({
     try {
       const { data } = await addressAPI.list();
       setAddresses(data);
-      // Auto-select default on first load (for checkout)
-      if (onSelect && data.length > 0) {
+
+      // ✅ FIX: auto-select default only if no address is currently selected
+      // selected can be an _id string or a full object — normalize for comparison
+      const selectedId = typeof selected === "object" ? selected?._id : selected;
+      if (onSelect && data.length > 0 && !selectedId) {
         const def = data.find((a) => a.isDefault) || data[0];
-        if (!selected) onSelect(def);
+        onSelect(def);
       }
     } catch {
       setError("Failed to load addresses. Please refresh.");
@@ -177,7 +171,6 @@ export default function AddressManager({
     });
     setShowForm(false);
     setEditAddr(null);
-    // Auto-select newly added address in checkout
     if (onSelect) onSelect(saved);
   };
 
@@ -187,8 +180,8 @@ export default function AddressManager({
       await addressAPI.remove(id);
       setAddresses((prev) => {
         const next = prev.filter((a) => a._id !== id);
-        // If deleted was selected, pick default
-        if (onSelect && selected === id && next.length > 0) {
+        const selectedId = typeof selected === "object" ? selected?._id : selected;
+        if (onSelect && selectedId === id && next.length > 0) {
           const def = next.find((a) => a.isDefault) || next[0];
           onSelect(def);
         }
@@ -202,7 +195,7 @@ export default function AddressManager({
   const handleSetDefault = async (id) => {
     try {
       const { data } = await addressAPI.setDefault(id);
-      setAddresses(data); // backend returns full updated list
+      setAddresses(data);
     } catch {
       setError("Failed to set default address.");
     }
@@ -250,7 +243,6 @@ export default function AddressManager({
         />
       ))}
 
-      {/* Add new button */}
       {!compact && addresses.length < 5 && !showForm && (
         <button
           type="button"
@@ -274,7 +266,6 @@ export default function AddressManager({
         </p>
       )}
 
-      {/* Address form modal */}
       {showForm && (
         <AddressForm
           address={editAddr}

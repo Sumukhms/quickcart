@@ -9,6 +9,7 @@
  *   3. Stock is temporarily "reserved" pattern: validate → charge → decrement
  *   4. Better error messages surfaced to frontend
  */
+import mongoose from "mongoose";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import Order from "../models/Order.js";
@@ -351,7 +352,10 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
     let resolvedLat = orderData.deliveryLat ?? null;
     let resolvedLng = orderData.deliveryLng ?? null;
 
-    if (orderData.addressId) {
+    if (
+      orderData.addressId &&
+      mongoose.Types.ObjectId.isValid(orderData.addressId)
+    ) {
       const addrDoc = await Address.findOne({
         _id: orderData.addressId,
         userId: req.user.userId,
@@ -370,8 +374,8 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
       totalPrice: computed.total,
       deliveryFee: computed.deliveryFee,
       deliveryAddress: resolvedDeliveryAddress,
-      deliveryLat:    resolvedLat,
-      deliveryLng:    resolvedLng,
+      deliveryLat: resolvedLat,
+      deliveryLng: resolvedLng,
       paymentMethod: paymentMethod || "online",
       notes,
       paymentStatus: "paid",

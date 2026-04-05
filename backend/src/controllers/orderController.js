@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
 import Store from "../models/Store.js";
@@ -140,7 +141,10 @@ export const placeOrder = async (req, res) => {
     let resolvedLat = req.body.deliveryLat ?? null;
     let resolvedLng = req.body.deliveryLng ?? null;
 
-    if (req.body.addressId) {
+    if (
+      req.body.addressId &&
+      mongoose.Types.ObjectId.isValid(req.body.addressId)
+    ) {
       const addrDoc = await Address.findOne({
         _id: req.body.addressId,
         userId: req.user.userId,

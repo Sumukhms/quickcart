@@ -1,9 +1,22 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  User, Mail, Phone, MapPin, Edit3, Save, X,
-  Package, Star, ChevronRight, LogOut, Heart, Trash2,
-  Truck, Store as StoreIcon, BarChart3,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Edit3,
+  Save,
+  X,
+  Package,
+  Star,
+  ChevronRight,
+  LogOut,
+  Heart,
+  Trash2,
+  Truck,
+  Store as StoreIcon,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -12,25 +25,49 @@ import DeleteAccountModal from "../../components/ui/DeleteAccountModal";
 import api from "../../api/api";
 
 const STATUS_CONFIG = {
-  pending:          { label: "Pending",    color: "#f59e0b" },
-  confirmed:        { label: "Confirmed",  color: "#3b82f6" },
-  preparing:        { label: "Preparing",  color: "#8b5cf6" },
-  ready_for_pickup: { label: "Ready",      color: "#f97316" },
+  pending: { label: "Pending", color: "#f59e0b" },
+  confirmed: { label: "Confirmed", color: "#3b82f6" },
+  preparing: { label: "Preparing", color: "#8b5cf6" },
+  ready_for_pickup: { label: "Ready", color: "#f97316" },
   out_for_delivery: { label: "On the way", color: "#f97316" },
-  delivered:        { label: "Delivered",  color: "#22c55e" },
-  cancelled:        { label: "Cancelled",  color: "#ef4444" },
+  delivered: { label: "Delivered", color: "#22c55e" },
+  cancelled: { label: "Cancelled", color: "#ef4444" },
 };
 
 const CAT_EMOJIS = {
-  Groceries: "🛒", Food: "🍛", Snacks: "🍿",
-  Beverages: "🧃", Medicines: "💊", Other: "🏪",
+  Groceries: "🛒",
+  Food: "🍛",
+  Snacks: "🍿",
+  Beverages: "🧃",
+  Medicines: "💊",
+  Other: "🏪",
 };
 
 const ROLE_META = {
-  customer: { label: "Customer",          color: "#22c55e", bg: "rgba(34,197,94,0.12)",  icon: User },
-  store:    { label: "Store Owner",       color: "#3b82f6", bg: "rgba(59,130,246,0.12)", icon: StoreIcon },
-  delivery: { label: "Delivery Partner",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)", icon: Truck },
-  admin:    { label: "Admin",             color: "#8b5cf6", bg: "rgba(139,92,246,0.12)", icon: User },
+  customer: {
+    label: "Customer",
+    color: "#22c55e",
+    bg: "rgba(34,197,94,0.12)",
+    icon: User,
+  },
+  store: {
+    label: "Store Owner",
+    color: "#3b82f6",
+    bg: "rgba(59,130,246,0.12)",
+    icon: StoreIcon,
+  },
+  delivery: {
+    label: "Delivery Partner",
+    color: "#f59e0b",
+    bg: "rgba(245,158,11,0.12)",
+    icon: Truck,
+  },
+  admin: {
+    label: "Admin",
+    color: "#8b5cf6",
+    bg: "rgba(139,92,246,0.12)",
+    icon: User,
+  },
 };
 
 /* ── Sanitise phone: digits only, max 10 ─────────────────── */
@@ -40,21 +77,21 @@ function sanitizePhone(val) {
 
 export default function UserProfile() {
   const { user, logout, updateUser } = useAuth();
-  const { addToast, clearCart }      = useCart();
+  const { addToast, clearCart } = useCart();
   const { favorites, toggleFavorite } = useFavorites();
   const navigate = useNavigate();
 
-  const [editing,         setEditing]         = useState(false);
-  const [saving,          setSaving]          = useState(false);
-  const [recentOrders,    setRecentOrders]    = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [recentOrders, setRecentOrders] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
   useEffect(() => {
     if (user) {
       setForm({
-        name:    user.name    || "",
-        phone:   user.phone   || "",
+        name: user.name || "",
+        phone: (user.phone || "").replace(/\D/g, ""),
         address: user.address || "",
       });
     }
@@ -71,48 +108,107 @@ export default function UserProfile() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { addToast("Name cannot be empty", "error"); return; }
-    if (form.phone && form.phone.replace(/\D/g, "").length !== 10 && form.phone.trim() !== "") {
-      addToast("Phone number must be 10 digits", "error");
+    if (!form.name.trim()) {
+      addToast("Name cannot be empty", "error");
+      return;
+    }
+    if (form.phone && form.phone.replace(/\D/g, "").length !== 10) {
+      addToast("Phone number must be exactly 10 digits", "error");
       return;
     }
     setSaving(true);
     try {
-      await api.put("/auth/profile", form);
-      updateUser(form);
+      const payload = {
+        name: form.name.trim(),
+        address: form.address?.trim() || "",
+      };
+      if (form.phone.trim()) {
+        payload.phone = form.phone.replace(/\D/g, "");
+      }
+      await api.put("/auth/profile", payload);
+      updateUser(payload);
       addToast("Profile updated! ✓", "success");
       setEditing(false);
-    } catch {
-      addToast("Failed to update profile", "error");
-    } finally { setSaving(false); }
+    } catch (err) {
+      addToast(
+        err.response?.data?.message || "Failed to update profile",
+        "error",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogout = () => {
-    logout(); clearCart();
+    logout();
+    clearCart();
     addToast("Signed out successfully", "info");
     navigate("/login");
   };
 
   const handleAccountDeleted = () => {
-    logout(); clearCart();
+    logout();
+    clearCart();
     addToast("Your account has been permanently deleted.", "info");
     navigate("/login");
   };
 
-  const initials  = user?.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "U";
-  const roleMeta  = ROLE_META[user?.role] || ROLE_META.customer;
+  const initials =
+    user?.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "U";
+  const roleMeta = ROLE_META[user?.role] || ROLE_META.customer;
 
   // Role-specific quick links
   const roleLinks = {
     store: [
-      { icon: StoreIcon, label: "Store Dashboard",  sub: "Manage your store",      to: "/store/dashboard",  color: "#3b82f6" },
-      { icon: Package,   label: "Store Orders",      sub: "View incoming orders",   to: "/store/orders",     color: "var(--brand)" },
-      { icon: BarChart3, label: "Inventory",          sub: "Manage stock levels",   to: "/store/inventory",  color: "#22c55e" },
+      {
+        icon: StoreIcon,
+        label: "Store Dashboard",
+        sub: "Manage your store",
+        to: "/store/dashboard",
+        color: "#3b82f6",
+      },
+      {
+        icon: Package,
+        label: "Store Orders",
+        sub: "View incoming orders",
+        to: "/store/orders",
+        color: "var(--brand)",
+      },
+      {
+        icon: BarChart3,
+        label: "Inventory",
+        sub: "Manage stock levels",
+        to: "/store/inventory",
+        color: "#22c55e",
+      },
     ],
     delivery: [
-      { icon: Truck,   label: "Delivery Dashboard", sub: "Find available orders",  to: "/delivery/dashboard", color: "#f59e0b" },
-      { icon: MapPin,  label: "Active Delivery",     sub: "Current delivery",       to: "/delivery/active",    color: "var(--brand)" },
-      { icon: Package, label: "Delivery History",    sub: "Past deliveries",        to: "/delivery/history",   color: "#22c55e" },
+      {
+        icon: Truck,
+        label: "Delivery Dashboard",
+        sub: "Find available orders",
+        to: "/delivery/dashboard",
+        color: "#f59e0b",
+      },
+      {
+        icon: MapPin,
+        label: "Active Delivery",
+        sub: "Current delivery",
+        to: "/delivery/active",
+        color: "var(--brand)",
+      },
+      {
+        icon: Package,
+        label: "Delivery History",
+        sub: "Past deliveries",
+        to: "/delivery/history",
+        color: "#22c55e",
+      },
     ],
     customer: [],
     admin: [],
@@ -121,23 +217,32 @@ export default function UserProfile() {
   const extraLinks = roleLinks[user?.role] || [];
 
   return (
-    <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
-
+    <div
+      className="min-h-screen page-enter"
+      style={{ backgroundColor: "var(--bg)" }}
+    >
       {/* ── Hero header ── */}
       <div
         className="relative overflow-hidden"
         style={{
-          background: "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)",
+          background:
+            "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)",
           paddingBottom: "2rem",
         }}
       >
         <div
           className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-25 pointer-events-none"
-          style={{ background: "radial-gradient(circle, var(--brand), transparent)", transform: "translate(35%, -35%)" }}
+          style={{
+            background: "radial-gradient(circle, var(--brand), transparent)",
+            transform: "translate(35%, -35%)",
+          }}
         />
         <div
           className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-10 pointer-events-none"
-          style={{ background: "radial-gradient(circle, #ff8c5a, transparent)", transform: "translate(-30%, 30%)" }}
+          style={{
+            background: "radial-gradient(circle, #ff8c5a, transparent)",
+            transform: "translate(-30%, 30%)",
+          }}
         />
 
         <div className="max-w-2xl mx-auto px-4 pt-6 pb-4">
@@ -160,7 +265,7 @@ export default function UserProfile() {
                 <input
                   className="input-theme text-xl font-bold mb-2 py-2"
                   value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
                   style={{
                     maxWidth: 260,
                     background: "rgba(255,255,255,0.1)",
@@ -169,7 +274,9 @@ export default function UserProfile() {
                   }}
                 />
               ) : (
-                <h1 className="font-display font-bold text-2xl text-white mb-1">{user?.name}</h1>
+                <h1 className="font-display font-bold text-2xl text-white mb-1">
+                  {user?.name}
+                </h1>
               )}
               <div className="flex items-center gap-2 flex-wrap">
                 <span
@@ -179,7 +286,10 @@ export default function UserProfile() {
                   {roleMeta.label}
                 </span>
                 {user?.isEmailVerified && (
-                  <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  <span
+                    className="flex items-center gap-1 text-xs"
+                    style={{ color: "rgba(255,255,255,0.5)" }}
+                  >
                     ✓ Verified
                   </span>
                 )}
@@ -192,10 +302,17 @@ export default function UserProfile() {
                   <button
                     onClick={() => {
                       setEditing(false);
-                      setForm({ name: user.name || "", phone: user.phone || "", address: user.address || "" });
+                      setForm({
+                        name: user.name || "",
+                        phone: user.phone || "",
+                        address: user.address || "",
+                      });
                     }}
                     className="p-2.5 rounded-xl text-white/50 hover:text-white transition-colors"
-                    style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                    }}
                   >
                     <X size={15} />
                   </button>
@@ -205,16 +322,24 @@ export default function UserProfile() {
                     className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
                     style={{ background: "var(--brand)", color: "white" }}
                   >
-                    {saving
-                      ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      : <><Save size={13} /> Save</>}
+                    {saving ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Save size={13} /> Save
+                      </>
+                    )}
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => setEditing(true)}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
-                  style={{ background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }}
+                  style={{
+                    background: "rgba(255,255,255,0.1)",
+                    color: "white",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                  }}
                 >
                   <Edit3 size={13} /> Edit
                 </button>
@@ -226,30 +351,61 @@ export default function UserProfile() {
 
       {/* ── Page body ── */}
       <div className="max-w-2xl mx-auto px-4 py-5 pb-20 space-y-4">
-
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Package, label: "Orders",  value: recentOrders.length || "–", color: "var(--brand)" },
-            { icon: Star,    label: "Reviews", value: "–",                         color: "#f59e0b" },
-            { icon: Heart,   label: "Saved",   value: favorites.length,            color: "#ef4444" },
+            {
+              icon: Package,
+              label: "Orders",
+              value: recentOrders.length || "–",
+              color: "var(--brand)",
+            },
+            { icon: Star, label: "Reviews", value: "–", color: "#f59e0b" },
+            {
+              icon: Heart,
+              label: "Saved",
+              value: favorites.length,
+              color: "#ef4444",
+            },
           ].map(({ icon: Icon, label, value, color }) => (
             <div
               key={label}
               className="rounded-2xl p-4 text-center transition-all hover:-translate-y-1"
-              style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+              style={{
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
+              }}
             >
               <Icon size={18} className="mx-auto mb-2" style={{ color }} />
-              <p className="font-display font-bold text-xl" style={{ color: "var(--text-primary)" }}>{value}</p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
+              <p
+                className="font-display font-bold text-xl"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {value}
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {label}
+              </p>
             </div>
           ))}
         </div>
 
         {/* Contact Info */}
-        <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-            <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+        <div
+          className="rounded-3xl overflow-hidden"
+          style={{
+            backgroundColor: "var(--card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <div
+            className="px-5 py-4"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <h2
+              className="font-bold text-xs uppercase tracking-widest"
+              style={{ color: "var(--text-muted)" }}
+            >
               Contact Information
             </h2>
           </div>
@@ -263,14 +419,29 @@ export default function UserProfile() {
               <Mail size={14} style={{ color: "var(--brand)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-muted)" }}>Email</p>
-              <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{user?.email}</p>
+              <p
+                className="text-xs font-semibold uppercase tracking-wider mb-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Email
+              </p>
+              <p
+                className="text-sm font-medium truncate"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {user?.email}
+              </p>
             </div>
-            <span className="tag tag-green text-[10px] flex-shrink-0">Verified</span>
+            <span className="tag tag-green text-[10px] flex-shrink-0">
+              Verified
+            </span>
           </div>
 
           {/* Phone */}
-          <div className="flex items-center gap-4 px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <div
+            className="flex items-center gap-4 px-5 py-4"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(255,107,53,0.1)" }}
@@ -278,7 +449,12 @@ export default function UserProfile() {
               <Phone size={14} style={{ color: "var(--brand)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>Phone</p>
+              <p
+                className="text-xs font-semibold uppercase tracking-wider mb-1"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Phone
+              </p>
               {editing ? (
                 <div>
                   <input
@@ -287,14 +463,26 @@ export default function UserProfile() {
                     inputMode="numeric"
                     maxLength={10}
                     value={form.phone}
-                    onChange={e => setForm({ ...form, phone: sanitizePhone(e.target.value) })}
+                    onChange={(e) =>
+                      setForm({ ...form, phone: sanitizePhone(e.target.value) })
+                    }
                   />
-                  <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
+                  <p
+                    className="text-[10px] mt-1"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     {form.phone.length}/10 digits
                   </p>
                 </div>
               ) : (
-                <p className="text-sm font-medium" style={{ color: form.phone ? "var(--text-primary)" : "var(--text-muted)" }}>
+                <p
+                  className="text-sm font-medium"
+                  style={{
+                    color: form.phone
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                  }}
+                >
                   {form.phone || "Add phone number"}
                 </p>
               )}
@@ -302,7 +490,10 @@ export default function UserProfile() {
           </div>
 
           {/* Address */}
-          <div className="flex items-start gap-4 px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <div
+            className="flex items-start gap-4 px-5 py-4"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
               style={{ background: "rgba(255,107,53,0.1)" }}
@@ -310,7 +501,10 @@ export default function UserProfile() {
               <MapPin size={14} style={{ color: "var(--brand)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
+              <p
+                className="text-xs font-semibold uppercase tracking-wider mb-1"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Default Address
               </p>
               {editing ? (
@@ -319,10 +513,19 @@ export default function UserProfile() {
                   rows={2}
                   placeholder="Your delivery address"
                   value={form.address}
-                  onChange={e => setForm({ ...form, address: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, address: e.target.value })
+                  }
                 />
               ) : (
-                <p className="text-sm font-medium" style={{ color: form.address ? "var(--text-primary)" : "var(--text-muted)" }}>
+                <p
+                  className="text-sm font-medium"
+                  style={{
+                    color: form.address
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                  }}
+                >
                   {form.address || "Add delivery address"}
                 </p>
               )}
@@ -332,9 +535,21 @@ export default function UserProfile() {
 
         {/* Role-specific quick links */}
         {extraLinks.length > 0 && (
-          <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-              <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="px-5 py-4"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
+              <h2
+                className="font-bold text-xs uppercase tracking-widest"
+                style={{ color: "var(--text-muted)" }}
+              >
                 {user?.role === "store" ? "Store Management" : "Delivery Tools"}
               </h2>
             </div>
@@ -343,9 +558,15 @@ export default function UserProfile() {
                 key={to}
                 to={to}
                 className="flex items-center gap-4 px-5 py-4 transition-colors"
-                style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "var(--hover)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                style={{
+                  borderTop: i > 0 ? "1px solid var(--border)" : "none",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "var(--hover)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
               >
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -354,10 +575,20 @@ export default function UserProfile() {
                   <Icon size={17} style={{ color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{label}</p>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>
+                  <p
+                    className="font-semibold text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {label}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    {sub}
+                  </p>
                 </div>
-                <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
+                <ChevronRight
+                  size={15}
+                  style={{ color: "var(--text-muted)" }}
+                />
               </Link>
             ))}
           </div>
@@ -365,8 +596,17 @@ export default function UserProfile() {
 
         {/* Saved Stores — only for customers */}
         {user?.role === "customer" && favorites.length > 0 && (
-          <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
               <h2
                 className="font-bold text-xs uppercase tracking-widest flex items-center gap-2"
                 style={{ color: "var(--text-muted)" }}
@@ -384,9 +624,14 @@ export default function UserProfile() {
               <div
                 key={store._id}
                 className="flex items-center gap-4 px-5 py-4 group"
-                style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
+                style={{
+                  borderTop: i > 0 ? "1px solid var(--border)" : "none",
+                }}
               >
-                <Link to={`/user/store/${store._id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                <Link
+                  to={`/user/store/${store._id}`}
+                  className="flex items-center gap-4 flex-1 min-w-0"
+                >
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
                     style={{ background: "var(--elevated)" }}
@@ -394,20 +639,36 @@ export default function UserProfile() {
                     {CAT_EMOJIS[store.category] || "🏪"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{store.name}</p>
-                    <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400" : "bg-red-400"}`} />
+                    <p
+                      className="font-semibold text-sm truncate"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {store.name}
+                    </p>
+                    <div
+                      className="flex items-center gap-2 text-xs mt-0.5"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${store.isOpen ? "bg-green-400" : "bg-red-400"}`}
+                      />
                       {store.isOpen ? "Open" : "Closed"} · {store.deliveryTime}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: "#f59e0b" }}>
+                  <div
+                    className="flex items-center gap-1 text-xs flex-shrink-0"
+                    style={{ color: "#f59e0b" }}
+                  >
                     ⭐ {store.rating?.toFixed(1) || "4.5"}
                   </div>
                 </Link>
                 <button
                   onClick={() => toggleFavorite(store._id)}
                   className="p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
-                  style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }}
+                  style={{
+                    color: "#ef4444",
+                    background: "rgba(239,68,68,0.08)",
+                  }}
                   title="Remove from saved"
                 >
                   <Heart size={14} fill="#ef4444" stroke="#ef4444" />
@@ -419,12 +680,28 @@ export default function UserProfile() {
 
         {/* Recent Orders */}
         {recentOrders.length > 0 && (
-          <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-              <h2 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
+              <h2
+                className="font-bold text-xs uppercase tracking-widest"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Recent Orders
               </h2>
-              <Link to="/user/orders" className="text-xs font-semibold" style={{ color: "var(--brand)" }}>
+              <Link
+                to="/user/orders"
+                className="text-xs font-semibold"
+                style={{ color: "var(--brand)" }}
+              >
                 View all →
               </Link>
             </div>
@@ -435,9 +712,15 @@ export default function UserProfile() {
                   key={order._id}
                   to={`/user/orders/${order._id}`}
                   className="flex items-center gap-4 px-5 py-4 transition-colors"
-                  style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "var(--hover)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  style={{
+                    borderTop: i > 0 ? "1px solid var(--border)" : "none",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "var(--hover)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
@@ -446,12 +729,21 @@ export default function UserProfile() {
                     🛍️
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
+                    <p
+                      className="font-semibold text-sm truncate"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {order.storeId?.name || "Store"}
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                      {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
-                      ₹{order.totalPrice}
+                    <p
+                      className="text-xs mt-0.5"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                      })}{" "}
+                      · ₹{order.totalPrice}
                     </p>
                   </div>
                   <span
@@ -460,7 +752,10 @@ export default function UserProfile() {
                   >
                     {sc.label}
                   </span>
-                  <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />
+                  <ChevronRight
+                    size={14}
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 </Link>
               );
             })}
@@ -468,21 +763,44 @@ export default function UserProfile() {
         )}
 
         {/* Standard quick links */}
-        <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}>
+        <div
+          className="rounded-3xl overflow-hidden"
+          style={{
+            backgroundColor: "var(--card)",
+            border: "1px solid var(--border)",
+          }}
+        >
           {[
-            { icon: Package, label: "My Orders",    sub: "Track and manage orders",    to: "/user/orders", color: "var(--brand)" },
+            {
+              icon: Package,
+              label: "My Orders",
+              sub: "Track and manage orders",
+              to: "/user/orders",
+              color: "var(--brand)",
+            },
             ...(user?.role === "customer"
-              ? [{ icon: Heart, label: "Saved Stores", sub: `${favorites.length} stores saved`, to: "/user/home", color: "#ef4444" }]
-              : []
-            ),
+              ? [
+                  {
+                    icon: Heart,
+                    label: "Saved Stores",
+                    sub: `${favorites.length} stores saved`,
+                    to: "/user/home",
+                    color: "#ef4444",
+                  },
+                ]
+              : []),
           ].map(({ icon: Icon, label, sub, to, color }, i) => (
             <Link
               key={to}
               to={to}
               className="flex items-center gap-4 px-5 py-4 transition-colors"
               style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--hover)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--hover)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
             >
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -491,8 +809,15 @@ export default function UserProfile() {
                 <Icon size={17} style={{ color }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{label}</p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>
+                <p
+                  className="font-semibold text-sm"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {label}
+                </p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {sub}
+                </p>
               </div>
               <ChevronRight size={15} style={{ color: "var(--text-muted)" }} />
             </Link>
@@ -503,7 +828,11 @@ export default function UserProfile() {
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm transition-all hover:scale-[1.01]"
-          style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1.5px solid rgba(239,68,68,0.18)" }}
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            color: "#ef4444",
+            border: "1.5px solid rgba(239,68,68,0.18)",
+          }}
         >
           <LogOut size={16} /> Sign Out
         </button>
@@ -511,9 +840,15 @@ export default function UserProfile() {
         {/* Danger Zone */}
         <div
           className="rounded-3xl overflow-hidden"
-          style={{ border: "1px solid rgba(239,68,68,0.2)", backgroundColor: "var(--card)" }}
+          style={{
+            border: "1px solid rgba(239,68,68,0.2)",
+            backgroundColor: "var(--card)",
+          }}
         >
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid rgba(239,68,68,0.15)" }}>
+          <div
+            className="px-5 py-4"
+            style={{ borderBottom: "1px solid rgba(239,68,68,0.15)" }}
+          >
             <h2
               className="font-bold text-xs uppercase tracking-widest flex items-center gap-2"
               style={{ color: "#ef4444" }}
@@ -524,15 +859,28 @@ export default function UserProfile() {
           <div className="px-5 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>Delete Account</p>
-                <p className="text-xs mt-0.5 max-w-xs" style={{ color: "var(--text-muted)" }}>
-                  Permanently remove your account, order history, and all personal data. This cannot be undone.
+                <p
+                  className="font-semibold text-sm"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Delete Account
+                </p>
+                <p
+                  className="text-xs mt-0.5 max-w-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Permanently remove your account, order history, and all
+                  personal data. This cannot be undone.
                 </p>
               </div>
               <button
                 onClick={() => setShowDeleteModal(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold flex-shrink-0 transition-all hover:scale-105"
-                style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}
+                style={{
+                  background: "rgba(239,68,68,0.1)",
+                  color: "#ef4444",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                }}
               >
                 <Trash2 size={13} /> Delete
               </button>
