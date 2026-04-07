@@ -5,11 +5,12 @@ import { useState } from "react";
 import { Plus, Minus, ShoppingCart, Leaf, Flame } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { OutOfStockOverlay } from "../ui/StockBadge";
+import LazyImage from "../ui/LazyImage";
 
 const SPICE_CONFIG = {
-  mild:   { label: "Mild",   color: "#22c55e", emoji: "🟢" },
+  mild: { label: "Mild", color: "#22c55e", emoji: "🟢" },
   medium: { label: "Medium", color: "#f59e0b", emoji: "🟡" },
-  hot:    { label: "Hot",    color: "#ef4444", emoji: "🔴" },
+  hot: { label: "Hot", color: "#ef4444", emoji: "🔴" },
 };
 
 export default function ProductCard({ product, store, isFood = false }) {
@@ -18,14 +19,16 @@ export default function ProductCard({ product, store, isFood = false }) {
   const [justAdded, setJustAdded] = useState(false);
 
   const isOutOfStock = !product.available || product.stock === 0;
-  const isLowStock   = product.available && product.stock > 0 && product.stock <= 10;
+  const isLowStock =
+    product.available && product.stock > 0 && product.stock <= 10;
 
-  const discount = product.originalPrice && product.originalPrice > product.price
-    ? Math.round((1 - product.price / product.originalPrice) * 100)
-    : null;
+  const discount =
+    product.originalPrice && product.originalPrice > product.price
+      ? Math.round((1 - product.price / product.originalPrice) * 100)
+      : null;
 
   const inCart = cartItems.find((i) => i._id === product._id);
-  const spice  = product.spiceLevel ? SPICE_CONFIG[product.spiceLevel] : null;
+  const spice = product.spiceLevel ? SPICE_CONFIG[product.spiceLevel] : null;
 
   const handleAdd = async () => {
     if (isOutOfStock) return;
@@ -47,7 +50,9 @@ export default function ProductCard({ product, store, isFood = false }) {
         borderRadius: "18px",
         transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
         opacity: isOutOfStock ? 0.65 : 1,
-        boxShadow: inCart ? "0 0 0 1px rgba(255,107,53,0.15), 0 8px 20px rgba(255,107,53,0.1)" : "none",
+        boxShadow: inCart
+          ? "0 0 0 1px rgba(255,107,53,0.15), 0 8px 20px rgba(255,107,53,0.1)"
+          : "none",
       }}
       onMouseEnter={(e) => {
         if (!isOutOfStock) {
@@ -59,17 +64,22 @@ export default function ProductCard({ product, store, isFood = false }) {
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = inCart ? "0 0 0 1px rgba(255,107,53,0.15), 0 8px 20px rgba(255,107,53,0.1)" : "none";
+        e.currentTarget.style.boxShadow = inCart
+          ? "0 0 0 1px rgba(255,107,53,0.15), 0 8px 20px rgba(255,107,53,0.1)"
+          : "none";
       }}
     >
       {/* Image area */}
-      <div className="relative h-36 overflow-hidden" style={{ background: "var(--elevated)" }}>
+      <div
+        className="relative h-36 overflow-hidden"
+        style={{ background: "var(--elevated)" }}
+      >
         {product.image ? (
-          <img
+          <LazyImage
             src={product.image}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-            onError={(e) => { e.target.style.display = "none"; }}
+            fallback={isFood ? "🍽️" : "🛍️"}
           />
         ) : (
           <div
@@ -110,7 +120,11 @@ export default function ProductCard({ product, store, isFood = false }) {
         {isLowStock && (
           <div
             className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-lg"
-            style={{ background: "rgba(245,158,11,0.9)", color: "white", backdropFilter: "blur(4px)" }}
+            style={{
+              background: "rgba(245,158,11,0.9)",
+              color: "white",
+              backdropFilter: "blur(4px)",
+            }}
           >
             ⚡ {product.stock} left
           </div>
@@ -120,14 +134,21 @@ export default function ProductCard({ product, store, isFood = false }) {
         {inCart && (
           <div
             className="absolute top-2 right-2 text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1"
-            style={{ background: "rgba(255,107,53,0.9)", color: "white", backdropFilter: "blur(4px)" }}
+            style={{
+              background: "rgba(255,107,53,0.9)",
+              color: "white",
+              backdropFilter: "blur(4px)",
+            }}
           >
             <ShoppingCart size={9} /> {inCart.qty}
           </div>
         )}
 
         {/* Out of stock overlay */}
-        <OutOfStockOverlay available={product.available} stock={product.stock} />
+        <OutOfStockOverlay
+          available={product.available}
+          stock={product.stock}
+        />
       </div>
 
       {/* Info */}
@@ -152,7 +173,10 @@ export default function ProductCard({ product, store, isFood = false }) {
               </span>
             )}
             {product.prepTime && (
-              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              <span
+                className="text-[10px]"
+                style={{ color: "var(--text-muted)" }}
+              >
                 ⏱ {product.prepTime}
               </span>
             )}
@@ -161,17 +185,25 @@ export default function ProductCard({ product, store, isFood = false }) {
 
         {/* Non-food unit */}
         {!isFood && product.unit && (
-          <p className="text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>{product.unit}</p>
+          <p className="text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>
+            {product.unit}
+          </p>
         )}
 
         {/* Price + CTA */}
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-baseline gap-1.5">
-            <span className="font-black text-base" style={{ color: "var(--text-primary)" }}>
+            <span
+              className="font-black text-base"
+              style={{ color: "var(--text-primary)" }}
+            >
               ₹{product.price}
             </span>
             {product.originalPrice && product.originalPrice > product.price && (
-              <span className="text-xs line-through" style={{ color: "var(--text-muted)" }}>
+              <span
+                className="text-xs line-through"
+                style={{ color: "var(--text-muted)" }}
+              >
                 ₹{product.originalPrice}
               </span>
             )}
@@ -195,7 +227,11 @@ export default function ProductCard({ product, store, isFood = false }) {
               }}
             >
               <button
-                onClick={() => inCart.qty === 1 ? removeFromCart(product._id) : updateQty(product._id, inCart.qty - 1)}
+                onClick={() =>
+                  inCart.qty === 1
+                    ? removeFromCart(product._id)
+                    : updateQty(product._id, inCart.qty - 1)
+                }
                 className="w-6 h-6 rounded-lg flex items-center justify-center text-orange-400 transition-all hover:scale-110 hover:bg-orange-400 hover:text-white active:scale-95"
                 style={{ background: "var(--card)" }}
               >
@@ -236,7 +272,11 @@ export default function ProductCard({ product, store, isFood = false }) {
                   style={{ animation: "spin 0.7s linear infinite" }}
                 />
               ) : justAdded ? (
-                <span style={{ fontSize: "14px", animation: "scaleIn 0.3s ease" }}>✓</span>
+                <span
+                  style={{ fontSize: "14px", animation: "scaleIn 0.3s ease" }}
+                >
+                  ✓
+                </span>
               ) : (
                 <Plus size={16} />
               )}

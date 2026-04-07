@@ -1,16 +1,26 @@
-import express   from "express";
-import passport  from "../config/passport.js";
+import express from "express";
+import passport from "../config/passport.js";
 import { protect, restrictTo } from "../middleware/authMiddleware.js";
 import {
-  register, login, getProfile, updateProfile,
-  verifyEmail, resendVerificationOtp,
-  forgotPassword, resetPassword,
+  register,
+  login,
+  getProfile,
+  updateProfile,
+  verifyEmail,
+  resendVerificationOtp,
+  forgotPassword,
+  resetPassword,
   googleCallback,
-  addAddress, removeAddress, setDefaultAddress,
+  addAddress,
+  removeAddress,
+  setDefaultAddress,
   toggleDeliveryAvailability,
+  updateDeliveryLocation,
   deleteAccount,
   // NEW
-  refresh, logout, logoutAll,
+  refresh,
+  logout,
+  logoutAll,
 } from "../controllers/authController.js";
 import {
   registerValidation,
@@ -27,7 +37,9 @@ const isDev = process.env.NODE_ENV === "development";
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 1000 : 10,
-  message: { message: "Too many login attempts, please try again in 15 minutes." },
+  message: {
+    message: "Too many login attempts, please try again in 15 minutes.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
@@ -36,7 +48,9 @@ const loginLimiter = rateLimit({
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: isDev ? 1000 : 5,
-  message: { message: "Too many registration attempts, please try again later." },
+  message: {
+    message: "Too many registration attempts, please try again later.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -60,25 +74,29 @@ const refreshLimiter = rateLimit({
 });
 
 // ── Local auth ─────────────────────────────────────────────────
-r.post("/register",            registerLimiter, ...registerValidation,      register);
-r.post("/login",               loginLimiter,    ...loginValidation,         login);
+r.post("/register", registerLimiter, ...registerValidation, register);
+r.post("/login", loginLimiter, ...loginValidation, login);
 
 // ── Token management ───────────────────────────────────────────
 // POST /refresh — no auth middleware (access token may be expired)
-r.post("/refresh",             refreshLimiter,  refresh);
+r.post("/refresh", refreshLimiter, refresh);
 // POST /logout — no auth required (cookie is enough to identify session)
-r.post("/logout",                               logout);
+r.post("/logout", logout);
 // POST /logout-all — requires valid access token to identify the user
-r.post("/logout-all",          protect,         logoutAll);
+r.post("/logout-all", protect, logoutAll);
 
 // ── Email verification ─────────────────────────────────────────
-r.post("/verify-email",        otpLimiter,      ...otpValidation,           verifyEmail);
-r.post("/resend-verification", otpLimiter,      resendVerificationOtp);
+r.post("/verify-email", otpLimiter, ...otpValidation, verifyEmail);
+r.post("/resend-verification", otpLimiter, resendVerificationOtp);
 
 // ── Password reset ─────────────────────────────────────────────
-r.post("/forgot-password",     otpLimiter,      forgotPassword);
-r.post("/reset-password",      otpLimiter,      ...resetPasswordValidation, resetPassword);
-
+r.post("/forgot-password", otpLimiter, forgotPassword);
+r.post(
+  "/reset-password",
+  otpLimiter,
+  ...resetPasswordValidation,
+  resetPassword,
+);
 
 const hasGoogleAuth =
   process.env.GOOGLE_CLIENT_ID &&
@@ -87,20 +105,22 @@ const hasGoogleAuth =
 
 // ── Google OAuth ───────────────────────────────────────────────
 if (hasGoogleAuth) {
-  r.get("/google",
+  r.get(
+    "/google",
     passport.authenticate("google", {
       scope: ["profile", "email"],
       session: false,
       prompt: "select_account",
-    })
+    }),
   );
 
-  r.get("/google/callback",
+  r.get(
+    "/google/callback",
     passport.authenticate("google", {
       failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=oauth_failed`,
       session: false,
     }),
-    googleCallback
+    googleCallback,
   );
 } else {
   // fallback → prevents crash
@@ -111,14 +131,20 @@ if (hasGoogleAuth) {
   });
 }
 // ── Protected profile routes ───────────────────────────────────
-r.get("/profile",                    protect, getProfile);
-r.put("/profile",                    protect, updateProfile);
-r.patch("/availability",             protect, restrictTo("delivery"), toggleDeliveryAvailability);
-r.post("/addresses",                 protect, addAddress);
-r.delete("/addresses/:index",        protect, removeAddress);
+r.get("/profile", protect, getProfile);
+r.put("/profile", protect, updateProfile);
+r.patch(
+  "/availability",
+  protect,
+  restrictTo("delivery"),
+  toggleDeliveryAvailability,
+);
+r.patch("/location", protect, restrictTo("delivery"), updateDeliveryLocation);
+r.post("/addresses", protect, addAddress);
+r.delete("/addresses/:index", protect, removeAddress);
 r.patch("/addresses/:index/default", protect, setDefaultAddress);
 
 // ── Account deletion ───────────────────────────────────────────
-r.delete("/account",                 protect, deleteAccount);
+r.delete("/account", protect, deleteAccount);
 
 export default r;

@@ -52,8 +52,8 @@ function makeRiderIcon(leaflet) {
       "></div>
     `,
     className: "",
-    iconSize:  [48, 56],
-    iconAnchor:[24, 56],
+    iconSize: [48, 56],
+    iconAnchor: [24, 56],
   });
 }
 
@@ -73,15 +73,15 @@ function makeDestinationIcon(leaflet) {
       </div>
     `,
     className: "",
-    iconSize:  [36, 44],
-    iconAnchor:[18, 44],
+    iconSize: [36, 44],
+    iconAnchor: [18, 44],
   });
 }
 
 function timeAgo(date) {
   if (!date) return "—";
   const secs = Math.floor((Date.now() - new Date(date)) / 1000);
-  if (secs < 5)  return "just now";
+  if (secs < 5) return "just now";
   if (secs < 60) return `${secs}s ago`;
   return `${Math.floor(secs / 60)}m ago`;
 }
@@ -90,29 +90,28 @@ function timeAgo(date) {
 // Component
 // ─────────────────────────────────────────────────────────────
 export default function DeliveryTracker({ orderId, order }) {
-  const mapRef       = useRef(null);
-  const mapObjRef    = useRef(null);
-  const riderMarker  = useRef(null);
-  const destMarker   = useRef(null);   // NEW: destination marker ref
-  const polylineRef  = useRef(null);   // NEW: route polyline ref
-  const leafletRef   = useRef(null);
+  const mapRef = useRef(null);
+  const mapObjRef = useRef(null);
+  const riderMarker = useRef(null);
+  const destMarker = useRef(null); // NEW: destination marker ref
+  const polylineRef = useRef(null); // NEW: route polyline ref
+  const leafletRef = useRef(null);
 
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(null);
-  const [tick,     setTick]     = useState(0);
+  const [tick, setTick] = useState(0);
 
   const isActive = order?.status === "out_for_delivery";
-  const { location, available, connected, lastUpdate } = useOrderLocation(orderId, isActive);
+  const { location, available, connected, lastUpdate } = useOrderLocation(
+    orderId,
+    isActive,
+  );
 
   // ── Derive destination coords from order ──────────────────
-  // Orders don't always have geocoded customer coords.
-  // We seed from order.deliveryLocation if lat/lng exist there,
-  // but that's the RIDER location. For a real destination pin
-  // you'd store customer lat/lng at order placement time.
-  // Here we use a best-effort: if `order.customerLat` exists use it,
-  // otherwise we simply skip the destination marker (no fake pin).
-  const destLat = order?.customerLat ?? null;
-  const destLng = order?.customerLng ?? null;
+  // Orders store customer delivery coords as deliveryLat/deliveryLng (set at checkout).
+  // deliveryLocation on the order is the RIDER's GPS — do not confuse them.
+  const destLat = order?.deliveryLat ?? null;
+  const destLng = order?.deliveryLng ?? null;
   const hasDestCoords = destLat != null && destLng != null;
 
   // Live clock for timeAgo
@@ -137,8 +136,8 @@ export default function DeliveryTracker({ orderId, order }) {
         const center = location
           ? [location.lat, location.lng]
           : hasDestCoords
-          ? [destLat, destLng]
-          : [12.9716, 77.5946];  // Bengaluru fallback
+            ? [destLat, destLng]
+            : [12.9716, 77.5946]; // Bengaluru fallback
 
         const map = Lf.map(mapRef.current, {
           center,
@@ -150,7 +149,7 @@ export default function DeliveryTracker({ orderId, order }) {
 
         Lf.tileLayer(
           "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-          { maxZoom: 19 }
+          { maxZoom: 19 },
         ).addTo(map);
 
         mapObjRef.current = map;
@@ -167,7 +166,9 @@ export default function DeliveryTracker({ orderId, order }) {
 
         setMapReady(true);
       } catch {
-        setMapError("Could not load map. Please check your internet connection.");
+        setMapError(
+          "Could not load map. Please check your internet connection.",
+        );
       }
     }
 
@@ -176,15 +177,21 @@ export default function DeliveryTracker({ orderId, order }) {
     return () => {
       destroyed = true;
       if (polylineRef.current) {
-        try { polylineRef.current.remove(); } catch {}
+        try {
+          polylineRef.current.remove();
+        } catch {}
         polylineRef.current = null;
       }
       if (destMarker.current) {
-        try { destMarker.current.remove(); } catch {}
+        try {
+          destMarker.current.remove();
+        } catch {}
         destMarker.current = null;
       }
       if (mapObjRef.current) {
-        try { mapObjRef.current.remove(); } catch {}
+        try {
+          mapObjRef.current.remove();
+        } catch {}
         mapObjRef.current = null;
       }
       riderMarker.current = null;
@@ -194,7 +201,7 @@ export default function DeliveryTracker({ orderId, order }) {
   // ── Update rider marker + polyline when location changes ──
   useEffect(() => {
     if (!mapReady || !location || !mapObjRef.current) return;
-    const Lf  = leafletRef.current;
+    const Lf = leafletRef.current;
     const map = mapObjRef.current;
     const pos = [location.lat, location.lng];
 
@@ -216,10 +223,10 @@ export default function DeliveryTracker({ orderId, order }) {
       const latlngs = [pos, [destLat, destLng]];
       if (!polylineRef.current) {
         polylineRef.current = Lf.polyline(latlngs, {
-          color:     "#ff6b35",
-          weight:    3,
-          opacity:   0.75,
-          dashArray: "8 6",   // dashed line for "route in progress" feel
+          color: "#ff6b35",
+          weight: 3,
+          opacity: 0.75,
+          dashArray: "8 6", // dashed line for "route in progress" feel
         }).addTo(map);
       } else {
         polylineRef.current.setLatLngs(latlngs);
@@ -260,7 +267,10 @@ export default function DeliveryTracker({ orderId, order }) {
         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
         <div className="text-4xl mb-2">📍</div>
-        <p className="font-semibold text-sm" style={{ color: "var(--text-secondary)" }}>
+        <p
+          className="font-semibold text-sm"
+          style={{ color: "var(--text-secondary)" }}
+        >
           Live tracking will appear once the rider picks up your order.
         </p>
       </div>
@@ -271,28 +281,34 @@ export default function DeliveryTracker({ orderId, order }) {
     <div
       className="rounded-3xl overflow-hidden"
       style={{
-        background:  "var(--card)",
-        border:      "1px solid var(--border)",
-        boxShadow:   "0 8px 40px rgba(0,0,0,0.15)",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.15)",
       }}
     >
       {/* Header bar */}
       <div
         className="flex items-center justify-between px-5 py-4"
         style={{
-          background:   "linear-gradient(135deg,#00d4aa15,#00a87808)",
+          background: "linear-gradient(135deg,#00d4aa15,#00a87808)",
           borderBottom: "1px solid var(--border)",
         }}
       >
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-2xl flex items-center justify-center"
-            style={{ background: "rgba(0,212,170,0.15)", border: "1px solid rgba(0,212,170,0.3)" }}
+            style={{
+              background: "rgba(0,212,170,0.15)",
+              border: "1px solid rgba(0,212,170,0.3)",
+            }}
           >
             <Navigation size={18} style={{ color: "#00d4aa" }} />
           </div>
           <div>
-            <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+            <p
+              className="font-bold text-sm"
+              style={{ color: "var(--text-primary)" }}
+            >
               Live Delivery Tracking
             </p>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -304,9 +320,21 @@ export default function DeliveryTracker({ orderId, order }) {
         <div className="flex items-center gap-2">
           {/* Legend chips */}
           {hasDestCoords && (
-            <div className="hidden sm:flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            <div
+              className="hidden sm:flex items-center gap-2 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
               <span className="flex items-center gap-1">
-                <span style={{ display: "inline-block", width: 16, height: 2, background: "#ff6b35", borderRadius: 1, verticalAlign: "middle" }} />
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 16,
+                    height: 2,
+                    background: "#ff6b35",
+                    borderRadius: 1,
+                    verticalAlign: "middle",
+                  }}
+                />
                 Route
               </span>
               <span className="flex items-center gap-1">🏠 Destination</span>
@@ -315,7 +343,11 @@ export default function DeliveryTracker({ orderId, order }) {
           {available ? (
             <span
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl"
-              style={{ background: "rgba(0,212,170,0.12)", color: "#00d4aa", border: "1px solid rgba(0,212,170,0.25)" }}
+              style={{
+                background: "rgba(0,212,170,0.12)",
+                color: "#00d4aa",
+                border: "1px solid rgba(0,212,170,0.25)",
+              }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
               LIVE
@@ -340,7 +372,10 @@ export default function DeliveryTracker({ orderId, order }) {
             style={{ background: "var(--elevated)" }}
           >
             <MapPin size={32} style={{ color: "#ef4444" }} />
-            <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="text-sm font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
               {mapError}
             </p>
           </div>
@@ -350,21 +385,32 @@ export default function DeliveryTracker({ orderId, order }) {
             {!available && (
               <div
                 className="absolute inset-0 flex flex-col items-center justify-center gap-4"
-                style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+                style={{
+                  background: "rgba(0,0,0,0.55)",
+                  backdropFilter: "blur(4px)",
+                }}
               >
                 <div className="relative">
                   <div
                     className="w-16 h-16 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(0,212,170,0.2)", border: "2px solid rgba(0,212,170,0.5)" }}
+                    style={{
+                      background: "rgba(0,212,170,0.2)",
+                      border: "2px solid rgba(0,212,170,0.5)",
+                    }}
                   >
                     <span className="text-3xl">🛵</span>
                   </div>
                   <div
                     className="absolute inset-0 rounded-full animate-ping"
-                    style={{ background: "rgba(0,212,170,0.15)", animationDuration: "1.5s" }}
+                    style={{
+                      background: "rgba(0,212,170,0.15)",
+                      animationDuration: "1.5s",
+                    }}
                   />
                 </div>
-                <p className="text-white font-semibold text-sm">Locating your rider…</p>
+                <p className="text-white font-semibold text-sm">
+                  Locating your rider…
+                </p>
               </div>
             )}
           </>
@@ -378,19 +424,19 @@ export default function DeliveryTracker({ orderId, order }) {
       >
         {[
           {
-            icon:  "📍",
+            icon: "📍",
             label: "Coordinates",
             value: available
               ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
               : "—",
           },
           {
-            icon:  "⏱️",
+            icon: "⏱️",
             label: "Last Update",
             value: timeAgo(lastUpdate),
           },
           {
-            icon:  connected ? "📡" : "📶",
+            icon: connected ? "📡" : "📶",
             label: "Connection",
             value: connected ? "Socket" : "Polling",
           },
@@ -401,10 +447,16 @@ export default function DeliveryTracker({ orderId, order }) {
             style={{ borderColor: "var(--border)" }}
           >
             <span className="text-base">{icon}</span>
-            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            <p
+              className="text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
               {label}
             </p>
-            <p className="text-xs font-semibold text-center" style={{ color: "var(--text-primary)" }}>
+            <p
+              className="text-xs font-semibold text-center"
+              style={{ color: "var(--text-primary)" }}
+            >
               {value}
             </p>
           </div>

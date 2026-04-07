@@ -1,15 +1,4 @@
-/**
- * orderRoutes.js — FIXED
- *
- * Critical fix: Express matches routes top-to-bottom.
- * Routes with specific path segments (/my, /delivery/available, etc.)
- * MUST come before dynamic segments (/:id) or they will never match.
- *
- * Route ordering (most-specific → least-specific):
- *   1. Static paths:      GET /my, GET /delivery/available, GET /delivery/mine
- *   2. Dynamic paths:     GET /:id
- *   3. Action sub-paths:  POST /:id/cancel, POST /:id/accept, etc.
- */
+
 import express from "express";
 import {
   placeOrder, getMyOrders, getOrderById, updateOrderStatus, getStoreOrders,
@@ -18,6 +7,7 @@ import {
   cancelOrder,
 } from "../controllers/orderController.js";
 import { protect, restrictTo } from "../middleware/authMiddleware.js";
+import { generateInvoice } from "../controllers/invoiceController.js";
 
 const r = express.Router();
 
@@ -41,6 +31,7 @@ r.post("/:id/accept",   protect, restrictTo("delivery"),            acceptDelive
 r.put("/:id/status",    protect, restrictTo("store", "delivery"),   updateOrderStatus);
 r.put("/:id/location",  protect, restrictTo("delivery"),            updateDeliveryLocation);
 
+r.get("/:id/invoice", protect, generateInvoice);
 // NOTE: markDelivered is handled via updateOrderStatus (PUT /:id/status)
 // with { status: "delivered" } — no separate endpoint needed.
 

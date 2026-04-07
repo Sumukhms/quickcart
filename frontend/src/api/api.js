@@ -233,7 +233,11 @@ export const adminAPI = {
   // bypasses restrictTo("store") check. But to be safe, use the direct store route.
   getAnalytics: () => api.get("/stores/analytics"),
   getPayouts: (params) => api.get("/admin/payouts", { params }),
-  processPayout: (id, action, note) => api.patch(`/admin/payout/${id}`, { action, note }),
+  processPayout: (id, action, note) =>
+    api.patch(`/admin/payout/${id}`, { action, note }),
+  getRefunds: (params) => api.get("/admin/refunds", { params }),
+  processRefund: (orderId, action, amount, reason) =>
+    api.post(`/admin/refunds/${orderId}/process`, { action, amount, reason }),
 };
 
 export const statsAPI = {

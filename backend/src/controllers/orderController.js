@@ -19,6 +19,19 @@ import Address from "../models/Address.js";
 import User from "../models/User.js";
 import { sendOrderEmail } from "../services/emailService.js";
 
+// \u2500 Haversine distance calculator for geofencing \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ─── Flow helpers ──────────────────────────────────────────────
 const FOOD_CATEGORIES = ["Food"];
 
@@ -413,14 +426,47 @@ export const updateOrderStatus = async (req, res) => {
 
 export const getAvailableOrders = async (req, res) => {
   try {
+    const agent = await User.findById(req.user.userId).select(
+      "lat lng isAvailable",
+    );
+
     const orders = await Order.find({
       status: { $in: DELIVERY_TRIGGER_STATUSES },
       deliveryAgentId: null,
     })
-      .populate("storeId", "name address phone category")
+      .populate("storeId", "name address phone category lat lng")
       .populate("userId", "name phone address")
       .sort({ createdAt: -1 });
-    res.json(orders);
+
+    // \u2705 If agent has GPS coords, filter to 5km radius; otherwise return all
+    const RADIUS_KM = 5;
+    let filtered = orders;
+
+    if (agent?.lat && agent?.lng) {
+      filtered = orders.filter((order) => {
+        // Use store's coords if available; fall back to no filter
+        const store = order.storeId;
+        if (!store?.lat || !store?.lng) return true;
+        const dist = haversineDistanceKm(
+          agent.lat,
+          agent.lng,
+          store.lat,
+          store.lng,
+        );
+        return dist <= RADIUS_KM;
+      });
+
+      // \u2705 Fallback: if no orders within radius, return all after 30s window
+      if (filtered.length === 0) {
+        const FALLBACK_THRESHOLD_MS = 30_000;
+        filtered = orders.filter((order) => {
+          const age = Date.now() - new Date(order.createdAt).getTime();
+          return age >= FALLBACK_THRESHOLD_MS;
+        });
+      }
+    }
+
+    res.json(filtered);
   } catch (e) {
     res.status(500).json({ message: e.message });
   }

@@ -307,11 +307,9 @@ export const refresh = async (req, res) => {
 
       // Clear the cookie and force re-login
       res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
-      return res
-        .status(401)
-        .json({
-          message: "Invalid or expired refresh token. Please log in again.",
-        });
+      return res.status(401).json({
+        message: "Invalid or expired refresh token. Please log in again.",
+      });
     }
 
     const user = await User.findById(record.userId);
@@ -616,6 +614,25 @@ export const toggleDeliveryAvailability = async (req, res) => {
     user.isAvailable = !user.isAvailable;
     await user.save();
     res.json({ isAvailable: user.isAvailable });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// UPDATE DELIVERY LOCATION (for geofencing)
+// ─────────────────────────────────────────────────────────────
+export const updateDeliveryLocation = async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    if (!lat || !lng || typeof lat !== "number" || typeof lng !== "number") {
+      return res.status(400).json({ message: "Valid lat and lng required" });
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({ message: "Invalid coordinates" });
+    }
+    await User.findByIdAndUpdate(req.user.userId, { lat, lng });
+    res.json({ success: true });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
