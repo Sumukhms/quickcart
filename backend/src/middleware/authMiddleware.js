@@ -8,18 +8,29 @@ export const protect = (req, res, next) => {
   try {
     const token = authHeader.split(" ")[1];
     req.user = jwt.verify(token, process.env.JWT_SECRET);
+    // Ensure userId is always present for consistency
+    if (!req.user?.userId) {
+      return res.status(401).json({ message: "Invalid token: missing userId" });
+    }
     next();
-  } catch {
+  } catch (error) {
+    console.error("[Auth] Token verification failed:", error.message);
     return res.status(401).json({ message: "Invalid token" });
   }
 };
 
-export const restrictTo = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
-    return res.status(403).json({ message: `Access denied. Required role: ${roles.join(" or ")}` });
-  }
-  next();
-};
+export const restrictTo =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res
+        .status(403)
+        .json({
+          message: `Access denied. Required role: ${roles.join(" or ")}`,
+        });
+    }
+    next();
+  };
 
 // Aliases for clean role-based route protection
 export const customerOnly = restrictTo("customer");

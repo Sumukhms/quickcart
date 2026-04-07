@@ -171,6 +171,19 @@ export const orderAPI = {
   cancel: (id) => api.post(`/orders/${id}/cancel`),
 };
 
+// ─── Invoice ──────────────────────────────────────────────────
+export const invoiceAPI = {
+  /**
+   * Download order invoice as PDF blob.
+   * Returns a Blob that the caller should convert to an object URL.
+   */
+  download: (orderId) =>
+    api.get(`/orders/${orderId}/invoice`, {
+      responseType: "blob", // ✅ tells axios to handle binary response
+      headers: { Accept: "application/pdf" },
+    }),
+};
+
 // ─── Coupons (platform-wide) ──────────────────────────────────
 export const couponAPI = {
   validate: (code, orderTotal, storeCategory, storeId) =>

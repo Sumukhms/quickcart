@@ -11,25 +11,42 @@ import { useAuth } from "./AuthContext";
 
 const SocketContext = createContext(null);
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
+// More robust URL construction - handle various API URL formats
+const getSocketURL = () => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (!apiUrl) return "http://localhost:5000";
+
+  // Remove trailing slashes and /api suffix if present
+  let baseUrl = apiUrl.replace(/\/+$/, "").replace(/\/api$/, "");
+  return baseUrl;
+};
+
+const SOCKET_URL = getSocketURL();
 
 export function SocketProvider({ children }) {
   const { user, isLoggedIn } = useAuth();
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
+  const connectionAttemptedRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
+    // Only create socket if logged in and not already attempted
+    if (!isLoggedIn || connectionAttemptedRef.current) return;
+
+    connectionAttemptedRef.current = true;
 
     const socket = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
+      timeout: 20000,
+      forceNew: false, // Prevent multiple connections
     });
 
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      console.log("[Socket] Connected to server");
       setConnected(true);
       // Auto-join role-based rooms
       if (user?.role === "delivery") {
@@ -42,14 +59,29 @@ export function SocketProvider({ children }) {
       }
     });
 
-    socket.on("disconnect", () => setConnected(false));
+    socket.on("disconnect", (reason) => {
+      console.log("[Socket] Disconnected:", reason);
+      setConnected(false);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("[Socket] Connection error:", error);
+      setConnected(false);
+    });
+
+    socket.on("reconnect", (attemptNumber) => {
+      console.log("[Socket] Reconnected after", attemptNumber, "attempts");
+      setConnected(true);
+    });
 
     return () => {
+      console.log("[Socket] Cleaning up connection");
       socket.disconnect();
       socketRef.current = null;
       setConnected(false);
+      connectionAttemptedRef.current = false;
     };
-  }, [isLoggedIn, user?.id]);
+  }, [isLoggedIn]); // Only depend on isLoggedIn, not user.id
 
   const joinOrderRoom = (orderId) => {
     socketRef.current?.emit("join_order", orderId);
@@ -84,7 +116,7 @@ export function SocketProvider({ children }) {
         connected,
         joinOrderRoom,
         joinStoreRoom,
-        joinUserRoom,   // NEW
+        joinUserRoom, // NEW
         on,
         off,
         emit,

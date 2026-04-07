@@ -3,17 +3,22 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import App from "./App.jsx";
-import { ThemeProvider }        from "./context/ThemeContext.jsx";
-import { AuthProvider }         from "./context/AuthContext.jsx";
-import { CartProvider }         from "./context/CartContext.jsx";
-import { SocketProvider }       from "./context/SocketContext.jsx";
-import { FavoriteProvider }     from "./context/FavoriteContext.jsx";
-import { NotificationProvider } from "./context/NotificationContext.jsx";  // NEW
-import ErrorBoundary            from "./components/ui/ErrorBoundary.jsx";
+import { ThemeProvider } from "./context/ThemeContext.jsx";
+import { AuthProvider } from "./context/AuthContext.jsx";
+import { CartProvider } from "./context/CartContext.jsx";
+import { SocketProvider } from "./context/SocketContext.jsx";
+import { FavoriteProvider } from "./context/FavoriteContext.jsx";
+import { NotificationProvider } from "./context/NotificationContext.jsx"; // NEW
+import ErrorBoundary from "./components/ui/ErrorBoundary.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <ErrorBoundary>
         <ThemeProvider>
           <AuthProvider>
@@ -30,12 +35,13 @@ createRoot(document.getElementById("root")).render(
         </ThemeProvider>
       </ErrorBoundary>
     </BrowserRouter>
-  </StrictMode>
+  </StrictMode>,
 );
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js")
+    navigator.serviceWorker
+      .register("/sw.js")
       .then((reg) => console.log("SW registered:", reg.scope))
       .catch((err) => console.error("SW registration failed:", err));
   });

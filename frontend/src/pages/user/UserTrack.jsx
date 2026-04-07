@@ -41,6 +41,7 @@ import {
 } from "../../utils/orderFlows";
 import OrderSummary from "../../components/order/OrderSummary";
 import DeliveryNearBanner from "../../components/delivery/DeliveryNearBanner";
+import { useInvoiceDownload } from "../../hooks/useInvoiceDownload";
 
 const STATUS_ICONS = {
   pending: ShoppingBag,
@@ -123,6 +124,10 @@ export default function UserTrack() {
   const [userCoords, setUserCoords] = useState({ lat: null, lng: null });
 
   const intervalRef = useRef(null);
+
+  // ── Invoice download hook ──────────────────────────────────
+  const { download: downloadInvoice, downloading: invoiceLoading } =
+    useInvoiceDownload();
 
   const fetchOrder = useCallback(
     async (silent = false) => {
@@ -1033,14 +1038,23 @@ export default function UserTrack() {
         {/* CTA */}
         <div className="space-y-3">
           {isDelivered && (
-            <a
-              href={`${import.meta.env.VITE_API_URL}/orders/${order._id}/invoice`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-ghost text-sm w-full justify-center py-3"
+            <button
+              onClick={() => downloadInvoice(order._id)}
+              disabled={invoiceLoading}
+              className="btn btn-ghost w-full justify-center py-3 text-sm"
             >
-              <Download size={15} /> Download Invoice
-            </a>
+              {invoiceLoading ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  Generating Invoice…
+                </>
+              ) : (
+                <>
+                  <Download size={15} />
+                  Download Invoice
+                </>
+              )}
+            </button>
           )}
           {isDelivered ? (
             <Link

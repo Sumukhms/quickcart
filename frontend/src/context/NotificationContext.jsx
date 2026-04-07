@@ -12,35 +12,37 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { useAuth }   from "./AuthContext";
+import { useAuth } from "./AuthContext";
 import { useSocket } from "./SocketContext";
-import { useCart }   from "./CartContext";
-import api           from "../api/api";
+import { useCart } from "./CartContext";
+import api from "../api/api";
 
 const NotificationContext = createContext(null);
 
 const TYPE_EMOJI = {
-  order:    "📦",
-  payment:  "💳",
+  order: "📦",
+  payment: "💳",
   delivery: "🛵",
-  system:   "🔔",
+  system: "🔔",
 };
 
 export function NotificationProvider({ children }) {
   const { isLoggedIn, user } = useAuth();
-  const { emit, on }         = useSocket();
-  const { addToast }         = useCart();
+  const { emit, on } = useSocket();
+  const { addToast } = useCart();
 
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount,   setUnreadCount]   = useState(0);
-  const [loading,       setLoading]       = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
 
   const fetchNotifications = useCallback(async () => {
     if (!isLoggedIn) return;
     setLoading(true);
     try {
-      const { data } = await api.get("/notifications", { params: { limit: 30 } });
+      const { data } = await api.get("/notifications", {
+        params: { limit: 30 },
+      });
       if (!mountedRef.current) return;
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
@@ -58,18 +60,19 @@ export function NotificationProvider({ children }) {
       setNotifications([]);
       setUnreadCount(0);
     }
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, [isLoggedIn, fetchNotifications]);
 
-  // ✅ FIX: use normalized user ID (both id and _id are set in AuthContext)
+  // ✅ FIX: user?.id vs user?._id — both are now normalized in AuthContext,
+  // but this adds a fallback chain to handle both safely.
+  // NOTE: Room joining is now handled in SocketContext to prevent duplicates
   useEffect(() => {
     if (!isLoggedIn || !user) return;
     // AuthContext normalizes both user.id and user._id
-    const userId = user.id || user._id;
-    if (userId) {
-      emit("join_user_room", String(userId));
-    }
-  }, [isLoggedIn, user, emit]);
+    // SocketContext handles the room joining
+  }, [isLoggedIn, user]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -79,10 +82,15 @@ export function NotificationProvider({ children }) {
       setNotifications((prev) => [notif, ...prev.slice(0, 49)]);
       setUnreadCount((c) => c + 1);
       const emoji = TYPE_EMOJI[notif.type] || "🔔";
-      addToast(`${emoji} ${notif.title}`, notif.type === "order" ? "info" : "success");
+      addToast(
+        `${emoji} ${notif.title}`,
+        notif.type === "order" ? "info" : "success",
+      );
     });
 
-    return () => { if (typeof unsub === "function") unsub(); };
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
   }, [isLoggedIn, on, addToast]);
 
   const markRead = useCallback(async (id) => {
@@ -111,17 +119,20 @@ export function NotificationProvider({ children }) {
     }
   }, [fetchNotifications]);
 
-  const deleteNotification = useCallback(async (id) => {
-    const removed = notifications.find((n) => n._id === id);
-    setNotifications((prev) => prev.filter((n) => n._id !== id));
-    if (removed && !removed.isRead) setUnreadCount((c) => Math.max(0, c - 1));
+  const deleteNotification = useCallback(
+    async (id) => {
+      const removed = notifications.find((n) => n._id === id);
+      setNotifications((prev) => prev.filter((n) => n._id !== id));
+      if (removed && !removed.isRead) setUnreadCount((c) => Math.max(0, c - 1));
 
-    try {
-      await api.delete(`/notifications/${id}`);
-    } catch {
-      if (removed) setNotifications((prev) => [removed, ...prev]);
-    }
-  }, [notifications]);
+      try {
+        await api.delete(`/notifications/${id}`);
+      } catch {
+        if (removed) setNotifications((prev) => [removed, ...prev]);
+      }
+    },
+    [notifications],
+  );
 
   return (
     <NotificationContext.Provider
@@ -142,6 +153,7 @@ export function NotificationProvider({ children }) {
 
 export const useNotifications = () => {
   const ctx = useContext(NotificationContext);
-  if (!ctx) throw new Error("useNotifications must be inside NotificationProvider");
+  if (!ctx)
+    throw new Error("useNotifications must be inside NotificationProvider");
   return ctx;
 };

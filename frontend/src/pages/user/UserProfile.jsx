@@ -75,6 +75,49 @@ function sanitizePhone(val) {
   return val.replace(/\D/g, "").slice(0, 10);
 }
 
+/* ── Address helpers ──────────────────────────────────────── */
+const addAddress = async (newAddr) => {
+  if (!newAddr.trim()) {
+    addToast("Address cannot be empty", "error");
+    return;
+  }
+  try {
+    const { data } = await api.post("/auth/addresses", {
+      address: newAddr.trim(),
+    });
+    updateUser({ addresses: data.addresses });
+    addToast("Address added! ✓", "success");
+  } catch (err) {
+    addToast(err.response?.data?.message || "Failed to add address", "error");
+  }
+};
+
+const removeAddress = async (index) => {
+  try {
+    const { data } = await api.delete(`/auth/addresses/${index}`);
+    updateUser({ addresses: data.addresses });
+    addToast("Address removed! ✓", "success");
+  } catch (err) {
+    addToast(
+      err.response?.data?.message || "Failed to remove address",
+      "error",
+    );
+  }
+};
+
+const setDefaultAddress = async (index) => {
+  try {
+    const { data } = await api.patch(`/auth/addresses/${index}/default`);
+    updateUser({ addresses: data.addresses });
+    addToast("Default address updated! ✓", "success");
+  } catch (err) {
+    addToast(
+      err.response?.data?.message || "Failed to set default address",
+      "error",
+    );
+  }
+};
+
 export default function UserProfile() {
   const { user, logout, updateUser } = useAuth();
   const { addToast, clearCart } = useCart();
@@ -462,7 +505,7 @@ export default function UserProfile() {
                     placeholder="10-digit mobile number"
                     inputMode="numeric"
                     maxLength={10}
-                    value={form.phone}
+                    value={form.phone || ""}
                     onChange={(e) =>
                       setForm({ ...form, phone: sanitizePhone(e.target.value) })
                     }
@@ -489,46 +532,117 @@ export default function UserProfile() {
             </div>
           </div>
 
-          {/* Address */}
+          {/* Addresses */}
           <div
-            className="flex items-start gap-4 px-5 py-4"
+            className="px-5 py-4"
             style={{ borderTop: "1px solid var(--border)" }}
           >
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-              style={{ background: "rgba(255,107,53,0.1)" }}
-            >
-              <MapPin size={14} style={{ color: "var(--brand)" }} />
-            </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-3">
               <p
-                className="text-xs font-semibold uppercase tracking-wider mb-1"
+                className="text-xs font-semibold uppercase tracking-wider"
                 style={{ color: "var(--text-muted)" }}
               >
-                Default Address
+                Saved Addresses
               </p>
-              {editing ? (
-                <textarea
-                  className="input-theme text-sm py-2 resize-none"
-                  rows={2}
-                  placeholder="Your delivery address"
-                  value={form.address}
-                  onChange={(e) =>
-                    setForm({ ...form, address: e.target.value })
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {user?.addresses?.length || 0}/5
+              </span>
+            </div>
+
+            {/* Saved addresses list */}
+            {user?.addresses?.length > 0 ? (
+              <div className="space-y-2 mb-3">
+                {user.addresses.map((addr, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 p-3 rounded-xl transition-colors"
+                    style={{
+                      background: "var(--hover)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: "rgba(255,107,53,0.1)" }}
+                    >
+                      <MapPin size={12} style={{ color: "var(--brand)" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-sm font-medium truncate"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {addr}
+                      </p>
+                      {i === 0 && (
+                        <span className="tag tag-green text-[10px] mt-1">
+                          Default
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      {i !== 0 && (
+                        <button
+                          onClick={() => setDefaultAddress(i)}
+                          className="p-1.5 rounded-lg text-xs font-medium transition-colors hover:scale-105"
+                          style={{
+                            background: "rgba(34,197,94,0.1)",
+                            color: "#22c55e",
+                          }}
+                        >
+                          Set Default
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeAddress(i)}
+                        className="p-1.5 rounded-lg transition-colors hover:scale-105"
+                        style={{
+                          background: "rgba(239,68,68,0.1)",
+                          color: "#ef4444",
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p
+                className="text-sm mb-3"
+                style={{ color: "var(--text-muted)" }}
+              >
+                No saved addresses yet
+              </p>
+            )}
+
+            {/* Add new address */}
+            <div className="flex gap-2">
+              <input
+                className="input-theme text-sm py-2 flex-1"
+                placeholder="Add new address"
+                value={form.newAddress || ""}
+                onChange={(e) =>
+                  setForm({ ...form, newAddress: e.target.value })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    addAddress(form.newAddress);
+                    setForm({ ...form, newAddress: "" });
                   }
-                />
-              ) : (
-                <p
-                  className="text-sm font-medium"
-                  style={{
-                    color: form.address
-                      ? "var(--text-primary)"
-                      : "var(--text-muted)",
-                  }}
-                >
-                  {form.address || "Add delivery address"}
-                </p>
-              )}
+                }}
+              />
+              <button
+                onClick={() => {
+                  addAddress(form.newAddress);
+                  setForm({ ...form, newAddress: "" });
+                }}
+                disabled={!form.newAddress?.trim()}
+                className="px-3 py-2 rounded-xl font-medium text-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "var(--brand)", color: "white" }}
+              >
+                Add
+              </button>
             </div>
           </div>
         </div>

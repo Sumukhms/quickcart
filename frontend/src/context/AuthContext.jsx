@@ -66,16 +66,42 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("qc-user");
   }, []);
 
-  const updateUser = useCallback((updates) => {
+  const updateUser = useCallback(
+  (updates) => {
     if (!updates) return;
-    const isFullObject = updates._id || updates.id;
-    const merged = isFullObject
-      ? { ...updates }
-      : { ...(user || {}), ...updates };
-    const normalized = normalizeUser(merged);
-    setUser(normalized);
-    localStorage.setItem("qc-user", JSON.stringify(normalized));
-  }, [user]);
+ 
+    setUser((prev) => {
+      // ✅ FIX: if updates contains an id/_id, it's a full user object — replace entirely
+      const isFullObject = !!(updates._id || updates.id);
+      const base = isFullObject ? {} : (prev || {});
+      const merged = { ...base, ...updates };
+ 
+      // ✅ FIX: explicitly preserve array fields that partial updates might not include
+      // If the incoming update doesn't have these arrays, keep them from prev state
+      if (!isFullObject && prev) {
+        if (!updates.addresses && prev.addresses) {
+          merged.addresses = prev.addresses;
+        }
+        if (!updates.favoriteStores && prev.favoriteStores) {
+          merged.favoriteStores = prev.favoriteStores;
+        }
+      }
+ 
+      // ✅ FIX: normalize id/_id on every update
+      merged.id  = merged.id  || merged._id;
+      merged._id = merged._id || merged.id;
+ 
+      // ✅ FIX: guarantee array defaults so frontend never gets undefined
+      merged.addresses      = Array.isArray(merged.addresses)      ? merged.addresses      : [];
+      merged.favoriteStores = Array.isArray(merged.favoriteStores) ? merged.favoriteStores : [];
+ 
+      localStorage.setItem("qc-user", JSON.stringify(merged));
+      return merged;
+    });
+  },
+  [],
+);
+ 
 
   const setTokenExternal = useCallback((t) => {
     if (!t) return;

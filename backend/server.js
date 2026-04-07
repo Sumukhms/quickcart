@@ -145,22 +145,9 @@ export const authLimiter = rateLimit({
   skip: () => isDev,
 });
 
-// ── Socket.IO ─────────────────────────────────────────────────
-const io = new Server(httpServer, {
-  cors: {
-    origin: ALLOWED_ORIGINS,
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
-  pingTimeout: 60_000,
-  pingInterval: 25_000,
-});
-
 // ── DB + Email ────────────────────────────────────────────────
 connectDB();
 verifyEmailConfig().catch(() => {});
-
-startAutoCancelJob(io);
 // ── Body parsing ──────────────────────────────────────────────
 app.use(
   "/api/webhook",
@@ -221,23 +208,46 @@ app.use((_req, res) => {
 });
 
 // ── Socket.IO — authenticated room joins ─────────────────────
+const io = new Server(httpServer, {
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  pingTimeout: 60000, // 60 seconds
+  pingInterval: 25000, // 25 seconds
+  transports: ["websocket", "polling"],
+  allowEIO3: true, // Allow Engine.IO v3 clients
+});
+
 io.on("connection", (socket) => {
+  console.log(`[Socket] Client connected: ${socket.id}`);
+
   // join_store: only store owners should call this — validated in storeRoutes
   socket.on("join_store", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`store_${id}`);
+      console.log(`[Socket] ${socket.id} joined store_${id}`);
+    } else {
+      console.warn(`[Socket] Invalid store ID: ${id}`);
     }
   });
 
   socket.on("join_order", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`order_${id}`);
+      console.log(`[Socket] ${socket.id} joined order_${id}`);
+    } else {
+      console.warn(`[Socket] Invalid order ID: ${id}`);
     }
   });
 
   socket.on("join_delivery", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`delivery_${id}`);
+      console.log(`[Socket] ${socket.id} joined delivery_${id}`);
+    } else {
+      console.warn(`[Socket] Invalid delivery ID: ${id}`);
     }
   });
 
@@ -253,17 +263,31 @@ io.on("connection", (socket) => {
       lng <= 180
     ) {
       io.to(`order_${orderId}`).emit("location_update", { lat, lng });
+      console.log(
+        `[Socket] Location update for order_${orderId}: ${lat}, ${lng}`,
+      );
+    } else {
+      console.warn(`[Socket] Invalid location update:`, { orderId, lat, lng });
     }
   });
 
   socket.on("join_user_room", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`user_${id}`);
+      console.log(`[Socket] ${socket.id} joined user_${id}`);
+    } else {
+      console.warn(`[Socket] Invalid user ID: ${id}`);
     }
   });
 
-  socket.on("disconnect", () => {});
+  socket.on("disconnect", (reason) => {
+    console.log(
+      `[Socket] Client disconnected: ${socket.id}, reason: ${reason}`,
+    );
+  });
 });
+
+startAutoCancelJob(io);
 
 // ── Global error handler ──────────────────────────────────────
 app.use((err, _req, res, _next) => {

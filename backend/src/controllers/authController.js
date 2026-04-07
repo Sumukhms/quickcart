@@ -60,17 +60,18 @@ function safeUser(user) {
     name: user.name,
     email: user.email,
     role: user.role,
-    phone: user.phone,
-    address: user.address,
-    addresses: user.addresses || [],
+    phone: user.phone || "",
+    address: user.address || "",
+    // ✅ FIX: always return addresses[], never undefined
+    addresses: Array.isArray(user.addresses) ? user.addresses : [],
     isEmailVerified: user.isEmailVerified,
     authProvider: user.authProvider,
-    avatar: user.avatar,
-    vehicleType: user.vehicleType,
+    avatar: user.avatar || "",
+    vehicleType: user.vehicleType || "",
     isAvailable: user.isAvailable,
-    storeId: user.storeId,
-    totalDeliveries: user.totalDeliveries,
-    rating: user.rating,
+    storeId: user.storeId || null,
+    totalDeliveries: user.totalDeliveries || 0,
+    rating: user.rating || 5,
     favoriteStores: user.favoriteStores || [],
   };
 }
@@ -480,8 +481,10 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ ...user.toObject(), addresses: user.addresses || [] });
+    // ✅ FIX: use safeUser to guarantee consistent shape
+    res.json(safeUser(user));
   } catch (e) {
+    console.error("[Auth] getProfile error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
@@ -490,27 +493,28 @@ export const updateProfile = async (req, res) => {
   try {
     const validRoles = ["customer", "store", "delivery"];
     const requestedRole = req.body.role;
-
     const updates = {};
 
-    // Basic fields
-    if (req.body.name?.trim()) updates.name = req.body.name.trim();
-    if (req.body.address !== undefined)
-      updates.address = req.body.address?.trim() || "";
+    if (req.body.name?.trim()) {
+      updates.name = req.body.name.trim();
+    }
 
-    // Phone: strip non-digits, enforce 10 digits
+    // ✅ FIX: always accept address field (syncs primary address string)
+    if (req.body.address !== undefined) {
+      updates.address = req.body.address?.trim() || "";
+    }
+
+    // ✅ FIX: validate phone digits only, strip formatting
     if (req.body.phone !== undefined) {
       const digits = (req.body.phone || "").replace(/\D/g, "");
       if (digits && digits.length !== 10) {
-        return res
-          .status(400)
-          .json({ message: "Phone number must be exactly 10 digits" });
+        return res.status(400).json({
+          message: "Phone number must be exactly 10 digits",
+        });
       }
-      updates.phone = digits;
+      updates.phone = digits || "";
     }
 
-    // Role change — allowed for any user who hasn't locked in yet
-    // (Google new users, or future self-service role changes)
     if (requestedRole && validRoles.includes(requestedRole)) {
       updates.role = requestedRole;
     }
@@ -527,12 +531,9 @@ export const updateProfile = async (req, res) => {
     }
 
     if (Object.keys(updates).length === 0) {
-      // Nothing to update — just return current profile
       const current = await User.findById(req.user.userId).select("-password");
-      return res.json({
-        ...current.toObject(),
-        addresses: current.addresses || [],
-      });
+      if (!current) return res.status(404).json({ message: "User not found" });
+      return res.json(safeUser(current));
     }
 
     const user = await User.findByIdAndUpdate(
@@ -542,8 +543,11 @@ export const updateProfile = async (req, res) => {
     ).select("-password");
 
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ ...user.toObject(), addresses: user.addresses || [] });
+
+    // ✅ FIX: always return safeUser so frontend gets consistent shape
+    res.json(safeUser(user));
   } catch (e) {
+    console.error("[Auth] updateProfile error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
@@ -551,20 +555,47 @@ export const updateProfile = async (req, res) => {
 export const addAddress = async (req, res) => {
   try {
     const { address } = req.body;
-    if (!address?.trim())
+    const trimmed = address?.trim();
+
+    if (!trimmed) {
       return res.status(400).json({ message: "Address is required" });
+    }
+    if (trimmed.length < 10) {
+      return res.status(400).json({ message: "Address is too short" });
+    }
+
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.addresses.length >= 5)
-      return res.status(400).json({ message: "Maximum 5 addresses allowed" });
-    const trimmed = address.trim();
-    if (user.addresses.includes(trimmed))
-      return res.status(400).json({ message: "Address already saved" });
+
+    // ✅ FIX: check limit before pushing
+    if (user.addresses.length >= 5) {
+      return res.status(400).json({
+        message: "Maximum 5 addresses allowed. Please delete one first.",
+      });
+    }
+
+    // ✅ FIX: prevent exact duplicates with $addToSet
+    if (user.addresses.includes(trimmed)) {
+      return res
+        .status(400)
+        .json({ message: "This address is already saved." });
+    }
+
     user.addresses.push(trimmed);
-    if (!user.address) user.address = user.addresses[0];
+
+    // ✅ FIX: keep primary address in sync with first address
+    if (!user.address) {
+      user.address = user.addresses[0];
+    }
+
     await user.save();
-    res.json({ addresses: user.addresses, address: user.address });
+
+    res.json({
+      addresses: user.addresses,
+      address: user.address,
+    });
   } catch (e) {
+    console.error("[Auth] addAddress error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
@@ -574,14 +605,22 @@ export const removeAddress = async (req, res) => {
     const idx = Number(req.params.index);
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
+
     if (isNaN(idx) || idx < 0 || idx >= user.addresses.length) {
       return res.status(400).json({ message: "Invalid address index" });
     }
+
     user.addresses.splice(idx, 1);
+    // ✅ FIX: keep primary address synced after removal
     user.address = user.addresses[0] || "";
     await user.save();
-    res.json({ addresses: user.addresses, address: user.address });
+
+    res.json({
+      addresses: user.addresses,
+      address: user.address,
+    });
   } catch (e) {
+    console.error("[Auth] removeAddress error:", e.message);
     res.status(500).json({ message: e.message });
   }
 };
