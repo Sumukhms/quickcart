@@ -75,53 +75,53 @@ function sanitizePhone(val) {
   return val.replace(/\D/g, "").slice(0, 10);
 }
 
-/* ── Address helpers ──────────────────────────────────────── */
-const addAddress = async (newAddr) => {
-  if (!newAddr.trim()) {
-    addToast("Address cannot be empty", "error");
-    return;
-  }
-  try {
-    const { data } = await api.post("/auth/addresses", {
-      address: newAddr.trim(),
-    });
-    updateUser({ addresses: data.addresses });
-    addToast("Address added! ✓", "success");
-  } catch (err) {
-    addToast(err.response?.data?.message || "Failed to add address", "error");
-  }
-};
-
-const removeAddress = async (index) => {
-  try {
-    const { data } = await api.delete(`/auth/addresses/${index}`);
-    updateUser({ addresses: data.addresses });
-    addToast("Address removed! ✓", "success");
-  } catch (err) {
-    addToast(
-      err.response?.data?.message || "Failed to remove address",
-      "error",
-    );
-  }
-};
-
-const setDefaultAddress = async (index) => {
-  try {
-    const { data } = await api.patch(`/auth/addresses/${index}/default`);
-    updateUser({ addresses: data.addresses });
-    addToast("Default address updated! ✓", "success");
-  } catch (err) {
-    addToast(
-      err.response?.data?.message || "Failed to set default address",
-      "error",
-    );
-  }
-};
-
 export default function UserProfile() {
   const { user, logout, updateUser } = useAuth();
   const { addToast, clearCart } = useCart();
   const { favorites, toggleFavorite } = useFavorites();
+
+  const addAddress = async (newAddr) => {
+    if (!newAddr?.trim()) {
+      addToast("Address cannot be empty", "error");
+      return;
+    }
+    try {
+      const { data } = await api.post("/auth/addresses", {
+        address: newAddr.trim(),
+      });
+      updateUser({ addresses: data.addresses });
+      addToast("Address added! ✓", "success");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to add address", "error");
+    }
+  };
+
+  const removeAddress = async (index) => {
+    try {
+      const { data } = await api.delete(`/auth/addresses/${index}`);
+      updateUser({ addresses: data.addresses });
+      addToast("Address removed! ✓", "success");
+    } catch (err) {
+      addToast(
+        err.response?.data?.message || "Failed to remove address",
+        "error",
+      );
+    }
+  };
+
+  const setDefaultAddress = async (index) => {
+    try {
+      const { data } = await api.patch(`/auth/addresses/${index}/default`);
+      updateUser({ addresses: data.addresses });
+      addToast("Default address updated! ✓", "success");
+    } catch (err) {
+      addToast(
+        err.response?.data?.message || "Failed to set default address",
+        "error",
+      );
+    }
+  };
+
   const navigate = useNavigate();
 
   const [editing, setEditing] = useState(false);

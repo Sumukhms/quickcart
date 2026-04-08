@@ -295,7 +295,7 @@ export const getStoreOrders = async (req, res) => {
       return res
         .status(404)
         .json({ message: "No store found for this account" });
-    if (store._id.toString() !== req.params.storeId) {
+    if (store._id.toString() !== req.params.storeId.toString()) {
       return res
         .status(403)
         .json({ message: "Access denied — not your store" });

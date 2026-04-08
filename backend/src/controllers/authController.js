@@ -72,7 +72,9 @@ function safeUser(user) {
     storeId: user.storeId || null,
     totalDeliveries: user.totalDeliveries || 0,
     rating: user.rating || 5,
-    favoriteStores: user.favoriteStores || [],
+    favoriteStores: (user.favoriteStores || []).map((id) =>
+      id.toString ? id.toString() : id,
+    ),
   };
 }
 

@@ -483,20 +483,14 @@ export default function DeliveryDashboard() {
   );
 
   const handleRequestPayout = useCallback(async () => {
-    console.log("🔍 FRONTEND: Starting payout request");
     try {
-      console.log("🔍 FRONTEND: Making API call to /delivery/payout/request");
       const { data } = await api.post("/delivery/payout/request");
-      console.log("🔍 FRONTEND: API response:", data);
       addToast(data.message || "Payout request submitted!", "success");
-      // ✅ FIX: always refetch so hasPending derives from fresh API data
-      await fetchEarnings();
+      await fetchEarnings(); // ✅ always refetch on success
     } catch (err) {
-      console.error("🔍 FRONTEND: Payout request failed:", err);
-      console.error("🔍 FRONTEND: Error response:", err.response?.data);
       const msg = err.response?.data?.message || "Failed to request payout";
       addToast(msg, "error");
-      throw err; // re-throw so EarningsWallet can stop spinner
+      throw err; // re-throw so EarningsWallet stops spinner
     }
   }, [addToast, fetchEarnings]);
 
