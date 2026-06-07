@@ -10,21 +10,30 @@
  *   - Empty state illustration
  */
 import { useState, useRef, useEffect } from "react";
-import { useNavigate }                  from "react-router-dom";
-import { Bell, X, CheckCheck, Trash2, Package, CreditCard, Truck, BellOff } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  Bell,
+  X,
+  CheckCheck,
+  Trash2,
+  Package,
+  CreditCard,
+  Truck,
+  BellOff,
+} from "lucide-react";
 import { useNotifications } from "../../context/NotificationContext";
 
 const TYPE_ICON = {
-  order:    { icon: Package,    color: "#f59e0b" },
-  payment:  { icon: CreditCard, color: "#22c55e" },
-  delivery: { icon: Truck,      color: "#3b82f6" },
-  system:   { icon: Bell,       color: "#8b5cf6" },
+  order: { icon: Package, color: "#f59e0b" },
+  payment: { icon: CreditCard, color: "#22c55e" },
+  delivery: { icon: Truck, color: "#3b82f6" },
+  system: { icon: Bell, color: "#8b5cf6" },
 };
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60_000);
-  if (m < 1)  return "just now";
+  if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
@@ -32,7 +41,7 @@ function timeAgo(dateStr) {
 }
 
 function NotificationItem({ notif, onRead, onDelete, onNavigate }) {
-  const cfg  = TYPE_ICON[notif.type] || TYPE_ICON.system;
+  const cfg = TYPE_ICON[notif.type] || TYPE_ICON.system;
   const Icon = cfg.icon;
 
   const handleClick = () => {
@@ -54,7 +63,11 @@ function NotificationItem({ notif, onRead, onDelete, onNavigate }) {
         borderBottom: "1px solid var(--border)",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = notif.isRead ? "transparent" : "rgba(255,107,53,0.04)")}
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.background = notif.isRead
+          ? "transparent"
+          : "rgba(255,107,53,0.04)")
+      }
     >
       {/* Unread dot */}
       {!notif.isRead && (
@@ -76,14 +89,24 @@ function NotificationItem({ notif, onRead, onDelete, onNavigate }) {
       <div className="flex-1 min-w-0 pr-6">
         <p
           className="text-sm font-semibold leading-snug"
-          style={{ color: notif.isRead ? "var(--text-secondary)" : "var(--text-primary)" }}
+          style={{
+            color: notif.isRead
+              ? "var(--text-secondary)"
+              : "var(--text-primary)",
+          }}
         >
           {notif.title}
         </p>
-        <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>
+        <p
+          className="text-xs mt-0.5 line-clamp-2"
+          style={{ color: "var(--text-muted)" }}
+        >
           {notif.message}
         </p>
-        <p className="text-[10px] mt-1 font-semibold" style={{ color: "var(--text-muted)" }}>
+        <p
+          className="text-[10px] mt-1 font-semibold"
+          style={{ color: "var(--text-muted)" }}
+        >
           {timeAgo(notif.createdAt)}
         </p>
       </div>
@@ -91,7 +114,10 @@ function NotificationItem({ notif, onRead, onDelete, onNavigate }) {
       {/* Delete button */}
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); onDelete(notif._id); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(notif._id);
+        }}
         className="absolute right-3 top-3 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
         style={{ color: "#ef4444", background: "rgba(239,68,68,0.1)" }}
         title="Delete notification"
@@ -103,7 +129,13 @@ function NotificationItem({ notif, onRead, onDelete, onNavigate }) {
 }
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markRead, markAllRead, deleteNotification } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markRead,
+    markAllRead,
+    deleteNotification,
+  } = useNotifications();
   const [open, setOpen] = useState(false);
   const panelRef = useRef(null);
   const navigate = useNavigate();
@@ -128,7 +160,10 @@ export default function NotificationBell() {
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative p-2 rounded-xl transition-all hover:scale-110 active:scale-95"
-        style={{ background: "var(--elevated)", color: "var(--text-secondary)" }}
+        style={{
+          background: "var(--elevated)",
+          color: "var(--text-secondary)",
+        }}
         title="Notifications"
       >
         <Bell size={20} />
@@ -136,10 +171,10 @@ export default function NotificationBell() {
           <span
             className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-black text-white"
             style={{
-              background:  "linear-gradient(135deg, #ef4444, #dc2626)",
-              boxShadow:   "0 2px 8px rgba(239,68,68,0.5)",
-              animation:   "badgeBounce 0.5s ease",
-              padding:     "0 3px",
+              background: "linear-gradient(135deg, #ef4444, #dc2626)",
+              boxShadow: "0 2px 8px rgba(239,68,68,0.5)",
+              animation: "badgeBounce 0.5s ease",
+              padding: "0 3px",
             }}
           >
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -149,102 +184,138 @@ export default function NotificationBell() {
 
       {/* Dropdown panel */}
       {open && (
-        <div
-          className="absolute right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl border z-50"
-          style={{
-            width:           "min(380px, 94vw)",
-            backgroundColor:"var(--card)",
-            borderColor:     "var(--border)",
-            boxShadow:       "0 25px 60px rgba(0,0,0,0.45)",
-            animation:       "scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-            transformOrigin: "top right",
-          }}
-        >
-          {/* Header */}
+        <>
+          {/* Pointer triangle */}
           <div
-            className="flex items-center justify-between px-4 py-3.5"
-            style={{ borderBottom: "1px solid var(--border)" }}
+            className="absolute right-6 top-full z-50"
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: "6px solid var(--card)",
+              filter: "drop-shadow(0 -2px 4px rgba(0,0,0,0.1))",
+            }}
+          />
+          <div
+            className="absolute right-0 top-full mt-3 rounded-2xl overflow-hidden shadow-2xl border z-50"
+            style={{
+              width: "min(380px, 94vw)",
+              backgroundColor: "var(--card)",
+              borderColor: "var(--border)",
+              boxShadow: "0 25px 60px rgba(0,0,0,0.45)",
+              backdropFilter: "blur(20px)",
+              animation: "scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+              transformOrigin: "top right",
+            }}
           >
-            <div className="flex items-center gap-2">
-              <Bell size={15} style={{ color: "var(--brand)" }} />
-              <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
-                Notifications
-              </h3>
-              {unreadCount > 0 && (
-                <span
-                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-4 py-3.5"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
+              <div className="flex items-center gap-2">
+                <Bell size={15} style={{ color: "var(--brand)" }} />
+                <h3
+                  className="font-bold text-sm"
+                  style={{ color: "var(--text-primary)" }}
                 >
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {unreadCount > 0 && (
+                  Notifications
+                </h3>
+                {unreadCount > 0 && (
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: "rgba(239,68,68,0.12)",
+                      color: "#ef4444",
+                    }}
+                  >
+                    {unreadCount} new
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllRead}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-all hover:scale-105"
+                    style={{
+                      background: "rgba(34,197,94,0.1)",
+                      color: "#22c55e",
+                    }}
+                    title="Mark all as read"
+                  >
+                    <CheckCheck size={11} /> All read
+                  </button>
+                )}
                 <button
-                  onClick={markAllRead}
-                  className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-all hover:scale-105"
-                  style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e" }}
-                  title="Mark all as read"
+                  onClick={() => setOpen(false)}
+                  className="p-1.5 rounded-lg transition-all hover:scale-110"
+                  style={{
+                    color: "var(--text-muted)",
+                    background: "var(--elevated)",
+                  }}
                 >
-                  <CheckCheck size={11} /> All read
+                  <X size={13} />
                 </button>
-              )}
-              <button
-                onClick={() => setOpen(false)}
-                className="p-1.5 rounded-lg transition-all hover:scale-110"
-                style={{ color: "var(--text-muted)", background: "var(--elevated)" }}
-              >
-                <X size={13} />
-              </button>
+              </div>
             </div>
-          </div>
 
-          {/* List */}
-          <div
-            className="overflow-y-auto"
-            style={{ maxHeight: "min(480px, 70vh)" }}
-          >
-            {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                  style={{ background: "var(--elevated)" }}
-                >
-                  <BellOff size={24} style={{ color: "var(--text-muted)" }} />
+            {/* List */}
+            <div
+              className="overflow-y-auto"
+              style={{ maxHeight: "min(480px, 70vh)" }}
+            >
+              {notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <div
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                    style={{ background: "var(--elevated)" }}
+                  >
+                    <BellOff size={24} style={{ color: "var(--text-muted)" }} />
+                  </div>
+                  <p
+                    className="text-sm font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    No notifications yet
+                  </p>
+                  <p
+                    className="text-xs text-center max-w-[180px]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Order updates and delivery alerts will appear here
+                  </p>
                 </div>
-                <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  No notifications yet
-                </p>
-                <p className="text-xs text-center max-w-[180px]" style={{ color: "var(--text-muted)" }}>
-                  Order updates and delivery alerts will appear here
+              ) : (
+                notifications.map((notif) => (
+                  <NotificationItem
+                    key={notif._id}
+                    notif={notif}
+                    onRead={markRead}
+                    onDelete={deleteNotification}
+                    onNavigate={handleNavigate}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div
+                className="px-4 py-2.5 text-center"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <p
+                  className="text-[10px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Notifications auto-expire after 30 days
                 </p>
               </div>
-            ) : (
-              notifications.map((notif) => (
-                <NotificationItem
-                  key={notif._id}
-                  notif={notif}
-                  onRead={markRead}
-                  onDelete={deleteNotification}
-                  onNavigate={handleNavigate}
-                />
-              ))
             )}
           </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div
-              className="px-4 py-2.5 text-center"
-              style={{ borderTop: "1px solid var(--border)" }}
-            >
-              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                Notifications auto-expire after 30 days
-              </p>
-            </div>
-          )}
-        </div>
+        </>
       )}
     </div>
   );

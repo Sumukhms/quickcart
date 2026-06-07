@@ -342,14 +342,23 @@ export default function DeliveryTracker({ orderId, order }) {
           )}
           {available ? (
             <span
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl"
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl relative"
               style={{
                 background: "rgba(0,212,170,0.12)",
                 color: "#00d4aa",
                 border: "1px solid rgba(0,212,170,0.25)",
               }}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              <span className="relative w-1.5 h-1.5 rounded-full bg-current">
+                <span className="absolute inset-0 rounded-full bg-current animate-pulse" />
+                <span
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    border: "1px solid #00d4aa",
+                    animation: "pulseRing 1.5s ease-out infinite",
+                  }}
+                />
+              </span>
               LIVE
             </span>
           ) : (

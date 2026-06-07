@@ -3,27 +3,49 @@ import { useCart } from "../context/CartContext";
 
 const icons = {
   success: <CheckCircle size={18} />,
-  error:   <XCircle size={18} />,
-  info:    <Info size={18} />,
+  error: <XCircle size={18} />,
+  info: <Info size={18} />,
   warning: <AlertCircle size={18} />,
 };
 
 const styles = {
-  success: { accent: "#22c55e", bg: "rgba(22,197,94,0.08)",  border: "rgba(34,197,94,0.25)" },
-  error:   { accent: "#ef4444", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.25)" },
-  info:    { accent: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.25)" },
-  warning: { accent: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.25)" },
+  success: {
+    accent: "#22c55e",
+    bg: "rgba(22,197,94,0.08)",
+    border: "rgba(34,197,94,0.25)",
+  },
+  error: {
+    accent: "#ef4444",
+    bg: "rgba(239,68,68,0.08)",
+    border: "rgba(239,68,68,0.25)",
+  },
+  info: {
+    accent: "#3b82f6",
+    bg: "rgba(59,130,246,0.08)",
+    border: "rgba(59,130,246,0.25)",
+  },
+  warning: {
+    accent: "#f59e0b",
+    bg: "rgba(245,158,11,0.08)",
+    border: "rgba(245,158,11,0.25)",
+  },
 };
 
 const emojis = {
-  success: "✅", error: "❌", info: "ℹ️", warning: "⚠️"
+  success: "✅",
+  error: "❌",
+  info: "ℹ️",
+  warning: "⚠️",
 };
 
 export default function ToastContainer() {
   const { toasts } = useCart();
 
   return (
-    <div className="fixed top-20 right-4 z-[9999] flex flex-col gap-2.5 pointer-events-none" style={{ maxWidth: "380px" }}>
+    <div
+      className="fixed top-20 right-4 z-[9999] flex flex-col gap-2.5 pointer-events-none"
+      style={{ maxWidth: "380px" }}
+    >
       {toasts.map((toast, i) => {
         const type = toast.type || "success";
         const s = styles[type];
@@ -35,7 +57,9 @@ export default function ToastContainer() {
               background: "var(--card)",
               border: `1px solid ${s.border}`,
               boxShadow: `0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px ${s.border}`,
-              animation: "toastIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both",
+              animation: toast.exiting
+                ? "toastOut 0.35s cubic-bezier(0.4, 0, 1, 1) forwards"
+                : "toastIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both",
               animationDelay: `${i * 60}ms`,
             }}
           >
@@ -52,7 +76,10 @@ export default function ToastContainer() {
 
             {/* Message */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              <p
+                className="text-sm font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {toast.message}
               </p>
             </div>

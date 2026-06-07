@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import { useAuth } from "./AuthContext";
 
 const CartContext = createContext();
@@ -61,7 +67,7 @@ export function CartProvider({ children }) {
 
   const [cartItems, setCartItems] = useState(() => loadCart().items);
   const [cartStore, setCartStore] = useState(() => loadCart().store);
-  const [toasts,    setToasts]    = useState([]);
+  const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
     saveCart(cartItems, cartStore);
@@ -77,17 +83,31 @@ export function CartProvider({ children }) {
 
   const addToast = useCallback((message, type = "success") => {
     const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+    setToasts((prev) => [...prev, { id, message, type, exiting: false }]);
+
+    // Start exit animation 400ms before removal
+    setTimeout(() => {
+      setToasts((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)),
+      );
+    }, 3100);
+
+    setTimeout(
+      () => setToasts((prev) => prev.filter((t) => t.id !== id)),
+      3500,
+    );
   }, []);
 
   const addToCart = useCallback(
     (product, store) => {
-      const storeId     = extractStoreId(store);
+      const storeId = extractStoreId(store);
       const cartStoreId = extractStoreId(cartStore);
 
       if (cartStoreId && storeId && cartStoreId !== storeId) {
-        addToast("Clear your cart before adding items from a different store", "error");
+        addToast(
+          "Clear your cart before adding items from a different store",
+          "error",
+        );
         return false;
       }
 
@@ -98,7 +118,7 @@ export function CartProvider({ children }) {
         const existing = prev.find((i) => i._id === product._id);
         if (existing) {
           return prev.map((i) =>
-            i._id === product._id ? { ...i, qty: i.qty + 1 } : i
+            i._id === product._id ? { ...i, qty: i.qty + 1 } : i,
           );
         }
         return [...prev, { ...product, qty: 1 }];
@@ -107,7 +127,7 @@ export function CartProvider({ children }) {
       addToast(`${product.name} added to cart ✓`, "success");
       return true;
     },
-    [cartStore, addToast]
+    [cartStore, addToast],
   );
 
   const removeFromCart = useCallback((productId) => {
@@ -120,12 +140,15 @@ export function CartProvider({ children }) {
 
   const updateQty = useCallback(
     (productId, qty) => {
-      if (qty <= 0) { removeFromCart(productId); return; }
+      if (qty <= 0) {
+        removeFromCart(productId);
+        return;
+      }
       setCartItems((prev) =>
-        prev.map((i) => (i._id === productId ? { ...i, qty } : i))
+        prev.map((i) => (i._id === productId ? { ...i, qty } : i)),
       );
     },
-    [removeFromCart]
+    [removeFromCart],
   );
 
   const clearCart = useCallback(() => {
@@ -140,8 +163,16 @@ export function CartProvider({ children }) {
   return (
     <CartContext.Provider
       value={{
-        cartItems, cartStore, total, count, toasts,
-        addToCart, removeFromCart, updateQty, clearCart, addToast,
+        cartItems,
+        cartStore,
+        total,
+        count,
+        toasts,
+        addToCart,
+        removeFromCart,
+        updateQty,
+        clearCart,
+        addToast,
       }}
     >
       {children}

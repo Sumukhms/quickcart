@@ -814,10 +814,11 @@ export default function StoreDashboard() {
           ].map(({ label, value, icon: Icon, color }) => (
             <div
               key={label}
-              className="rounded-2xl p-4 transition-all hover:-translate-y-1"
+              className="rounded-2xl p-4 transition-all hover:-translate-y-1 relative"
               style={{
                 backgroundColor: "var(--card)",
                 border: "1px solid var(--border)",
+                borderTop: `3px solid ${color}`,
               }}
             >
               <div

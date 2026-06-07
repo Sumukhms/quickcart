@@ -715,26 +715,32 @@ export default function CheckoutPage() {
                 }}
               >
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
                   style={{
                     background:
                       step === i + 1
-                        ? "var(--brand)"
+                        ? "linear-gradient(135deg, var(--brand), var(--brand-dark))"
                         : step > i + 1
-                          ? "#22c55e"
+                          ? "linear-gradient(135deg, #22c55e, #16a34a)"
                           : "var(--elevated)",
                     color: step >= i + 1 ? "white" : "var(--text-muted)",
+                    boxShadow:
+                      step === i + 1
+                        ? "0 4px 12px rgba(255,107,53,0.4)"
+                        : "none",
+                    transition: "all 0.3s ease",
                   }}
                 >
-                  {step > i + 1 ? <CheckCircle size={14} /> : i + 1}
+                  {step > i + 1 ? <CheckCircle size={16} /> : i + 1}
                 </div>
-                <span className="hidden sm:block">{s}</span>
+                <span className="text-xs font-semibold">{s}</span>
               </button>
               {i < 2 && (
                 <div
-                  className="flex-1 mx-2 h-0.5 rounded-full"
+                  className="flex-1 mx-2 h-1 rounded-full"
                   style={{
                     background: step > i + 1 ? "#22c55e" : "var(--border)",
+                    transition: "all 0.4s ease",
                   }}
                 />
               )}

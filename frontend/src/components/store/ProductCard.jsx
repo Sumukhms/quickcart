@@ -220,49 +220,56 @@ export default function ProductCard({ product, store, isFood = false }) {
           ) : inCart ? (
             /* Qty stepper */
             <div
-              className="flex items-center gap-1 rounded-xl px-1 py-1"
               style={{
-                background: "rgba(255,107,53,0.1)",
-                border: "1.5px solid var(--brand)",
+                animation: justAdded
+                  ? "scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1)"
+                  : "none",
               }}
             >
-              <button
-                onClick={() =>
-                  inCart.qty === 1
-                    ? removeFromCart(product._id)
-                    : updateQty(product._id, inCart.qty - 1)
-                }
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-orange-400 transition-all hover:scale-110 hover:bg-orange-400 hover:text-white active:scale-95"
-                style={{ background: "var(--card)" }}
+              <div
+                className="flex items-center gap-1.5 rounded-xl px-1.5 py-1.5"
+                style={{
+                  background: "rgba(255,107,53,0.1)",
+                  border: "1.5px solid var(--brand)",
+                }}
               >
-                <Minus size={11} />
-              </button>
-              <span
-                className="w-5 text-center text-sm font-black"
-                style={{ color: "var(--brand)" }}
-              >
-                {inCart.qty}
-              </span>
-              <button
-                onClick={() => updateQty(product._id, inCart.qty + 1)}
-                className="w-6 h-6 rounded-xl flex items-center justify-center text-white transition-all hover:scale-110 hover:opacity-90 active:scale-95"
-                style={{ background: "var(--brand)" }}
-              >
-                <Plus size={11} />
-              </button>
+                <button
+                  onClick={() =>
+                    inCart.qty === 1
+                      ? removeFromCart(product._id)
+                      : updateQty(product._id, inCart.qty - 1)
+                  }
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-orange-400 transition-all hover:scale-110 hover:bg-orange-400 hover:text-white active:scale-95"
+                  style={{ background: "var(--card)" }}
+                >
+                  <Minus size={12} />
+                </button>
+                <span
+                  className="w-5 text-center text-sm font-black"
+                  style={{ color: "var(--brand)" }}
+                >
+                  {inCart.qty}
+                </span>
+                <button
+                  onClick={() => updateQty(product._id, inCart.qty + 1)}
+                  className="w-7 h-7 rounded-xl flex items-center justify-center text-white transition-all hover:scale-110 hover:opacity-90 active:scale-95"
+                  style={{ background: "var(--brand)" }}
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
             </div>
           ) : (
             /* Add button */
             <button
               onClick={handleAdd}
               disabled={adding}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-white relative overflow-hidden"
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white relative overflow-hidden transition-all hover:scale-110 active:scale-95"
               style={{
                 background: justAdded
                   ? "linear-gradient(135deg, #22c55e, #16a34a)"
                   : "linear-gradient(135deg, var(--brand), var(--brand-dark))",
                 boxShadow: `0 4px 15px ${justAdded ? "rgba(34,197,94,0.4)" : "rgba(255,107,53,0.4)"}`,
-                transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
                 transform: adding ? "scale(0.9)" : "scale(1)",
               }}
             >

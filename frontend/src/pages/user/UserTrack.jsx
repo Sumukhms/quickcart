@@ -773,7 +773,7 @@ export default function UserTrack() {
                       style={{ width: 36, flexShrink: 0 }}
                     >
                       <div
-                        className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all duration-500"
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500"
                         style={{
                           background: isDone
                             ? isActiveStep
@@ -782,9 +782,12 @@ export default function UserTrack() {
                             : "var(--elevated)",
                           border: `2px solid ${isDone ? (isActiveStep ? step.color : "rgba(34,197,94,0.3)") : "var(--border)"}`,
                           boxShadow: isActiveStep
-                            ? `0 0 18px ${step.color}45`
+                            ? `0 0 0 4px ${step.color}20, 0 0 24px ${step.color}40`
                             : "none",
-                          transform: isActiveStep ? "scale(1.1)" : "scale(1)",
+                          animation: isActiveStep
+                            ? "pulseDot 2s infinite"
+                            : "none",
+                          transform: isActiveStep ? "scale(1.12)" : "scale(1)",
                         }}
                       >
                         <Icon
@@ -800,11 +803,11 @@ export default function UserTrack() {
                       </div>
                       {i < timelineSteps.length - 1 && (
                         <div
-                          className="w-0.5 h-8 mt-1 rounded-full transition-all duration-700"
+                          className="w-1 h-10 mt-1 rounded-full transition-all duration-700"
                           style={{
                             background:
                               i < stepIdx
-                                ? "rgba(34,197,94,0.35)"
+                                ? "rgba(34,197,94,0.5)"
                                 : "var(--border)",
                           }}
                         />

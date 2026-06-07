@@ -447,7 +447,7 @@ export default function UserHome() {
                 <div className="relative z-10 p-8 flex items-center justify-between">
                   <div className="flex-1">
                     <span
-                      className="inline-flex items-center gap-1.5 text-xs font-bold mb-3 px-3 py-1.5 rounded-full"
+                      className="inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold mb-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full"
                       style={{
                         background: "rgba(255,255,255,0.2)",
                         color: "white",
@@ -457,15 +457,17 @@ export default function UserHome() {
                       {banner.badge}
                     </span>
                     <h2
-                      className="font-display font-black text-4xl md:text-5xl text-white leading-tight mb-2"
+                      className="font-display font-black text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white leading-tight mb-2"
                       style={{ textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}
                     >
                       {banner.title}
                     </h2>
-                    <p className="text-white/80 text-base mb-5">{banner.sub}</p>
+                    <p className="text-white/80 text-sm sm:text-base mb-5">
+                      {banner.sub}
+                    </p>
                     <Link
                       to={banner.link}
-                      className="inline-flex items-center gap-2 font-bold px-5 py-3 rounded-2xl text-sm"
+                      className="inline-flex items-center gap-2 font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm"
                       style={{
                         background: "rgba(255,255,255,0.95)",
                         color: "#1a1a22",
@@ -604,16 +606,21 @@ export default function UserHome() {
                       onMouseLeave={() => setHoveredCat(null)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold flex-shrink-0 relative overflow-hidden"
                       style={{
-                        background: active ? color : "var(--card)",
+                        background: active
+                          ? `linear-gradient(135deg, ${color}, ${color}dd)`
+                          : "var(--card)",
                         color: active
                           ? "white"
                           : hoveredCat === name
                             ? color
                             : "var(--text-secondary)",
+                        textShadow: active
+                          ? "0 1px 2px rgba(0,0,0,0.2)"
+                          : "none",
                         border: `1.5px solid ${active ? color : hoveredCat === name ? color + "60" : "var(--border)"}`,
                         boxShadow: active ? `0 4px 20px ${color}50` : "none",
                         transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                        transform: active ? "scale(1.05)" : "scale(1)",
+                        transform: active ? "scale(1.06)" : "scale(1)",
                       }}
                     >
                       <span style={{ fontSize: "1rem" }}>{emoji}</span>

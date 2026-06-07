@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, Sparkles } from "lucide-react";
+import {
+  X,
+  Minus,
+  Plus,
+  Trash2,
+  ShoppingBag,
+  ArrowRight,
+  Tag,
+  Sparkles,
+} from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -19,8 +28,12 @@ function CartItem({ item, onUpdate, onRemove, index }) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         animation: `slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${index * 50}ms both`,
-        transition: removing ? "all 0.3s ease" : "transform 0.2s ease, box-shadow 0.2s ease",
-        transform: removing ? "translateX(100%) scale(0.9)" : "translateX(0) scale(1)",
+        transition: removing
+          ? "all 0.3s ease"
+          : "transform 0.2s ease, box-shadow 0.2s ease",
+        transform: removing
+          ? "translateX(100%) scale(0.9)"
+          : "translateX(0) scale(1)",
         opacity: removing ? 0 : 1,
       }}
       onMouseEnter={(e) => {
@@ -44,20 +57,30 @@ function CartItem({ item, onUpdate, onRemove, index }) {
             src={item.image}
             alt={item.name}
             className="w-full h-full object-cover"
-            onError={(e) => { e.target.style.display = "none"; }}
+            onError={(e) => {
+              e.target.style.display = "none";
+            }}
           />
-        ) : "🛍️"}
+        ) : (
+          "🛍️"
+        )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm truncate" style={{ color: "var(--text-primary)" }}>
+        <p
+          className="font-bold text-sm truncate"
+          style={{ color: "var(--text-primary)" }}
+        >
           {item.name}
         </p>
         <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
           {item.unit || "1 piece"} · ₹{item.price} each
         </p>
-        <p className="font-black text-sm mt-1" style={{ color: "var(--brand)" }}>
+        <p
+          className="font-black text-sm mt-1"
+          style={{ color: "var(--brand)" }}
+        >
           ₹{(item.price * item.qty).toFixed(0)}
         </p>
       </div>
@@ -77,13 +100,18 @@ function CartItem({ item, onUpdate, onRemove, index }) {
           style={{ background: "var(--elevated)" }}
         >
           <button
-            onClick={() => item.qty === 1 ? handleRemove() : onUpdate(item._id, item.qty - 1)}
+            onClick={() =>
+              item.qty === 1 ? handleRemove() : onUpdate(item._id, item.qty - 1)
+            }
             className="w-6 h-6 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
             style={{ background: "var(--card)", color: "var(--brand)" }}
           >
             <Minus size={11} />
           </button>
-          <span className="w-6 text-center text-sm font-black" style={{ color: "var(--text-primary)" }}>
+          <span
+            className="w-6 text-center text-sm font-black"
+            style={{ color: "var(--text-primary)" }}
+          >
             {item.qty}
           </span>
           <button
@@ -100,22 +128,36 @@ function CartItem({ item, onUpdate, onRemove, index }) {
 }
 
 export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
-  const { cartItems, cartStore, total, count, updateQty, removeFromCart, clearCart } = useCart();
+  const {
+    cartItems,
+    cartStore,
+    total,
+    count,
+    updateQty,
+    removeFromCart,
+    clearCart,
+  } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
-  const subtotal   = total;
-  const delivery   = 20;
+  const subtotal = total;
+  const delivery = 20;
   const grandTotal = subtotal + delivery;
 
   // Role-aware post-checkout redirect hint
-  const roleHint = user?.role === "store"    ? "You're ordering as a Store Owner" :
-                   user?.role === "delivery"  ? "You're ordering as a Delivery Partner" : null;
+  const roleHint =
+    user?.role === "store"
+      ? "You're ordering as a Store Owner"
+      : user?.role === "delivery"
+        ? "You're ordering as a Delivery Partner"
+        : null;
 
   return (
     <>
@@ -151,19 +193,31 @@ export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
             <div
               className="w-10 h-10 rounded-2xl flex items-center justify-center"
               style={{
-                background: "linear-gradient(135deg, rgba(255,107,53,0.2), rgba(255,107,53,0.08))",
+                background:
+                  "linear-gradient(135deg, rgba(255,107,53,0.2), rgba(255,107,53,0.08))",
                 border: "1px solid rgba(255,107,53,0.25)",
               }}
             >
               <ShoppingBag size={18} style={{ color: "var(--brand)" }} />
             </div>
             <div>
-              <h2 className="font-bold text-base" style={{ color: "var(--text-primary)" }}>
+              <h2
+                className="font-bold text-base"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {cartLabel}
               </h2>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 {count} item{count !== 1 ? "s" : ""}
-                {cartStore && <> · <span style={{ color: "var(--brand)" }}>{cartStore.name}</span></>}
+                {cartStore && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span style={{ color: "var(--brand)" }}>
+                      {cartStore.name}
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -180,7 +234,10 @@ export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
             <button
               onClick={onClose}
               className="p-2 rounded-xl transition-all hover:scale-110"
-              style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
+              style={{
+                background: "var(--elevated)",
+                color: "var(--text-muted)",
+              }}
             >
               <X size={18} />
             </button>
@@ -191,7 +248,11 @@ export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
         {roleHint && cartItems.length > 0 && (
           <div
             className="mx-4 mt-3 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-            style={{ background: "rgba(59,130,246,0.08)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
+            style={{
+              background: "rgba(59,130,246,0.08)",
+              color: "#3b82f6",
+              border: "1px solid rgba(59,130,246,0.2)",
+            }}
           >
             ℹ️ {roleHint}
           </div>
@@ -201,18 +262,33 @@ export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-5 pb-10">
-              <div className="text-7xl select-none" style={{ animation: "floatSlow 4s ease-in-out infinite" }}>
+              <div
+                className="text-7xl select-none"
+                style={{ animation: "floatSlow 4s ease-in-out infinite" }}
+              >
                 🛒
               </div>
               <div className="text-center">
-                <p className="font-bold text-lg" style={{ color: "var(--text-secondary)" }}>
+                <p
+                  className="font-bold text-lg"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   Your cart is empty
                 </p>
-                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+                <p
+                  className="text-sm mt-1"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Discover stores and add items you love
                 </p>
               </div>
-              <button onClick={() => { onClose(); navigate("/user/home"); }} className="btn btn-brand text-sm">
+              <button
+                onClick={() => {
+                  onClose();
+                  navigate("/user/home");
+                }}
+                className="btn btn-brand text-sm"
+              >
                 Browse Stores <ArrowRight size={14} />
               </button>
             </div>
@@ -231,7 +307,10 @@ export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
 
         {/* Footer */}
         {cartItems.length > 0 && (
-          <div className="p-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
+          <div
+            className="p-4 space-y-3"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
             {/* Savings hint */}
             <div
               className="flex items-center justify-between text-xs px-3 py-2.5 rounded-xl"
@@ -245,35 +324,62 @@ export default function CartDrawer({ open, onClose, cartLabel = "Your Cart" }) {
             </div>
 
             {/* Bill breakdown */}
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between" style={{ color: "var(--text-secondary)" }}>
+            <div
+              className="rounded-2xl p-4 space-y-2 text-sm"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(255,107,53,0.06), rgba(255,107,53,0.03))",
+                border: "1px solid rgba(255,107,53,0.15)",
+              }}
+            >
+              <div
+                className="flex justify-between"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 <span>Subtotal ({count} items)</span>
                 <span className="font-semibold">₹{subtotal.toFixed(0)}</span>
               </div>
-              <div className="flex justify-between" style={{ color: "var(--text-secondary)" }}>
+              <div
+                className="flex justify-between"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 <span>Delivery fee</span>
                 <span className="font-semibold">₹{delivery}</span>
               </div>
               <div
-                className="flex justify-between font-black text-lg pt-2"
-                style={{ borderTop: "1px solid var(--border)", color: "var(--text-primary)" }}
+                className="flex justify-between pt-3"
+                style={{ borderTop: "1px solid rgba(255,107,53,0.25)" }}
               >
-                <span>Total</span>
-                <span style={{ color: "var(--brand)" }}>₹{grandTotal.toFixed(0)}</span>
+                <span
+                  className="font-bold text-base"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Total
+                </span>
+                <span
+                  className="font-black text-lg"
+                  style={{ color: "var(--brand)" }}
+                >
+                  ₹{grandTotal.toFixed(0)}
+                </span>
               </div>
             </div>
 
             {/* Checkout button */}
             <button
-              onClick={() => { onClose(); navigate("/checkout"); }}
+              onClick={() => {
+                onClose();
+                navigate("/checkout");
+              }}
               className="btn btn-brand w-full justify-center text-base py-4 relative overflow-hidden"
               style={{ boxShadow: "0 8px 25px rgba(255,107,53,0.4)" }}
             >
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)",
-                  animation: "gradientShift 2s linear infinite",
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+                  animation: "shimmerSweep 2.5s ease-in-out infinite",
                 }}
               />
               Checkout · ₹{grandTotal.toFixed(0)}
