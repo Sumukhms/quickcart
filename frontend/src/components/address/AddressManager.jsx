@@ -6,16 +6,33 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import {
-  MapPin, Plus, Edit3, Trash2, Check, Star, Home, Briefcase, Map, Loader2,
+  MapPin,
+  Plus,
+  Edit3,
+  Trash2,
+  Check,
+  Star,
+  Home,
+  Briefcase,
+  Map,
+  Loader2,
 } from "lucide-react";
-import { addressAPI, formatAddress } from "../../api/addressAPI.js";
+import { addressAPI } from "../../api/addressAPI.js";
 import AddressForm from "./AddressForm.jsx";
 
-const LABEL_ICONS   = { Home, Work: Briefcase, Other: Map };
-const LABEL_COLORS  = { Home: "#22c55e", Work: "#3b82f6", Other: "#8b5cf6" };
+const LABEL_ICONS = { Home, Work: Briefcase, Other: Map };
+const LABEL_COLORS = { Home: "#22c55e", Work: "#3b82f6", Other: "#8b5cf6" };
 
-function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault, showActions }) {
-  const Icon  = LABEL_ICONS[addr.label] || MapPin;
+function AddressCard({
+  addr,
+  selected,
+  onSelect,
+  onEdit,
+  onDelete,
+  onSetDefault,
+  showActions,
+}) {
+  const Icon = LABEL_ICONS[addr.label] || MapPin;
   const color = LABEL_COLORS[addr.label] || "var(--brand)";
   const selectedId = typeof selected === "object" ? selected?._id : selected;
   const isSelected = selectedId === addr._id;
@@ -28,11 +45,11 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
       onKeyDown={(e) => e.key === "Enter" && onSelect && onSelect(addr)}
       className="relative group cursor-pointer w-full text-left transition-all hover:scale-[1.01]"
       style={{
-        background:   isSelected ? "rgba(255,107,53,0.05)" : "var(--elevated)",
-        border:       `1.5px solid ${isSelected ? "var(--brand)" : "var(--border)"}`,
+        background: isSelected ? "rgba(255,107,53,0.05)" : "var(--elevated)",
+        border: `1.5px solid ${isSelected ? "var(--brand)" : "var(--border)"}`,
         borderRadius: "16px",
-        padding:      "14px 16px",
-        boxShadow:    isSelected ? "0 0 0 1px rgba(255,107,53,0.15)" : "none",
+        padding: "14px 16px",
+        boxShadow: isSelected ? "0 0 0 1px rgba(255,107,53,0.15)" : "none",
       }}
     >
       <div className="flex items-start gap-3">
@@ -51,17 +68,26 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
             {addr.isDefault && (
               <span
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}
+                style={{
+                  background: "rgba(245,158,11,0.15)",
+                  color: "#f59e0b",
+                }}
               >
                 DEFAULT
               </span>
             )}
           </div>
-          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          <p
+            className="text-sm font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
             {addr.street}
           </p>
           {addr.area && (
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
               {addr.area}
             </p>
           )}
@@ -69,7 +95,10 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
             {[addr.city, addr.state, addr.pincode].filter(Boolean).join(", ")}
           </p>
           {addr.landmark && (
-            <p className="text-xs mt-0.5 italic" style={{ color: "var(--text-muted)" }}>
+            <p
+              className="text-xs mt-0.5 italic"
+              style={{ color: "var(--text-muted)" }}
+            >
               Near: {addr.landmark}
             </p>
           )}
@@ -86,12 +115,17 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
       </div>
 
       {showActions && (
-        <div className="flex items-center gap-1.5 mt-3 pt-3"
-          style={{ borderTop: "1px solid var(--border)" }}>
+        <div
+          className="flex items-center gap-1.5 mt-3 pt-3"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
           {!addr.isDefault && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onSetDefault(addr._id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetDefault(addr._id);
+              }}
               className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:scale-105"
               style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b" }}
             >
@@ -100,7 +134,10 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
           )}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onEdit(addr); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(addr);
+            }}
             className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:scale-105"
             style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
           >
@@ -108,7 +145,10 @@ function AddressCard({ addr, selected, onSelect, onEdit, onDelete, onSetDefault,
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete(addr._id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(addr._id);
+            }}
             className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:scale-105"
             style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444" }}
           >
@@ -124,13 +164,13 @@ export default function AddressManager({
   selected,
   onSelect,
   showActions = false,
-  compact     = false,
+  compact = false,
 }) {
   const [addresses, setAddresses] = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [showForm,  setShowForm]  = useState(false);
-  const [editAddr,  setEditAddr]  = useState(null);
-  const [error,     setError]     = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editAddr, setEditAddr] = useState(null);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,7 +180,8 @@ export default function AddressManager({
       setAddresses(data);
 
       // Auto-select default if nothing selected yet
-      const selectedId = typeof selected === "object" ? selected?._id : selected;
+      const selectedId =
+        typeof selected === "object" ? selected?._id : selected;
       if (onSelect && data.length > 0 && !selectedId) {
         const def = data.find((a) => a.isDefault) || data[0];
         onSelect(def);
@@ -152,7 +193,9 @@ export default function AddressManager({
     }
   }, []); // eslint-disable-line
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleSave = (saved) => {
     setAddresses((prev) => {
@@ -175,7 +218,8 @@ export default function AddressManager({
       await addressAPI.remove(id);
       setAddresses((prev) => {
         const next = prev.filter((a) => a._id !== id);
-        const selectedId = typeof selected === "object" ? selected?._id : selected;
+        const selectedId =
+          typeof selected === "object" ? selected?._id : selected;
         if (onSelect && selectedId === id && next.length > 0) {
           const def = next.find((a) => a.isDefault) || next[0];
           onSelect(def);
@@ -201,7 +245,11 @@ export default function AddressManager({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 size={22} className="animate-spin" style={{ color: "var(--brand)" }} />
+        <Loader2
+          size={22}
+          className="animate-spin"
+          style={{ color: "var(--brand)" }}
+        />
       </div>
     );
   }
@@ -209,16 +257,28 @@ export default function AddressManager({
   return (
     <div className="space-y-2.5">
       {error && (
-        <p className="text-xs" style={{ color: "#ef4444" }}>{error}</p>
+        <p className="text-xs" style={{ color: "#ef4444" }}>
+          {error}
+        </p>
       )}
 
       {addresses.length === 0 && !showForm && (
         <div
           className="text-center py-6 rounded-2xl"
-          style={{ background: "var(--elevated)", border: "1.5px dashed var(--border)" }}
+          style={{
+            background: "var(--elevated)",
+            border: "1.5px dashed var(--border)",
+          }}
         >
-          <MapPin size={24} className="mx-auto mb-2" style={{ color: "var(--text-muted)" }} />
-          <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+          <MapPin
+            size={24}
+            className="mx-auto mb-2"
+            style={{ color: "var(--text-muted)" }}
+          />
+          <p
+            className="text-sm font-semibold"
+            style={{ color: "var(--text-secondary)" }}
+          >
             No saved addresses
           </p>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
@@ -233,7 +293,10 @@ export default function AddressManager({
           addr={addr}
           selected={selected}
           onSelect={onSelect}
-          onEdit={(a) => { setEditAddr(a); setShowForm(true); }}
+          onEdit={(a) => {
+            setEditAddr(a);
+            setShowForm(true);
+          }}
           onDelete={handleDelete}
           onSetDefault={handleSetDefault}
           showActions={showActions}
@@ -243,7 +306,10 @@ export default function AddressManager({
       {!compact && addresses.length < 5 && !showForm && (
         <button
           type="button"
-          onClick={() => { setEditAddr(null); setShowForm(true); }}
+          onClick={() => {
+            setEditAddr(null);
+            setShowForm(true);
+          }}
           className="flex items-center gap-2 text-sm font-semibold transition-all hover:opacity-80"
           style={{ color: "var(--brand)" }}
         >
@@ -267,7 +333,10 @@ export default function AddressManager({
         <AddressForm
           address={editAddr}
           onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditAddr(null); }}
+          onClose={() => {
+            setShowForm(false);
+            setEditAddr(null);
+          }}
         />
       )}
     </div>

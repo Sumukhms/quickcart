@@ -99,7 +99,7 @@ export default function DeliveryTracker({ orderId, order }) {
 
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(null);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
 
   const isActive = order?.status === "out_for_delivery";
   const { location, available, connected, lastUpdate } = useOrderLocation(
@@ -179,19 +179,25 @@ export default function DeliveryTracker({ orderId, order }) {
       if (polylineRef.current) {
         try {
           polylineRef.current.remove();
-        } catch {}
+        } catch {
+          void 0;
+        }
         polylineRef.current = null;
       }
       if (destMarker.current) {
         try {
           destMarker.current.remove();
-        } catch {}
+        } catch {
+          void 0;
+        }
         destMarker.current = null;
       }
       if (mapObjRef.current) {
         try {
           mapObjRef.current.remove();
-        } catch {}
+        } catch {
+          void 0;
+        }
         mapObjRef.current = null;
       }
       riderMarker.current = null;

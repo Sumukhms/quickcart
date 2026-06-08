@@ -25,6 +25,8 @@ import {
   MIN_ORDER_VALUE,
 } from "../config/constants.js";
 import { notifyPayment } from "../services/notificationService.js";
+import { validateStock, decreaseStock } from "../services/inventoryService.js";
+import { computeServerTotal } from "../utils/orderUtils.js";
 
 // ── Guard: warn at startup if keys are missing ─────────────────
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
@@ -49,104 +51,6 @@ function getRazorpay() {
     key_id: RAZORPAY_KEY_ID,
     key_secret: RAZORPAY_KEY_SECRET,
   });
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helper: validate stock for all items in cart
-// Returns { valid: true } or { valid: false, message, productName, available }
-// ─────────────────────────────────────────────────────────────
-async function validateStock(items) {
-  const productIds = items.map((i) => i.productId).filter(Boolean);
-  const products = await Product.find({ _id: { $in: productIds } });
-  const productMap = Object.fromEntries(
-    products.map((p) => [p._id.toString(), p]),
-  );
-
-  for (const item of items) {
-    const product = productMap[item.productId?.toString()];
-
-    if (!product) {
-      return {
-        valid: false,
-        message: `"${item.name || "A product"}" is no longer available`,
-        productName: item.name,
-      };
-    }
-
-    if (!product.available) {
-      return {
-        valid: false,
-        message: `"${product.name}" is currently unavailable`,
-        productName: product.name,
-      };
-    }
-
-    if (
-      product.stock !== undefined &&
-      product.stock !== null &&
-      product.stock < (item.quantity || 1)
-    ) {
-      const avail = product.stock;
-      return {
-        valid: false,
-        message:
-          avail <= 0
-            ? `"${product.name}" is out of stock`
-            : `Only ${avail} unit${avail !== 1 ? "s" : ""} of "${product.name}" available`,
-        productName: product.name,
-        available: avail,
-        stockError: true,
-      };
-    }
-  }
-
-  return { valid: true };
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helper: compute expected total from DB (server-side)
-// ─────────────────────────────────────────────────────────────
-async function computeServerTotal(items, couponCode) {
-  const productIds = items.map((i) => i.productId).filter(Boolean);
-  const products = await Product.find({ _id: { $in: productIds } });
-  const productMap = Object.fromEntries(
-    products.map((p) => [p._id.toString(), p]),
-  );
-
-  let subtotal = 0;
-  for (const item of items) {
-    const product = productMap[item.productId?.toString()];
-    if (!product || !product.available) return null;
-    subtotal += product.price * (item.quantity || 1);
-  }
-
-  let deliveryFee = DELIVERY_FEE;
-  let discount = 0;
-  let freeDelivery = false;
-
-  if (couponCode) {
-    const coupon = await Coupon.findOne({
-      code: couponCode.toUpperCase(),
-      isActive: true,
-    });
-    if (coupon && (!coupon.expiresAt || new Date() <= coupon.expiresAt)) {
-      if (subtotal >= coupon.minOrderAmount) {
-        if (coupon.discountType === "percent") {
-          discount = Math.round((subtotal * coupon.discountValue) / 100);
-          if (coupon.maxDiscount)
-            discount = Math.min(discount, coupon.maxDiscount);
-        } else if (coupon.discountType === "flat") {
-          discount = coupon.discountValue;
-        } else if (coupon.discountType === "free_delivery") {
-          freeDelivery = true;
-        }
-      }
-    }
-  }
-
-  if (freeDelivery) deliveryFee = 0;
-  const total = Math.max(0, subtotal + deliveryFee - discount);
-  return { subtotal, deliveryFee, discount, total };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -397,28 +301,9 @@ export const verifyPaymentAndCreateOrder = async (req, res) => {
     }).catch(() => {});
 
     // ── 8. Decrement stock atomically ─────────────────────────
-    const productIds = items.filter((i) => i.productId).map((i) => i.productId);
-    const bulkStockOps = items
-      .filter((i) => i.productId)
-      .map((i) => ({
-        updateOne: {
-          filter: { _id: i.productId, stock: { $gte: i.quantity } },
-          update: { $inc: { stock: -i.quantity } },
-        },
-      }));
-
-    if (bulkStockOps.length) {
-      Product.bulkWrite(bulkStockOps)
-        .then(() => {
-          Product.updateMany(
-            { _id: { $in: productIds }, stock: { $lte: 0 } },
-            { $set: { available: false } },
-          ).catch((err) =>
-            console.error("Stock availability update error:", err.message),
-          );
-        })
-        .catch((err) => console.error("Stock decrement error:", err.message));
-    }
+    decreaseStock(items).catch((err) =>
+      console.error("[verifyPayment] Stock update error:", err.message),
+    );
 
     // ── 9. Clear cart ─────────────────────────────────────────
     await Cart.findOneAndUpdate(

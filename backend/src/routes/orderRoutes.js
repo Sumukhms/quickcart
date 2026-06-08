@@ -13,12 +13,13 @@ import express from "express";
 import {
   placeOrder, getMyOrders, getOrderById, updateOrderStatus, getStoreOrders,
   getAvailableOrders, acceptDelivery, getMyDeliveries, markDelivered,
-  updateDeliveryLocation,
   cancelOrder,
 } from "../controllers/orderController.js";
-// ✅ ADD: import invoice controller
 import { generateInvoice } from "../controllers/invoiceController.js";
 import { protect, restrictTo } from "../middleware/authMiddleware.js";
+import {
+  updateDeliveryLocation,
+} from "../controllers/locationController.js";
 
 const r = express.Router();
 
@@ -33,7 +34,7 @@ r.get("/store/:storeId", protect, restrictTo("store"), getStoreOrders);
 r.get("/delivery/available", protect, restrictTo("delivery"), getAvailableOrders);
 r.get("/delivery/mine",      protect, restrictTo("delivery"), getMyDeliveries);
 
-// ✅ ADD: invoice route BEFORE /:id — any logged-in user can request
+// invoice route BEFORE /:id — any logged-in user can request
 // (controller handles authorization: customer=own order, admin=all)
 r.get("/:id/invoice", protect, generateInvoice);
 

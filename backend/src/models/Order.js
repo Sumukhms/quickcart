@@ -31,10 +31,9 @@ const orderSchema = new mongoose.Schema({
   deliveryFee:     { type: Number, default: 20 },
   deliveryAddress: { type: String, required: true },
 
-  // ── NEW: customer's GPS coordinates for proximity banner ──────
   deliveryLat: { type: Number, default: null },
   deliveryLng: { type: Number, default: null },
-  // ─────────────────────────────────────────────────────────────
+
 
   status: {
     type: String,
@@ -84,4 +83,30 @@ const orderSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+orderSchema.index({
+  userId: 1,
+  createdAt: -1,
+});
+
+orderSchema.index({
+  storeId: 1,
+  createdAt: -1,
+});
+
+orderSchema.index({
+  deliveryAgentId: 1,
+  createdAt: -1,
+});
+
+orderSchema.index({
+  status: 1,
+  deliveryAgentId: 1,
+});
+
+orderSchema.index({
+  userId: 1,
+  storeId: 1,
+  status: 1,
+  createdAt: -1,
+});
 export default mongoose.model("Order", orderSchema);

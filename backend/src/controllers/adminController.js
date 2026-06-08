@@ -309,23 +309,23 @@ export const getPendingPayouts = async (req, res) => {
 export const processPayout = async (req, res) => {
   try {
     const { action, note = "" } = req.body;
- 
+
     // ✅ FIX: "processed" matches PayoutRequest enum, NOT "approved"
     if (!["processed", "rejected"].includes(action)) {
       return res.status(400).json({
         message: "action must be 'processed' or 'rejected'",
       });
     }
- 
+
     const request = await PayoutRequest.findById(req.params.id).populate(
       "deliveryPartnerId",
       "name email",
     );
- 
+
     if (!request) {
       return res.status(404).json({ message: "Payout request not found" });
     }
- 
+
     // ✅ FIX: Prevent double-processing
     if (request.status !== "pending") {
       return res.status(400).json({
@@ -333,16 +333,12 @@ export const processPayout = async (req, res) => {
         currentStatus: request.status,
       });
     }
- 
-    request.status      = action;         // "processed" or "rejected"
+
+    request.status = action; // "processed" or "rejected"
     request.processedAt = new Date();
-    request.note        = note.trim();
+    request.note = note.trim();
     await request.save();
- 
-    console.log(
-      `[Admin] Payout ${action} for partner ${request.deliveryPartnerId?.name} — ₹${request.amount}`,
-    );
- 
+
     res.json({
       message: `Payout ${action} successfully.`,
       request,

@@ -59,8 +59,6 @@ r.post("/razorpay", async (req, res) => {
     payload.payload?.refund?.entity ||
     payload.payload?.order?.entity;
 
-  console.log(`[Webhook] Event: ${event}`);
-
   try {
     switch (event) {
       // ── payment.captured ─────────────────────────────────────
@@ -73,9 +71,6 @@ r.post("/razorpay", async (req, res) => {
             { new: true },
           );
           if (updated) {
-            console.log(
-              `[Webhook] payment.captured → order ${updated._id} marked paid`,
-            );
             // ✅ Emit real-time update to customer's socket room
             req.io
               ?.to(`user_${updated.userId.toString()}`)
@@ -155,10 +150,6 @@ r.post("/razorpay", async (req, res) => {
           );
 
           if (updated) {
-            console.log(
-              `[Webhook] refund.processed → order ${updated._id} refund confirmed`,
-            );
-
             await notify(null, {
               userId: updated.userId,
               title: "Refund Processed 💰",
@@ -177,12 +168,11 @@ r.post("/razorpay", async (req, res) => {
       // ── order.paid ───────────────────────────────────────────
       case "order.paid": {
         const rpOrderId = entity?.id;
-        console.log(`[Webhook] order.paid → razorpay order ${rpOrderId}`);
         break;
       }
 
       default:
-        console.log(`[Webhook] Unhandled event: ${event}`);
+        break;
     }
 
     res.status(200).json({ received: true });

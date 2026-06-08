@@ -10,7 +10,11 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     // In production, send to your error tracking service (Sentry, etc.)
-    console.error("[ErrorBoundary] Uncaught error:", error, info.componentStack);
+    console.error(
+      "[ErrorBoundary] Uncaught error:",
+      error,
+      info.componentStack,
+    );
   }
 
   render() {
@@ -37,7 +41,7 @@ export default class ErrorBoundary extends Component {
           <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
             An unexpected error occurred. Our team has been notified.
           </p>
-          {process.env.NODE_ENV === "development" && this.state.error && (
+          {import.meta.env.DEV && this.state.error && (
             <pre
               className="text-left text-xs p-4 rounded-2xl mb-6 overflow-auto"
               style={{

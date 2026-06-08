@@ -31,13 +31,6 @@ const styles = {
   },
 };
 
-const emojis = {
-  success: "✅",
-  error: "❌",
-  info: "ℹ️",
-  warning: "⚠️",
-};
-
 export default function ToastContainer() {
   const { toasts } = useCart();
 

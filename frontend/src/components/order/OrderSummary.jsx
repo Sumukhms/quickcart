@@ -22,26 +22,39 @@ import { Tag, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 
 const PAY_LABELS = {
-  cod:    "💵 Cash on Delivery",
+  cod: "💵 Cash on Delivery",
   online: "💳 Online Payment",
-  upi:    "📱 UPI Payment",
-  card:   "💳 Card Payment",
+  upi: "📱 UPI Payment",
+  card: "💳 Card Payment",
 };
 
 function LineItem({ label, value, highlight, strikeValue, sub }) {
   return (
     <div className="flex justify-between items-baseline gap-2">
-      <span className="text-sm" style={{ color: highlight ? "#22c55e" : "var(--text-secondary)" }}>
+      <span
+        className="text-sm"
+        style={{ color: highlight ? "#22c55e" : "var(--text-secondary)" }}
+      >
         {label}
-        {sub && <span className="text-xs ml-1" style={{ color: "var(--text-muted)" }}>({sub})</span>}
+        {sub && (
+          <span className="text-xs ml-1" style={{ color: "var(--text-muted)" }}>
+            ({sub})
+          </span>
+        )}
       </span>
       <div className="flex items-center gap-1.5">
         {strikeValue && (
-          <span className="text-xs line-through" style={{ color: "var(--text-muted)" }}>
+          <span
+            className="text-xs line-through"
+            style={{ color: "var(--text-muted)" }}
+          >
             {strikeValue}
           </span>
         )}
-        <span className="text-sm font-semibold" style={{ color: highlight ? "#22c55e" : "var(--text-primary)" }}>
+        <span
+          className="text-sm font-semibold"
+          style={{ color: highlight ? "#22c55e" : "var(--text-primary)" }}
+        >
           {value}
         </span>
       </div>
@@ -58,7 +71,6 @@ export default function OrderSummary({
   freeDelivery = false,
   grandTotal,
   paymentMethod,
-  compact = false,
   className = "",
 }) {
   const [itemsExpanded, setItemsExpanded] = useState(false);
@@ -74,7 +86,10 @@ export default function OrderSummary({
   return (
     <div
       className={`rounded-2xl overflow-hidden ${className}`}
-      style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+      style={{
+        backgroundColor: "var(--card)",
+        border: "1px solid var(--border)",
+      }}
     >
       {/* Items toggle (compact or expandable) */}
       {items.length > 0 && (
@@ -83,16 +98,27 @@ export default function OrderSummary({
             type="button"
             onClick={() => setItemsExpanded((v) => !v)}
             className="w-full flex items-center justify-between px-4 py-3 transition-colors"
-            style={{ borderBottom: itemsExpanded ? "1px solid var(--border)" : "none" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            style={{
+              borderBottom: itemsExpanded ? "1px solid var(--border)" : "none",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
           >
-            <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2"
-              style={{ color: "var(--text-muted)" }}>
+            <span
+              className="text-xs font-bold uppercase tracking-wider flex items-center gap-2"
+              style={{ color: "var(--text-muted)" }}
+            >
               Items
               <span
                 className="px-1.5 py-0.5 rounded-md text-[10px]"
-                style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
+                style={{
+                  background: "var(--elevated)",
+                  color: "var(--text-muted)",
+                }}
               >
                 {items.reduce((s, i) => s + (i.quantity || i.qty || 1), 0)}
               </span>
@@ -107,7 +133,11 @@ export default function OrderSummary({
           {itemsExpanded && (
             <div
               className="px-4 py-3 space-y-2.5"
-              style={{ borderBottom: "1px solid var(--border)", maxHeight: 240, overflowY: "auto" }}
+              style={{
+                borderBottom: "1px solid var(--border)",
+                maxHeight: 240,
+                overflowY: "auto",
+              }}
             >
               {items.map((item, i) => {
                 const qty = item.quantity || item.qty || 1;
@@ -118,21 +148,34 @@ export default function OrderSummary({
                       style={{ background: "var(--elevated)" }}
                     >
                       {item.image ? (
-                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         "🛍️"
                       )}
                     </div>
-                    <p className="flex-1 text-sm truncate" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="flex-1 text-sm truncate"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {item.name}
                     </p>
                     <span
                       className="text-xs px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--elevated)", color: "var(--text-muted)" }}
+                      style={{
+                        background: "var(--elevated)",
+                        color: "var(--text-muted)",
+                      }}
                     >
                       ×{qty}
                     </span>
-                    <p className="text-sm font-semibold w-14 text-right" style={{ color: "var(--text-primary)" }}>
+                    <p
+                      className="text-sm font-semibold w-14 text-right"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       ₹{(item.price || 0) * qty}
                     </p>
                   </div>

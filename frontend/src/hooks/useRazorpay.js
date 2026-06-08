@@ -45,7 +45,10 @@ export function useRazorpay() {
   useEffect(() => {
     loadScript(RAZORPAY_SCRIPT)
       .then(() => setScriptReady(true))
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        const safeMessage = err?.message || "Failed to load payment script";
+        console.error("[Razorpay] Script loading failed:", safeMessage);
+      });
   }, []);
 
   /**
@@ -77,7 +80,7 @@ export function useRazorpay() {
         name: "QuickCart",
         description: description,
         order_id: razorpayOrderId,
-        
+
         prefill: { name, email, contact },
         theme: { color: "#ff6b35" }, // QuickCart brand colour
 

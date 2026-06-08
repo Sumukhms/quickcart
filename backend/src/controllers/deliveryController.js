@@ -25,12 +25,7 @@ async function computeEarnings(userId) {
     const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    console.log("[computeEarnings] Date calculations:", {
-      now: now.toISOString(),
-      todayStart: todayStart.toISOString(),
-      weekStart: weekStart.toISOString(),
-      monthStart: monthStart.toISOString(),
-    });
+
 
     // Validate userId is a valid ObjectId
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
@@ -146,16 +141,11 @@ export const getEarningsSummary = async (req, res) => {
 
 // ── POST /api/delivery/payout/request ─────────────────────────
 export const requestPayout = async (req, res) => {
-  console.log("[requestPayout] Request received:", req.method, req.url);
-  console.log("🔍 DEBUG: req.user =", req.user);
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      console.error("[requestPayout] No userId in request");
       return res.status(401).json({ message: "User not authenticated" });
     }
-    console.log("[requestPayout] Starting payout request for user:", userId);
-    console.log("[requestPayout] User object:", req.user);
 
     // ✅ FIX: Block if pending request already exists
     const existing = await PayoutRequest.findOne({
@@ -164,7 +154,6 @@ export const requestPayout = async (req, res) => {
     });
 
     if (existing) {
-      console.log("[requestPayout] Existing pending request found");
       return res.status(400).json({
         message:
           "You already have a pending payout request. Please wait for it to be processed.",
@@ -177,13 +166,9 @@ export const requestPayout = async (req, res) => {
     }
 
     // ✅ FIX: Compute earnings via aggregation (not client-side)
-    console.log("[requestPayout] Computing earnings for user:", userId);
     const earnings = await computeEarnings(userId);
-    console.log("[requestPayout] Earnings computed:", earnings);
-    console.log("[requestPayout] Earnings total:", earnings.total);
 
     if (earnings.total < 1) {
-      console.log("[requestPayout] No earnings available");
       return res.status(400).json({
         message: "You have no earnings available to request a payout.",
       });
@@ -192,47 +177,28 @@ export const requestPayout = async (req, res) => {
     // ✅ FIX: Validate requested amount against actual earnings
     const body = req.body || {};
     const { amount } = body;
-    console.log("🔍 DEBUG: req.body =", req.body);
-    console.log("🔍 DEBUG: body =", body);
-    console.log("🔍 DEBUG: amount =", amount, "type:", typeof amount);
     const payoutAmount = amount ? Number(amount) : earnings.total;
-    console.log(
-      "[requestPayout] Requested amount:",
-      amount,
-      "Payout amount:",
-      payoutAmount,
-      "type:",
-      typeof payoutAmount,
-    );
 
     if (isNaN(payoutAmount) || payoutAmount < 1) {
-      console.log("[requestPayout] Invalid payout amount");
       return res.status(400).json({ message: "Invalid payout amount." });
     }
 
     if (payoutAmount > earnings.total) {
-      console.log("[requestPayout] Amount exceeds earnings");
       return res.status(400).json({
         message: `Requested ₹${payoutAmount} exceeds your total earnings of ₹${earnings.total}.`,
         maxAmount: earnings.total,
       });
     }
 
-    console.log("[requestPayout] Creating payout request");
     const requestData = {
       deliveryPartnerId: userId,
       amount: payoutAmount,
       status: "pending",
     };
-    console.log("[requestPayout] Request data:", requestData);
 
     let request;
     try {
       request = await PayoutRequest.create(requestData);
-      console.log(
-        "[requestPayout] Payout request created successfully:",
-        request._id,
-      );
     } catch (createError) {
       console.error(
         "[requestPayout] Failed to create payout request:",
@@ -253,9 +219,7 @@ export const requestPayout = async (req, res) => {
       },
     });
   } catch (e) {
-    console.error("🔥 PAYOUT ERROR:", e);
     console.error("[DeliveryController] requestPayout error:", e.message);
-    console.error("[DeliveryController] requestPayout stack:", e.stack);
     res.status(500).json({
       message: "Payout failed",
       error: e.message,

@@ -20,21 +20,21 @@ function createTransporter() {
   if (!user || !pass) {
     throw new Error(
       "EMAIL_USER and EMAIL_PASS must be set in .env\n" +
-      "For Gmail, use an App Password (not your account password).\n" +
-      "Steps: Google Account → Security → 2-Step Verification → App passwords"
+        "For Gmail, use an App Password (not your account password).\n" +
+        "Steps: Google Account → Security → 2-Step Verification → App passwords",
     );
   }
 
   return nodemailer.createTransport({
-    host:   "smtp.gmail.com",
-    port:   587,
-    secure: false,             // STARTTLS
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // STARTTLS
     auth: { user, pass },
     connectionTimeout: 15_000,
-    greetingTimeout:   10_000,
-    socketTimeout:     15_000,
-    logger: process.env.NODE_ENV === "development",   // log SMTP dialogue in dev
-    debug:  false,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+    logger: process.env.NODE_ENV === "development", // log SMTP dialogue in dev
+    debug: false,
   });
 }
 
@@ -47,31 +47,33 @@ async function sendWithRetry(mailOptions, attempts = 3) {
     try {
       transporter = createTransporter();
 
-      console.log(`[Email] Attempt ${i}/${attempts} → ${mailOptions.to} (${mailOptions.subject})`);
-
       const info = await transporter.sendMail(mailOptions);
-      console.log(`[Email] ✅ Sent successfully. MessageId: ${info.messageId}`);
       return true;
     } catch (err) {
       lastError = err;
-      console.error(`[Email] ⚠️  Attempt ${i}/${attempts} failed: ${err.message}`);
+      console.error(`[Email] Attempt ${i}/${attempts} failed: ${err.message}`);
 
       if (i < attempts) {
         const delay = 1000 * Math.pow(2, i - 1); // 1s, 2s, 4s
-        console.log(`[Email] Retrying in ${delay}ms...`);
         await new Promise((r) => setTimeout(r, delay));
       }
     } finally {
       // Always close the transporter connection pool
       if (transporter) {
-        try { transporter.close(); } catch (_) {}
+        try {
+          transporter.close();
+        } catch (_) {}
       }
     }
   }
 
-  console.error(`[Email] ❌ All ${attempts} attempts failed. Last error: ${lastError?.message}`);
+  console.error(
+    `[Email] ❌ All ${attempts} attempts failed. Last error: ${lastError?.message}`,
+  );
   console.error("[Email] Check your EMAIL_USER / EMAIL_PASS in .env");
-  console.error("[Email] Gmail requires an App Password, NOT your regular password.");
+  console.error(
+    "[Email] Gmail requires an App Password, NOT your regular password.",
+  );
   return false;
 }
 
@@ -121,15 +123,17 @@ function htmlWrapper(title, bodyHtml) {
 
 // ── OTP email ───────────────────────────────────────────────────
 export async function sendOtpEmail(email, otp, purpose) {
-  const isReset    = purpose === "reset_password";
-  const subject    = isReset
+  const isReset = purpose === "reset_password";
+  const subject = isReset
     ? "Reset your QuickCart password"
     : "Verify your QuickCart email";
   const actionLine = isReset
     ? "Use the OTP below to reset your password."
     : "Use the OTP below to verify your email address.";
 
-  const html = htmlWrapper(subject, `
+  const html = htmlWrapper(
+    subject,
+    `
     <h2 style="margin:0 0 8px;color:#111827;font-size:20px;font-weight:700;">
       ${isReset ? "Password Reset" : "Email Verification"}
     </h2>
@@ -153,13 +157,15 @@ export async function sendOtpEmail(email, otp, purpose) {
     <p style="margin:0;color:#9ca3af;font-size:13px;">
       If you didn't request this, you can safely ignore this email.
     </p>
-  `);
+  `,
+  );
 
-  const fromAddress = process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
+  const fromAddress =
+    process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
 
   return sendWithRetry({
-    from:    fromAddress,
-    to:      email,
+    from: fromAddress,
+    to: email,
     subject,
     html,
   });
@@ -167,7 +173,9 @@ export async function sendOtpEmail(email, otp, purpose) {
 
 // ── Welcome email ───────────────────────────────────────────────
 export async function sendWelcomeEmail(email, name) {
-  const html = htmlWrapper("Welcome to QuickCart!", `
+  const html = htmlWrapper(
+    "Welcome to QuickCart!",
+    `
     <h2 style="margin:0 0 8px;color:#111827;font-size:20px;font-weight:700;">
       Welcome, ${name}! 🎉
     </h2>
@@ -179,13 +187,15 @@ export async function sendWelcomeEmail(email, name) {
       Use code <strong style="color:#ff6b35;">QUICKFIRST</strong> on your
       first order for a discount!
     </p>
-  `);
+  `,
+  );
 
-  const fromAddress = process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
+  const fromAddress =
+    process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
 
   return sendWithRetry({
-    from:    fromAddress,
-    to:      email,
+    from: fromAddress,
+    to: email,
     subject: "Welcome to QuickCart 🚀",
     html,
   });
@@ -202,8 +212,15 @@ export async function verifyEmailConfig() {
   } catch (err) {
     console.error("❌ SMTP verification failed:", err.message);
     console.error("   EMAIL_USER:", process.env.EMAIL_USER || "(not set)");
-    console.error("   EMAIL_PASS:", process.env.EMAIL_PASS ? "(set, length=" + process.env.EMAIL_PASS.length + ")" : "(not set)");
-    console.error("   Fix: Set EMAIL_USER and EMAIL_PASS (Gmail App Password) in .env");
+    console.error(
+      "   EMAIL_PASS:",
+      process.env.EMAIL_PASS
+        ? "(set, length=" + process.env.EMAIL_PASS.length + ")"
+        : "(not set)",
+    );
+    console.error(
+      "   Fix: Set EMAIL_USER and EMAIL_PASS (Gmail App Password) in .env",
+    );
     return false;
   }
 }
@@ -222,7 +239,11 @@ export async function verifyEmailConfig() {
  * @param {number} [opts.totalPrice]
  * @param {string} [opts.deliveryAddress]
  */
-export async function sendOrderEmail(email, name, { status, orderId, storeName, totalPrice, deliveryAddress }) {
+export async function sendOrderEmail(
+  email,
+  name,
+  { status, orderId, storeName, totalPrice, deliveryAddress },
+) {
   const shortId = orderId?.toString().slice(-8).toUpperCase();
 
   const STATUS_CONTENT = {
@@ -281,9 +302,19 @@ export async function sendOrderEmail(email, name, { status, orderId, storeName, 
   if (!content) return; // skip statuses we don't email for
 
   const html = htmlWrapper(content.headline, content.body);
-  const fromAddress = process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
+  const fromAddress =
+    process.env.EMAIL_FROM || `"QuickCart" <${process.env.EMAIL_USER}>`;
 
   // Fire-and-forget — never block the order flow
-  sendWithRetry({ from: fromAddress, to: email, subject: content.subject, html })
-    .catch((err) => console.error(`[OrderEmail] Failed for status=${status} orderId=${shortId}:`, err.message));
+  sendWithRetry({
+    from: fromAddress,
+    to: email,
+    subject: content.subject,
+    html,
+  }).catch((err) =>
+    console.error(
+      `[OrderEmail] Failed for status=${status} orderId=${shortId}:`,
+      err.message,
+    ),
+  );
 }

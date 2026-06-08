@@ -28,9 +28,8 @@ const TYPE_EMOJI = {
 
 export function NotificationProvider({ children }) {
   const { isLoggedIn, user } = useAuth();
-  const { emit, on } = useSocket();
+  const { on } = useSocket();
   const { addToast } = useCart();
-
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
