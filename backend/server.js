@@ -1,12 +1,3 @@
-/**
- * server.js — UPDATED
- *
- * Changes vs original:
- *   1. Webhook route mounted BEFORE express.json() so raw body is preserved
- *   2. Upload route added: /api/upload
- *   3. Cloudinary env check in startup log
- *   4. RAZORPAY_WEBHOOK_SECRET check in startup log
- */
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -24,6 +15,7 @@ import cookieParser from "cookie-parser";
 import passport from "./src/config/passport.js";
 import connectDB from "./src/config/db.js";
 import { verifyEmailConfig } from "./src/services/emailService.js";
+
 import authRoutes from "./src/routes/authRoutes.js";
 import storeRoutes from "./src/routes/storeRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
@@ -43,26 +35,21 @@ import webhookRoutes from "./src/routes/webhookRoutes.js";
 import uploadRoutes from "./src/routes/uploadRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
 import deliveryRoutes from "./src/routes/deliveryRoutes.js";
+
 import { startAutoCancelJob } from "./src/jobs/autoCancelOrders.js";
 
-// ── CRITICAL: Validate required environment variables at startup ──
+// ── Validate required environment variables ───────────────────
 const REQUIRED_ENV = ["MONGO_URI", "JWT_SECRET"];
-const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-if (missing.length > 0) {
-  console.error(
-    `❌ Missing required environment variables: ${missing.join(", ")}`,
-  );
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missingEnv.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missingEnv.join(", ")}`);
   console.error("   Copy .env.example to .env and fill in the values.");
   process.exit(1);
 }
 
 if (process.env.JWT_SECRET.length < 32) {
-  console.error(
-    "❌ JWT_SECRET must be at least 32 characters. Generate one with:",
-  );
-  console.error(
-    "   node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"",
-  );
+  console.error("❌ JWT_SECRET must be at least 32 characters. Generate one with:");
+  console.error("   node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"");
   process.exit(1);
 }
 
@@ -77,41 +64,32 @@ const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-// ── CORS (before helmet so preflight works) ───────────────────
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin))
-      return callback(null, true);
-    if (isDev) return callback(null, true);
-    callback(new Error(`CORS: Origin ${origin} not allowed`));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-app.use(cors(corsOptions));
+// ── CORS ──────────────────────────────────────────────────────
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      if (isDev) return callback(null, true);
+      callback(new Error(`CORS: Origin ${origin} not allowed`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
-// ── Helmet with Razorpay CSP allowlist ───────────────────────
+// ── Helmet ────────────────────────────────────────────────────
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: isDev
-      ? false // disabled in dev for hot-reload etc.
+      ? false
       : {
           directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: [
-              "'self'",
-              "https://checkout.razorpay.com",
-              "'unsafe-inline'", // needed for Razorpay inline handler
-            ],
+            scriptSrc: ["'self'", "https://checkout.razorpay.com", "'unsafe-inline'"],
             frameSrc: ["https://api.razorpay.com"],
-            connectSrc: [
-              "'self'",
-              "https://api.razorpay.com",
-              "https://res.cloudinary.com",
-              "wss:", // Socket.IO WebSocket
-            ],
+            connectSrc: ["'self'", "https://api.razorpay.com", "https://res.cloudinary.com", "wss:"],
             imgSrc: ["'self'", "data:", "https:", "https://res.cloudinary.com"],
             styleSrc: ["'self'", "'unsafe-inline'"],
           },
@@ -119,63 +97,66 @@ app.use(
   }),
 );
 
-// ── Compression ───────────────────────────────────────────────
+// ── Compression & Logging ─────────────────────────────────────
 app.use(compression());
-
-// ── Request logging ───────────────────────────────────────────
 app.use(morgan(isDev ? "dev" : "combined"));
 
-// ── Rate limiting ─────────────────────────────────────────────
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many requests, please try again later." },
-  skip: () => isDev,
-});
-app.use(globalLimiter);
+// ── Global rate limiter ───────────────────────────────────────
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests, please try again later." },
+    skip: () => isDev,
+  }),
+);
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: {
-    message: "Too many auth attempts, please try again in 15 minutes.",
-  },
+  message: { message: "Too many auth attempts, please try again in 15 minutes." },
   skip: () => isDev,
 });
 
-// ── DB + Email ────────────────────────────────────────────────
+// ── Database & Email ──────────────────────────────────────────
 connectDB();
 verifyEmailConfig().catch(() => {});
-// ── Body parsing ──────────────────────────────────────────────
+
+// ── Webhook route MUST be before express.json() ───────────────
+// Razorpay webhooks require the raw body for HMAC signature verification.
 app.use(
   "/api/webhook",
   (req, _res, next) => {
-    req.io = io; // ✅ inject io so webhook handlers can emit real-time events
+    req.io = io;
     next();
   },
   webhookRoutes,
 );
+
+// ── Body parsing ──────────────────────────────────────────────
 app.use(express.json({ limit: "2mb" }));
-app.use("/api/upload", uploadRoutes);
 app.use(cookieParser());
+
+// ── Auth ──────────────────────────────────────────────────────
 app.use(passport.initialize());
+
+// ── Inject Socket.IO instance on every request ────────────────
 app.use((req, _res, next) => {
   req.io = io;
   next();
 });
 
-// ── Health check (before auth middleware) ─────────────────────
+// ── Upload route (multipart — after json parser is fine) ──────
+app.use("/api/upload", uploadRoutes);
+
+// ── Health check ──────────────────────────────────────────────
 app.get("/health", (_req, res) =>
-  res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    env: process.env.NODE_ENV,
-  }),
+  res.json({ status: "ok", uptime: process.uptime(), env: process.env.NODE_ENV }),
 );
 
-// ── Routes ────────────────────────────────────────────────────
+// ── API Routes ────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/stores", storeRoutes);
 app.use("/api/products", productRoutes);
@@ -195,39 +176,27 @@ app.use("/api/delivery", deliveryRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (_req, res) =>
-  res.json({
-    message: "QuickCart API v2",
-    status: "running",
-    env: process.env.NODE_ENV,
-  }),
+  res.json({ message: "QuickCart API v2", status: "running", env: process.env.NODE_ENV }),
 );
 
 // ── 404 handler ───────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).json({ message: "Endpoint not found" });
-});
+app.use((_req, res) => res.status(404).json({ message: "Endpoint not found" }));
 
-// ── Socket.IO — authenticated room joins ─────────────────────
+// ── Socket.IO ─────────────────────────────────────────────────
 const io = new Server(httpServer, {
-  cors: {
-    origin: ALLOWED_ORIGINS,
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-  pingTimeout: 60000, // 60 seconds
-  pingInterval: 25000, // 25 seconds
+  cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"], credentials: true },
+  pingTimeout: 60000,
+  pingInterval: 25000,
   transports: ["websocket", "polling"],
-  allowEIO3: true, // Allow Engine.IO v3 clients
+  allowEIO3: true,
 });
 
 io.on("connection", (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
 
-  // join_store: only store owners should call this — validated in storeRoutes
   socket.on("join_store", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`store_${id}`);
-      console.log(`[Socket] ${socket.id} joined store_${id}`);
     } else {
       console.warn(`[Socket] Invalid store ID: ${id}`);
     }
@@ -236,7 +205,6 @@ io.on("connection", (socket) => {
   socket.on("join_order", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`order_${id}`);
-      console.log(`[Socket] ${socket.id} joined order_${id}`);
     } else {
       console.warn(`[Socket] Invalid order ID: ${id}`);
     }
@@ -245,9 +213,16 @@ io.on("connection", (socket) => {
   socket.on("join_delivery", (id) => {
     if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
       socket.join(`delivery_${id}`);
-      console.log(`[Socket] ${socket.id} joined delivery_${id}`);
     } else {
       console.warn(`[Socket] Invalid delivery ID: ${id}`);
+    }
+  });
+
+  socket.on("join_user_room", (id) => {
+    if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
+      socket.join(`user_${id}`);
+    } else {
+      console.warn(`[Socket] Invalid user ID: ${id}`);
     }
   });
 
@@ -257,33 +232,17 @@ io.on("connection", (socket) => {
       /^[a-f\d]{24}$/i.test(orderId) &&
       typeof lat === "number" &&
       typeof lng === "number" &&
-      lat >= -90 &&
-      lat <= 90 &&
-      lng >= -180 &&
-      lng <= 180
+      lat >= -90 && lat <= 90 &&
+      lng >= -180 && lng <= 180
     ) {
       io.to(`order_${orderId}`).emit("location_update", { lat, lng });
-      console.log(
-        `[Socket] Location update for order_${orderId}: ${lat}, ${lng}`,
-      );
     } else {
       console.warn(`[Socket] Invalid location update:`, { orderId, lat, lng });
     }
   });
 
-  socket.on("join_user_room", (id) => {
-    if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
-      socket.join(`user_${id}`);
-      console.log(`[Socket] ${socket.id} joined user_${id}`);
-    } else {
-      console.warn(`[Socket] Invalid user ID: ${id}`);
-    }
-  });
-
   socket.on("disconnect", (reason) => {
-    console.log(
-      `[Socket] Client disconnected: ${socket.id}, reason: ${reason}`,
-    );
+    console.log(`[Socket] Client disconnected: ${socket.id}, reason: ${reason}`);
   });
 });
 
@@ -294,18 +253,14 @@ app.use((err, _req, res, _next) => {
   if (err.message?.startsWith("CORS:")) {
     return res.status(403).json({ message: err.message });
   }
-  // Don't leak stack traces in production
   const status = err.status || 500;
   console.error(
     `[${new Date().toISOString()}] Error ${status}:`,
     isDev ? err.stack : err.message,
   );
   res.status(status).json({
-    message: isDev
-      ? err.message
-      : status === 500
-        ? "Something went wrong"
-        : err.message,
+    message:
+      isDev ? err.message : status === 500 ? "Something went wrong" : err.message,
   });
 });
 
@@ -313,20 +268,10 @@ app.use((err, _req, res, _next) => {
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   console.log(`🚀 QuickCart API on port ${PORT} [${process.env.NODE_ENV}]`);
-  console.log(`   Frontend URLs: ${ALLOWED_ORIGINS.join(", ")}`);
-  console.log(
-    `   Razorpay:       ${process.env.RAZORPAY_KEY_ID ? "✅ configured" : "⚠️  NOT SET"}`,
-  );
-  console.log(
-    `   Webhook Secret: ${process.env.RAZORPAY_WEBHOOK_SECRET ? "✅ set" : "⚠️  NOT SET (unsafe!)"}`,
-  );
-  console.log(
-    `   Email:          ${process.env.EMAIL_USER ? "✅ configured" : "⚠️  NOT SET"}`,
-  );
-  console.log(
-    `   Google OAuth:   ${process.env.GOOGLE_CLIENT_ID ? "✅ configured" : "⚠️  NOT SET"}`,
-  );
-  console.log(
-    `   Cloudinary:     ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ configured" : "⚠️  NOT SET (uploads disabled)"}`,
-  );
+  console.log(`   Frontend URLs : ${ALLOWED_ORIGINS.join(", ")}`);
+  console.log(`   Razorpay      : ${process.env.RAZORPAY_KEY_ID ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Webhook Secret: ${process.env.RAZORPAY_WEBHOOK_SECRET ? "✅ set" : "⚠️  NOT SET (unsafe!)"}`);
+  console.log(`   Email         : ${process.env.EMAIL_USER ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Google OAuth  : ${process.env.GOOGLE_CLIENT_ID ? "✅ configured" : "⚠️  NOT SET"}`);
+  console.log(`   Cloudinary    : ${process.env.CLOUDINARY_CLOUD_NAME ? "✅ configured" : "⚠️  NOT SET (uploads disabled)"}`);
 });

@@ -15,11 +15,15 @@ import {
   MAX_ORDER_VALUE,
   MIN_ORDER_VALUE,
 } from "../config/constants.js";
+import {
+  getNextStatus,
+  isValidTransition,
+} from "../utils/orderFlows.js";
 import Address from "../models/Address.js";
 import User from "../models/User.js";
 import { sendOrderEmail } from "../services/emailService.js";
 
-// \u2500 Haversine distance calculator for geofencing \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// ── Haversine distance (km) ───────────────────────────────────
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -32,39 +36,7 @@ function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ─── Flow helpers ──────────────────────────────────────────────
-const FOOD_CATEGORIES = ["Food"];
-
-function getFlowType(storeCategory) {
-  return FOOD_CATEGORIES.includes(storeCategory) ? "food" : "grocery";
-}
-
-const FLOW_SEQUENCES = {
-  food: [
-    "pending",
-    "confirmed",
-    "preparing",
-    "ready_for_pickup",
-    "out_for_delivery",
-    "delivered",
-  ],
-  grocery: ["pending", "confirmed", "packing", "out_for_delivery", "delivered"],
-};
-
-function getNextStatus(currentStatus, storeCategory) {
-  const seq = FLOW_SEQUENCES[getFlowType(storeCategory)];
-  const idx = seq.indexOf(currentStatus);
-  if (idx === -1 || idx === seq.length - 1) return null;
-  return seq[idx + 1];
-}
-
-function isValidTransition(fromStatus, toStatus, storeCategory) {
-  if (toStatus === "cancelled") {
-    return !["delivered", "cancelled"].includes(fromStatus);
-  }
-  return getNextStatus(fromStatus, storeCategory) === toStatus;
-}
-
+// Role-based status permissions
 const STORE_ALLOWED_STATUSES = [
   "confirmed",
   "preparing",
@@ -94,16 +66,12 @@ export const placeOrder = async (req, res) => {
       return res.status(400).json({ message: "Cart is empty" });
     if (!storeId)
       return res.status(400).json({ message: "Store ID is required" });
-    if (!totalPrice || totalPrice < MIN_ORDER_VALUE) {
+    if (!totalPrice || totalPrice < MIN_ORDER_VALUE)
       return res.status(400).json({ message: "Invalid order total" });
-    }
-    if (totalPrice > MAX_ORDER_VALUE) {
-      return res
-        .status(400)
-        .json({ message: `Order value cannot exceed ₹${MAX_ORDER_VALUE}` });
-    }
+    if (totalPrice > MAX_ORDER_VALUE)
+      return res.status(400).json({ message: `Order value cannot exceed ₹${MAX_ORDER_VALUE}` });
 
-    // Idempotency: prevent duplicate pending orders (60-second window)
+    // Idempotency: prevent duplicate orders within 60s
     const recentPending = await Order.findOne({
       userId: req.user.userId,
       storeId,
@@ -112,8 +80,7 @@ export const placeOrder = async (req, res) => {
     });
     if (recentPending) {
       return res.status(409).json({
-        message:
-          "Duplicate order detected. Your previous order is still being processed.",
+        message: "Duplicate order detected. Your previous order is still being processed.",
         orderId: recentPending._id,
       });
     }
@@ -121,27 +88,15 @@ export const placeOrder = async (req, res) => {
     // Stock validation per item
     const productIds = items.map((i) => i.productId).filter(Boolean);
     const products = await Product.find({ _id: { $in: productIds } });
-    const productMap = Object.fromEntries(
-      products.map((p) => [p._id.toString(), p]),
-    );
+    const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
 
     for (const item of items) {
       const product = productMap[item.productId?.toString()];
-      if (!product) {
-        return res
-          .status(400)
-          .json({ message: `Product "${item.name}" is no longer available` });
-      }
-      if (!product.available) {
-        return res
-          .status(400)
-          .json({ message: `"${product.name}" is currently unavailable` });
-      }
-      if (
-        product.stock !== undefined &&
-        product.stock !== null &&
-        product.stock < item.quantity
-      ) {
+      if (!product)
+        return res.status(400).json({ message: `Product "${item.name}" is no longer available` });
+      if (!product.available)
+        return res.status(400).json({ message: `"${product.name}" is currently unavailable` });
+      if (product.stock !== undefined && product.stock !== null && product.stock < item.quantity) {
         return res.status(400).json({
           message: `Only ${product.stock} unit${product.stock !== 1 ? "s" : ""} of "${product.name}" available`,
           available: product.stock,
@@ -149,15 +104,12 @@ export const placeOrder = async (req, res) => {
       }
     }
 
-    // ✅ Resolve structured address in placeOrder, after items validation
+    // Resolve structured address if addressId provided
     let resolvedDeliveryAddress = deliveryAddress?.trim();
     let resolvedLat = req.body.deliveryLat ?? null;
     let resolvedLng = req.body.deliveryLng ?? null;
 
-    if (
-      req.body.addressId &&
-      mongoose.Types.ObjectId.isValid(req.body.addressId)
-    ) {
+    if (req.body.addressId && mongoose.Types.ObjectId.isValid(req.body.addressId)) {
       const addrDoc = await Address.findOne({
         _id: req.body.addressId,
         userId: req.user.userId,
@@ -180,16 +132,10 @@ export const placeOrder = async (req, res) => {
       deliveryLng: resolvedLng,
       paymentMethod: paymentMethod || "cod",
       notes,
-      statusHistory: [
-        {
-          status: "pending",
-          timestamp: new Date(),
-          updatedBy: req.user.userId,
-        },
-      ],
+      statusHistory: [{ status: "pending", timestamp: new Date(), updatedBy: req.user.userId }],
     });
 
-    // Decrement stock (atomic, fire-and-forget errors)
+    // Decrement stock (fire-and-forget)
     const bulkStockOps = items
       .filter((i) => i.productId)
       .map((i) => ({
@@ -200,35 +146,26 @@ export const placeOrder = async (req, res) => {
       }));
     if (bulkStockOps.length) {
       Product.bulkWrite(bulkStockOps)
-        .then(() => {
+        .then(() =>
           Product.updateMany(
             { _id: { $in: productIds }, stock: { $lte: 0 } },
             { $set: { available: false } },
-          ).catch((err) =>
-            console.error("Stock availability update error:", err.message),
-          );
-        })
-        .catch((err) => console.error("Stock decrement error:", err.message));
+          ).catch((err) => console.error("[placeOrder] Stock availability update error:", err.message)),
+        )
+        .catch((err) => console.error("[placeOrder] Stock decrement error:", err.message));
     }
 
-    await Cart.findOneAndUpdate(
-      { userId: req.user.userId },
-      { items: [], storeId: null },
-    );
+    await Cart.findOneAndUpdate({ userId: req.user.userId }, { items: [], storeId: null });
 
-    req.io
-      ?.to(`store_${storeId}`)
-      .emit("new_order", { orderId: order._id, order });
+    req.io?.to(`store_${storeId}`).emit("new_order", { orderId: order._id, order });
 
     if (couponCode?.trim()) {
-      try {
-        await applyCoupon(couponCode.trim().toUpperCase(), req.user.userId);
-      } catch (e) {
-        console.warn("Coupon usage increment failed:", e.message);
-      }
+      applyCoupon(couponCode.trim().toUpperCase(), req.user.userId).catch((e) =>
+        console.warn("[placeOrder] Coupon usage increment failed:", e.message),
+      );
     }
 
-    // ── Notify customer: order placed ────────────────────────
+    // Notify & email customer
     const store = await Store.findById(storeId).select("name").lean();
     notifyOrderStatus(req.io, {
       userId: req.user.userId,
@@ -237,7 +174,6 @@ export const placeOrder = async (req, res) => {
       status: "pending",
     }).catch(() => {});
 
-    // ── Email customer: order placed ─────────────────────────────
     User.findById(req.user.userId)
       .select("name email")
       .lean()
@@ -291,15 +227,9 @@ export const getOrderById = async (req, res) => {
 export const getStoreOrders = async (req, res) => {
   try {
     const store = await Store.findOne({ ownerId: req.user.userId });
-    if (!store)
-      return res
-        .status(404)
-        .json({ message: "No store found for this account" });
-    if (store._id.toString() !== req.params.storeId.toString()) {
-      return res
-        .status(403)
-        .json({ message: "Access denied — not your store" });
-    }
+    if (!store) return res.status(404).json({ message: "No store found for this account" });
+    if (store._id.toString() !== req.params.storeId.toString())
+      return res.status(403).json({ message: "Access denied — not your store" });
 
     const { status, limit = 50 } = req.query;
     const filter = { storeId: store._id };
@@ -322,27 +252,15 @@ export const updateOrderStatus = async (req, res) => {
     const { status: toStatus } = req.body;
     const actorRole = req.user.role;
 
-    const order = await Order.findById(req.params.id).populate(
-      "storeId",
-      "name category",
-    );
+    const order = await Order.findById(req.params.id).populate("storeId", "name category");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const storeCategory = order.storeId?.category || "Other";
 
-    if (actorRole === "store" && !STORE_ALLOWED_STATUSES.includes(toStatus)) {
-      return res
-        .status(403)
-        .json({ message: `Store owners cannot set status to "${toStatus}"` });
-    }
-    if (
-      actorRole === "delivery" &&
-      !DELIVERY_ALLOWED_STATUSES.includes(toStatus)
-    ) {
-      return res.status(403).json({
-        message: `Delivery partners cannot set status to "${toStatus}"`,
-      });
-    }
+    if (actorRole === "store" && !STORE_ALLOWED_STATUSES.includes(toStatus))
+      return res.status(403).json({ message: `Store owners cannot set status to "${toStatus}"` });
+    if (actorRole === "delivery" && !DELIVERY_ALLOWED_STATUSES.includes(toStatus))
+      return res.status(403).json({ message: `Delivery partners cannot set status to "${toStatus}"` });
 
     if (!isValidTransition(order.status, toStatus, storeCategory)) {
       const nextAllowed = getNextStatus(order.status, storeCategory);
@@ -358,13 +276,7 @@ export const updateOrderStatus = async (req, res) => {
       req.params.id,
       {
         status: toStatus,
-        $push: {
-          statusHistory: {
-            status: toStatus,
-            timestamp: new Date(),
-            updatedBy: req.user.userId,
-          },
-        },
+        $push: { statusHistory: { status: toStatus, timestamp: new Date(), updatedBy: req.user.userId } },
       },
       { returnDocument: "after" },
     ).populate("userId", "name phone");
@@ -388,7 +300,6 @@ export const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // ── Notify customer of status change ─────────────────────
     notifyOrderStatus(req.io, {
       userId: updated.userId._id || updated.userId,
       orderId: updated._id,
@@ -396,7 +307,6 @@ export const updateOrderStatus = async (req, res) => {
       status: toStatus,
     }).catch(() => {});
 
-    // ── Email customer on key status changes ──────────────────────
     if (["out_for_delivery", "delivered"].includes(toStatus)) {
       const customerId = updated.userId?._id || updated.userId;
       User.findById(customerId)
@@ -426,9 +336,7 @@ export const updateOrderStatus = async (req, res) => {
 
 export const getAvailableOrders = async (req, res) => {
   try {
-    const agent = await User.findById(req.user.userId).select(
-      "lat lng isAvailable",
-    );
+    const agent = await User.findById(req.user.userId).select("lat lng isAvailable");
 
     const orders = await Order.find({
       status: { $in: DELIVERY_TRIGGER_STATUSES },
@@ -438,31 +346,19 @@ export const getAvailableOrders = async (req, res) => {
       .populate("userId", "name phone address")
       .sort({ createdAt: -1 });
 
-    // \u2705 If agent has GPS coords, filter to 5km radius; otherwise return all
     const RADIUS_KM = 5;
     let filtered = orders;
 
     if (agent?.lat && agent?.lng) {
       filtered = orders.filter((order) => {
-        // Use store's coords if available; fall back to no filter
         const store = order.storeId;
         if (!store?.lat || !store?.lng) return true;
-        const dist = haversineDistanceKm(
-          agent.lat,
-          agent.lng,
-          store.lat,
-          store.lng,
-        );
-        return dist <= RADIUS_KM;
+        return haversineDistanceKm(agent.lat, agent.lng, store.lat, store.lng) <= RADIUS_KM;
       });
 
-      // \u2705 Fallback: if no orders within radius, return all after 30s window
+      // Fallback: if no orders within radius, return orders older than 30s
       if (filtered.length === 0) {
-        const FALLBACK_THRESHOLD_MS = 30_000;
-        filtered = orders.filter((order) => {
-          const age = Date.now() - new Date(order.createdAt).getTime();
-          return age >= FALLBACK_THRESHOLD_MS;
-        });
+        filtered = orders.filter((order) => Date.now() - new Date(order.createdAt).getTime() >= 30_000);
       }
     }
 
@@ -474,21 +370,12 @@ export const getAvailableOrders = async (req, res) => {
 
 export const acceptDelivery = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate(
-      "storeId",
-      "name",
-    );
+    const order = await Order.findById(req.params.id).populate("storeId", "name");
     if (!order) return res.status(404).json({ message: "Order not found" });
-    if (order.deliveryAgentId) {
-      return res
-        .status(400)
-        .json({ message: "Order already assigned to a delivery partner" });
-    }
-    if (!DELIVERY_TRIGGER_STATUSES.includes(order.status)) {
-      return res.status(400).json({
-        message: `Order is not ready for pickup (status: "${order.status}")`,
-      });
-    }
+    if (order.deliveryAgentId)
+      return res.status(400).json({ message: "Order already assigned to a delivery partner" });
+    if (!DELIVERY_TRIGGER_STATUSES.includes(order.status))
+      return res.status(400).json({ message: `Order is not ready for pickup (status: "${order.status}")` });
 
     order.deliveryAgentId = req.user.userId;
     order.status = "out_for_delivery";
@@ -509,10 +396,7 @@ export const acceptDelivery = async (req, res) => {
       agentId: req.user.userId,
     });
 
-    // ── Notify customer: rider accepted ──────────────────────
-    const agentUser = await import("../models/User.js")
-      .then((m) => m.default.findById(req.user.userId).select("name").lean())
-      .catch(() => null);
+    const agentUser = await User.findById(req.user.userId).select("name").lean().catch(() => null);
 
     notifyDelivery(req.io, {
       userId: order.userId,
@@ -520,7 +404,6 @@ export const acceptDelivery = async (req, res) => {
       agentName: agentUser?.name || "A delivery partner",
     }).catch(() => {});
 
-    // Also notify out_for_delivery status
     notifyOrderStatus(req.io, {
       userId: order.userId,
       orderId: order._id,
@@ -552,29 +435,17 @@ export const getMyDeliveries = async (req, res) => {
 
 export const markDelivered = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate(
-      "storeId",
-      "name",
-    );
+    const order = await Order.findById(req.params.id).populate("storeId", "name");
     if (!order) return res.status(404).json({ message: "Order not found" });
-    if (order.deliveryAgentId?.toString() !== req.user.userId) {
+    if (order.deliveryAgentId?.toString() !== req.user.userId)
       return res.status(403).json({ message: "Not your delivery" });
-    }
 
     order.status = "delivered";
-    order.statusHistory.push({
-      status: "delivered",
-      timestamp: new Date(),
-      updatedBy: req.user.userId,
-    });
+    order.statusHistory.push({ status: "delivered", timestamp: new Date(), updatedBy: req.user.userId });
     await order.save();
 
-    req.io?.to(`order_${order._id}`).emit("order_status_update", {
-      status: "delivered",
-      orderId: order._id,
-    });
+    req.io?.to(`order_${order._id}`).emit("order_status_update", { status: "delivered", orderId: order._id });
 
-    // ── Notify customer: delivered ───────────────────────────
     notifyOrderStatus(req.io, {
       userId: order.userId,
       orderId: order._id,
@@ -582,7 +453,6 @@ export const markDelivered = async (req, res) => {
       status: "delivered",
     }).catch(() => {});
 
-    // ── Email customer: delivered ─────────────────────────────────
     User.findById(order.userId)
       .select("name email")
       .lean()
@@ -608,39 +478,29 @@ export const markDelivered = async (req, res) => {
 export const updateDeliveryLocation = async (req, res) => {
   try {
     const { lat, lng } = req.body;
-    if (lat === undefined || lng === undefined) {
+    if (lat === undefined || lng === undefined)
       return res.status(400).json({ message: "lat and lng are required" });
-    }
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { deliveryLocation: { lat, lng } },
       { returnDocument: "after" },
     );
     if (!order) return res.status(404).json({ message: "Order not found" });
-    req.io
-      ?.to(`order_${order._id}`)
-      .emit("location_update", { lat, lng, orderId: order._id });
+
+    req.io?.to(`order_${order._id}`).emit("location_update", { lat, lng, orderId: order._id });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
 };
 
-/**
- * cancelOrder — with notification + stock restore
- */
 export const cancelOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate(
-      "storeId",
-      "name",
-    );
+    const order = await Order.findById(req.params.id).populate("storeId", "name");
     if (!order) return res.status(404).json({ message: "Order not found" });
-
-    if (order.userId.toString() !== req.user.userId) {
+    if (order.userId.toString() !== req.user.userId)
       return res.status(403).json({ message: "Not your order" });
-    }
-
     if (!ORDER_CANCELLABLE_STATUSES.includes(order.status)) {
       return res.status(400).json({
         message: `Cannot cancel — order is "${order.status}". Only ${ORDER_CANCELLABLE_STATUSES.join(" or ")} orders can be cancelled.`,
@@ -648,59 +508,29 @@ export const cancelOrder = async (req, res) => {
     }
 
     order.status = "cancelled";
-    order.statusHistory.push({
-      status: "cancelled",
-      timestamp: new Date(),
-      updatedBy: req.user.userId,
-    });
+    order.statusHistory.push({ status: "cancelled", timestamp: new Date(), updatedBy: req.user.userId });
     await order.save();
 
-    // ── Restock items on cancellation ─────────────────────────
-    const restoredProductIds = (order.items || [])
-      .filter((i) => i.productId && i.quantity)
-      .map((i) => i.productId);
-
+    // Restore stock (fire-and-forget)
+    const restoredProductIds = (order.items || []).filter((i) => i.productId && i.quantity).map((i) => i.productId);
     const bulkRestoreOps = (order.items || [])
       .filter((i) => i.productId && i.quantity)
-      .map((i) => ({
-        updateOne: {
-          filter: { _id: i.productId },
-          update: { $inc: { stock: i.quantity } },
-        },
-      }));
+      .map((i) => ({ updateOne: { filter: { _id: i.productId }, update: { $inc: { stock: i.quantity } } } }));
 
     if (bulkRestoreOps.length) {
       Product.bulkWrite(bulkRestoreOps)
-        .then(() => {
+        .then(() =>
           Product.updateMany(
-            {
-              _id: { $in: restoredProductIds },
-              stock: { $gt: 0 },
-              available: false,
-            },
+            { _id: { $in: restoredProductIds }, stock: { $gt: 0 }, available: false },
             { $set: { available: true } },
-          ).catch((err) =>
-            console.error(
-              "[cancelOrder] Stock availability restore error:",
-              err.message,
-            ),
-          );
-        })
-        .catch((err) =>
-          console.error("[cancelOrder] Stock restore error:", err.message),
-        );
+          ).catch((err) => console.error("[cancelOrder] Stock availability restore error:", err.message)),
+        )
+        .catch((err) => console.error("[cancelOrder] Stock restore error:", err.message));
     }
 
-    req.io?.to(`order_${order._id}`).emit("order_status_update", {
-      status: "cancelled",
-      orderId: order._id,
-    });
-    req.io?.to(`store_${order.storeId}`).emit("order_updated", {
-      orderId: order._id,
-      status: "cancelled",
-    });
+    req.io?.to(`order_${order._id}`).emit("order_status_update", { status: "cancelled", orderId: order._id });
+    req.io?.to(`store_${order.storeId}`).emit("order_updated", { orderId: order._id, status: "cancelled" });
 
-    // ── Notify customer: cancelled ───────────────────────────
     notifyOrderStatus(req.io, {
       userId: order.userId,
       orderId: order._id,

@@ -1,17 +1,10 @@
-export const initSocket = (io) => {
-  io.on("connection", (socket) => {
-    console.log("Socket connected:", socket.id);
-
-    socket.on("join_order", (orderId) => {
-      socket.join(`order_${orderId}`);
-    });
-
-    socket.on("update_location", ({ orderId, lat, lng }) => {
-      io.to(`order_${orderId}`).emit("location_update", { lat, lng });
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Socket disconnected:", socket.id);
-    });
-  });
-};
+/**
+ * socketHandler.js
+ *
+ * Socket.IO event handling is implemented inline in server.js
+ * alongside the Socket.IO Server instantiation so that the `io`
+ * instance is available to all route handlers via req.io.
+ *
+ * This file is intentionally left as a stub — do not add logic here.
+ * See: backend/server.js → "Socket.IO" section
+ */
