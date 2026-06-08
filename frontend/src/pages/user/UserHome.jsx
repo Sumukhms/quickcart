@@ -7,7 +7,7 @@
  *   2. useSearchParams was imported but never used → removed
  *   3. Search result tabs now show correct counts
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ShoppingBasket,
   Utensils,
@@ -41,6 +41,8 @@ const CATEGORIES = [
   { name: "Beverages", icon: Coffee, color: "#3b82f6", emoji: "🧃" },
   { name: "Medicines", icon: Pill, color: "#ef4444", emoji: "💊" },
 ];
+
+const GREETINGS = ["Hey", "Hello", "Hi there,", "Welcome back,"];
 
 function ProductSearchCard({ product }) {
   const store = product.storeId;
@@ -155,6 +157,7 @@ export default function UserHome() {
   const [favOnly, setFavOnly] = useState(false);
   const [itemResults, setItemResults] = useState([]);
   const [itemLoading, setItemLoading] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchTab, setSearchTab] = useState("stores");
   const [homeStats, setHomeStats] = useState(null);
 
@@ -240,27 +243,35 @@ export default function UserHome() {
 
   // Fetch products on search (useStores debounces 250ms internally)
   useEffect(() => {
-    if (!search || search.length < 2) {
+    if (!debouncedSearch || debouncedSearch.length < 2) {
       setItemResults([]);
       setSearchTab("stores");
       return;
     }
     setItemLoading(true);
     productAPI
-      .search(search)
+      .search(debouncedSearch)
       .then((r) => setItemResults(r.data || []))
       .catch(() => setItemResults([]))
       .finally(() => setItemLoading(false));
+  }, [debouncedSearch]);
+
+  // Debounce search input to avoid rapid productAPI calls
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
   }, [search]);
 
-  const favoriteIds = new Set(favorites.map((f) => f._id));
+  const favoriteIds = useMemo(
+    () => new Set(favorites.map((f) => f._id)),
+    [favorites],
+  );
   const displayedStores = favOnly
     ? stores.filter((s) => favoriteIds.has(s._id))
     : stores;
   const banner = BANNERS[bannerIdx];
-  const greetings = ["Hey", "Hello", "Hi there,", "Welcome back,"];
   const greeting =
-    greetings[Math.floor(Date.now() / 86400000) % greetings.length];
+    GREETINGS[Math.floor(Date.now() / 86400000) % GREETINGS.length];
   const isSearching = search.length >= 2;
 
   return (

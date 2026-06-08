@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
 
@@ -82,7 +83,10 @@ export function CartProvider({ children }) {
   }, [isLoggedIn]);
 
   const addToast = useCallback((message, type = "success") => {
-    const id = Date.now() + Math.random();
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message, type, exiting: false }]);
 
     // Start exit animation 400ms before removal
@@ -157,27 +161,43 @@ export function CartProvider({ children }) {
     safeRemoveItem(CART_KEY);
   }, []);
 
-  const total = cartItems.reduce((sum, i) => sum + i.price * i.qty, 0);
-  const count = cartItems.reduce((sum, i) => sum + i.qty, 0);
-
-  return (
-    <CartContext.Provider
-      value={{
-        cartItems,
-        cartStore,
-        total,
-        count,
-        toasts,
-        addToCart,
-        removeFromCart,
-        updateQty,
-        clearCart,
-        addToast,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  const total = useMemo(
+    () => cartItems.reduce((sum, i) => sum + i.price * i.qty, 0),
+    [cartItems],
   );
+
+  const count = useMemo(
+    () => cartItems.reduce((sum, i) => sum + i.qty, 0),
+    [cartItems],
+  );
+  const value = useMemo(
+    () => ({
+      cartItems,
+      cartStore,
+      total,
+      count,
+      toasts,
+      addToCart,
+      removeFromCart,
+      updateQty,
+      clearCart,
+      addToast,
+    }),
+    [
+      cartItems,
+      cartStore,
+      total,
+      count,
+      toasts,
+      addToCart,
+      removeFromCart,
+      updateQty,
+      clearCart,
+      addToast,
+    ],
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
 export const useCart = () => useContext(CartContext);

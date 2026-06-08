@@ -5,7 +5,15 @@
  * so NotificationContext can subscribe to user-specific notification events.
  * All existing code is preserved unchanged.
  */
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 
@@ -65,7 +73,7 @@ export function SocketProvider({ children }) {
     });
 
     socket.on("connect_error", (error) => {
-      console.error("[Socket] Connection error:", error);
+      console.error("[Socket] Connection error:", error?.message || error);
       setConnected(false);
     });
 
@@ -83,47 +91,48 @@ export function SocketProvider({ children }) {
     };
   }, [isLoggedIn]); // Only depend on isLoggedIn, not user.id
 
-  const joinOrderRoom = (orderId) => {
+  const joinOrderRoom = useCallback((orderId) => {
     socketRef.current?.emit("join_order", orderId);
-  };
+  }, []);
 
-  const joinStoreRoom = (storeId) => {
+  const joinStoreRoom = useCallback((storeId) => {
     socketRef.current?.emit("join_store", storeId);
-  };
+  }, []);
 
   // NEW: join user-specific room for notifications
-  const joinUserRoom = (userId) => {
+  const joinUserRoom = useCallback((userId) => {
     socketRef.current?.emit("join_user_room", userId);
-  };
+  }, []);
 
-  const on = (event, handler) => {
+  const on = useCallback((event, handler) => {
     socketRef.current?.on(event, handler);
     return () => socketRef.current?.off(event, handler);
-  };
+  }, []);
 
-  const off = (event, handler) => {
+  const off = useCallback((event, handler) => {
     socketRef.current?.off(event, handler);
-  };
+  }, []);
 
-  const emit = (event, data) => {
+  const emit = useCallback((event, data) => {
     socketRef.current?.emit(event, data);
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      socket: socketRef.current,
+      connected,
+      joinOrderRoom,
+      joinStoreRoom,
+      joinUserRoom,
+      on,
+      off,
+      emit,
+    }),
+    [connected, joinOrderRoom, joinStoreRoom, joinUserRoom, on, off, emit],
+  );
 
   return (
-    <SocketContext.Provider
-      value={{
-        socket: socketRef.current,
-        connected,
-        joinOrderRoom,
-        joinStoreRoom,
-        joinUserRoom, // NEW
-        on,
-        off,
-        emit,
-      }}
-    >
-      {children}
-    </SocketContext.Provider>
+    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
   );
 }
 

@@ -16,16 +16,16 @@ import api from "../api/api";
 const SEND_INTERVAL_MS = 5_000; // push every 5 seconds
 
 export function useGeoTracking(orderId, isActive = false) {
-  const [position,    setPosition]    = useState(null);   // { lat, lng }
-  const [error,       setError]       = useState(null);   // string | null
-  const [permission,  setPermission]  = useState("idle"); // idle | granted | denied | unavailable
-  const [sending,     setSending]     = useState(false);
+  const [position, setPosition] = useState(null); // { lat, lng }
+  const [error, setError] = useState(null); // string | null
+  const [permission, setPermission] = useState("idle"); // idle | granted | denied | unavailable
+  const [sending, setSending] = useState(false);
 
-  const watchIdRef      = useRef(null);
-  const lastSentRef     = useRef(0);
-  const latestPosRef    = useRef(null); // always holds the freshest position
-  const intervalRef     = useRef(null);
-  const isMountedRef    = useRef(true);
+  const watchIdRef = useRef(null);
+  const lastSentRef = useRef(0);
+  const latestPosRef = useRef(null); // always holds the freshest position
+  const intervalRef = useRef(null);
+  const isMountedRef = useRef(true);
 
   // ── Send latest position to backend ─────────────────────────
   const sendPosition = useCallback(async () => {
@@ -38,7 +38,10 @@ export function useGeoTracking(orderId, isActive = false) {
       lastSentRef.current = Date.now();
     } catch (err) {
       // Non-fatal: position will be sent again on next interval
-      console.warn("[GeoTracking] Send failed:", err.message);
+      console.warn(
+        "[GeoTracking] Send failed:",
+        err?.message || "Unknown error",
+      );
     } finally {
       if (isMountedRef.current) setSending(false);
     }
@@ -46,6 +49,11 @@ export function useGeoTracking(orderId, isActive = false) {
 
   // ── Start GPS watching ───────────────────────────────────────
   const startTracking = useCallback(() => {
+    // Prevent starting multiple trackers if one is already running
+    if (watchIdRef.current !== null || intervalRef.current) {
+      return;
+    }
+
     if (!navigator.geolocation) {
       setPermission("unavailable");
       setError("Your browser does not support GPS location.");
@@ -66,10 +74,14 @@ export function useGeoTracking(orderId, isActive = false) {
         switch (err.code) {
           case err.PERMISSION_DENIED:
             setPermission("denied");
-            setError("Location permission denied. Please enable GPS in your browser settings.");
+            setError(
+              "Location permission denied. Please enable GPS in your browser settings.",
+            );
             break;
           case err.POSITION_UNAVAILABLE:
-            setError("Location unavailable. Make sure GPS is enabled on your device.");
+            setError(
+              "Location unavailable. Make sure GPS is enabled on your device.",
+            );
             break;
           case err.TIMEOUT:
             setError("Location request timed out. Retrying…");
@@ -80,9 +92,9 @@ export function useGeoTracking(orderId, isActive = false) {
       },
       {
         enableHighAccuracy: true,
-        timeout:            10_000,
-        maximumAge:         2_000,
-      }
+        timeout: 10_000,
+        maximumAge: 2_000,
+      },
     );
 
     // Push interval: send the latest cached position every SEND_INTERVAL_MS
@@ -122,10 +134,10 @@ export function useGeoTracking(orderId, isActive = false) {
   }, [isActive, orderId, startTracking, stopTracking]);
 
   return {
-    position,   // { lat, lng } | null
-    error,      // string | null
+    position, // { lat, lng } | null
+    error, // string | null
     permission, // "idle" | "granted" | "denied" | "unavailable"
-    sending,    // bool — true while HTTP push is in-flight
+    sending, // bool — true while HTTP push is in-flight
     startTracking,
     stopTracking,
   };

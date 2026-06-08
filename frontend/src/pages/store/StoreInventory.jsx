@@ -1,7 +1,7 @@
 /**
- * StoreInventory.jsx — FIXED
- * Uses inventoryAPI from api.js instead of raw api.get() calls.
- * Removed direct api imports to keep API calls centralised.
+ * StoreInventory.jsx — refactored
+ * Extracted inventory logic into useInventory hook.
+ * Moved bulk edit banner and stat cards into dedicated components.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
@@ -24,10 +24,10 @@ import {
   ShoppingBag,
   AlertCircle,
   Upload,
-  BarChart3,
 } from "lucide-react";
-import { useCart } from "../../context/CartContext";
-import { inventoryAPI } from "../../api/api";
+import { useInventory } from "./hooks/useInventory";
+import BulkEditBanner from "./components/BulkEditBanner";
+import InventoryStatCard from "./components/InventoryStatCard";
 
 const THRESHOLDS = {
   Groceries: 10,
@@ -357,119 +357,29 @@ function StockItemRow({
 }
 
 export default function StoreInventory() {
-  const { addToast } = useCart();
-  const [inventory, setInventory] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [toggling, setToggling] = useState(null);
-  const [alerts, setAlerts] = useState([]);
-  const [bulkMode, setBulkMode] = useState(false);
-  const [bulkEdits, setBulkEdits] = useState({});
-
-  const fetchInventory = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
-      try {
-        const { data } = await inventoryAPI.get();
-        setInventory(data);
-        if (!data.isFood) {
-          const alertsRes = await inventoryAPI.getAlerts();
-          setAlerts(alertsRes.data || []);
-        }
-      } catch (err) {
-        addToast(
-          err.response?.data?.message || "Failed to load inventory",
-          "error",
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [addToast],
-  );
-
-  useEffect(() => {
-    fetchInventory();
-  }, [fetchInventory]);
-
-  const handleUpdateStock = useCallback(async (productId, body) => {
-    const { data } = await inventoryAPI.updateStock(productId, body);
-    setInventory((prev) => {
-      if (!prev) return prev; // ✅ ADD: guard against null
-      return {
-        ...prev,
-        products: prev.products.map((p) => (p._id === productId ? data : p)),
-        grouped: Object.fromEntries(
-          Object.entries(prev.grouped).map(([cat, prods]) => [
-            cat,
-            prods.map((p) => (p._id === productId ? data : p)),
-          ]),
-        ),
-      };
-    });
-    // ✅ Check isFood from the returned data, not from stale closure
-    if (!data.available || data.stock <= 0) {
-      // Product went OOS — refresh alerts
-      const alertsRes = await inventoryAPI.getAlerts();
-      setAlerts(alertsRes.data || []);
-    }
-    return data;
-  }, []); // ✅ No dependencies needed — setInventory uses functional update
-
-  const handleToggle = useCallback(
-    async (productId) => {
-      setToggling(productId);
-      try {
-        const { data } = await inventoryAPI.toggle(productId);
-        setInventory((prev) => ({
-          ...prev,
-          products: prev.products.map((p) => (p._id === productId ? data : p)),
-          grouped: Object.fromEntries(
-            Object.entries(prev.grouped).map(([cat, prods]) => [
-              cat,
-              prods.map((p) => (p._id === productId ? data : p)),
-            ]),
-          ),
-        }));
-        addToast(
-          data.available ? "Marked as available ✓" : "Marked as unavailable",
-          data.available ? "success" : "info",
-        );
-      } catch (err) {
-        addToast(err.response?.data?.message || "Failed to update", "error");
-      } finally {
-        setToggling(null);
-      }
-    },
-    [addToast],
-  );
-
-  const handleBulkSave = useCallback(async () => {
-    const updates = Object.entries(bulkEdits)
-      .map(([productId, stock]) => ({ productId, stock: parseInt(stock, 10) }))
-      .filter((u) => !isNaN(u.stock) && u.stock >= 0);
-    if (!updates.length) {
-      setBulkMode(false);
-      return;
-    }
-    try {
-      await inventoryAPI.bulkUpdate(updates);
-      addToast(
-        `Updated ${updates.length} item${updates.length > 1 ? "s" : ""} ✓`,
-        "success",
-      );
-      setBulkEdits({});
-      setBulkMode(false);
-      fetchInventory(true);
-    } catch (err) {
-      addToast(err.response?.data?.message || "Bulk update failed", "error");
-    }
-  }, [bulkEdits, addToast, fetchInventory]);
+  const {
+    inventory,
+    loading,
+    refreshing,
+    search,
+    setSearch,
+    catFilter,
+    setCatFilter,
+    statusFilter,
+    setStatusFilter,
+    toggling,
+    bulkMode,
+    setBulkMode,
+    bulkEdits,
+    setBulkEdits,
+    alerts,
+    fetchInventory,
+    handleUpdateStock,
+    handleToggle,
+    handleBulkSave,
+    categories,
+    grouped,
+  } = useInventory();
 
   if (!inventory) {
     if (loading)
@@ -509,30 +419,38 @@ export default function StoreInventory() {
   }
 
   const { storeCategory, isFood, threshold, stats } = inventory;
-  const allProducts = inventory.products || [];
-  const categories = ["All", ...new Set(allProducts.map((p) => p.category))];
+  const pendingBulkCount = Object.keys(bulkEdits).length;
 
-  const filtered = allProducts.filter((p) => {
-    const matchSearch =
-      !search || p.name.toLowerCase().includes(search.toLowerCase());
-    const matchCat = catFilter === "All" || p.category === catFilter;
-    const stock = p.stock ?? 0;
-    const matchStatus =
-      statusFilter === "available"
-        ? p.available && (isFood || stock > 0)
-        : statusFilter === "low"
-          ? p.available && stock > 0 && stock <= threshold
-          : statusFilter === "out"
-            ? !p.available || (!isFood && stock <= 0)
-            : true;
-    return matchSearch && matchCat && matchStatus;
-  });
-
-  const grouped = filtered.reduce((acc, p) => {
-    if (!acc[p.category]) acc[p.category] = [];
-    acc[p.category].push(p);
-    return acc;
-  }, {});
+  const statCards = [
+    {
+      label: "Total Items",
+      value: stats.total,
+      color: "var(--brand)",
+      icon: Package,
+    },
+    {
+      label: "Available",
+      value: stats.available,
+      color: "#22c55e",
+      icon: ToggleRight,
+    },
+    ...(!isFood
+      ? [
+          {
+            label: "Low Stock",
+            value: stats.lowStock,
+            color: "#f59e0b",
+            icon: TrendingDown,
+          },
+          {
+            label: "Out of Stock",
+            value: stats.outOfStock,
+            color: "#ef4444",
+            icon: AlertCircle,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div
@@ -625,60 +543,14 @@ export default function StoreInventory() {
         <div
           className={`grid gap-3 mb-5 ${isFood ? "grid-cols-2" : "grid-cols-2 md:grid-cols-4"}`}
         >
-          {[
-            {
-              label: "Total Items",
-              value: stats.total,
-              color: "var(--brand)",
-              icon: Package,
-            },
-            {
-              label: "Available",
-              value: stats.available,
-              color: "#22c55e",
-              icon: ToggleRight,
-            },
-            ...(!isFood
-              ? [
-                  {
-                    label: "Low Stock",
-                    value: stats.lowStock,
-                    color: "#f59e0b",
-                    icon: TrendingDown,
-                  },
-                  {
-                    label: "Out of Stock",
-                    value: stats.outOfStock,
-                    color: "#ef4444",
-                    icon: AlertCircle,
-                  },
-                ]
-              : []),
-          ].map(({ label, value, color, icon: Icon }) => (
-            <div
+          {statCards.map(({ label, value, color, icon: Icon }) => (
+            <InventoryStatCard
               key={label}
-              className="rounded-2xl p-4 transition-all hover:-translate-y-0.5"
-              style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center mb-2"
-                style={{ background: color + "15" }}
-              >
-                <Icon size={15} style={{ color }} />
-              </div>
-              <p
-                className="font-display font-black text-2xl"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {value}
-              </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {label}
-              </p>
-            </div>
+              label={label}
+              value={value}
+              color={color}
+              icon={Icon}
+            />
           ))}
         </div>
 
@@ -732,48 +604,14 @@ export default function StoreInventory() {
         )}
 
         {bulkMode && (
-          <div
-            className="rounded-2xl p-4 mb-5 flex items-center justify-between gap-3"
-            style={{
-              background: "rgba(255,107,53,0.08)",
-              border: "1.5px solid rgba(255,107,53,0.25)",
+          <BulkEditBanner
+            pendingCount={pendingBulkCount}
+            onCancel={() => {
+              setBulkMode(false);
+              setBulkEdits({});
             }}
-          >
-            <div>
-              <p
-                className="font-bold text-sm"
-                style={{ color: "var(--brand)" }}
-              >
-                Bulk Edit Mode
-              </p>
-              <p
-                className="text-xs mt-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Edit stock values below, then click Save All.
-                {Object.keys(bulkEdits).length > 0 &&
-                  ` ${Object.keys(bulkEdits).length} changes pending.`}
-              </p>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <button
-                onClick={() => {
-                  setBulkMode(false);
-                  setBulkEdits({});
-                }}
-                className="btn btn-ghost text-xs py-2 px-3"
-              >
-                <X size={13} /> Cancel
-              </button>
-              <button
-                onClick={handleBulkSave}
-                disabled={!Object.keys(bulkEdits).length}
-                className="btn btn-brand text-xs py-2 px-3"
-              >
-                <Check size={13} /> Save All ({Object.keys(bulkEdits).length})
-              </button>
-            </div>
-          </div>
+            onSave={handleBulkSave}
+          />
         )}
 
         <div className="flex flex-wrap gap-3 mb-5">
