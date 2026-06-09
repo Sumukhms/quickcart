@@ -91,12 +91,11 @@ export const register = async (req, res) => {
           .status(400)
           .json({ message: "Email already registered. Please log in." });
       }
-      const otp = await Otp.createOtp(normalizedEmail, "verify_email");
-      const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
-      if (!sent) {
+      try {
+        await sendOtpEmail(normalizedEmail, otp, "verify_email");
+      } catch (err) {
         return res.status(500).json({
-          message:
-            "Account exists but we could not send the OTP email. Check your EMAIL_USER and EMAIL_PASS in .env",
+          message: `Account exists but OTP failed: ${err.message}`,
         });
       }
       return res.status(200).json({
@@ -113,29 +112,33 @@ export const register = async (req, res) => {
       password: hashed,
       role: userRole,
       phone: phone?.trim() || undefined,
-      isEmailVerified: true, 
+      isEmailVerified: false,
       authProvider: "local",
     };
     if (userRole === "delivery" && vehicleType)
       userData.vehicleType = vehicleType;
 
     const user = await User.create(userData);
+    const otp = await Otp.createOtp(normalizedEmail, "verify_email");
+    const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
-    const authData = await issueTokens(user, res, {
-      userAgent: req.headers["user-agent"],
-      ip: req.ip,
-    });
+    if (!sent) {
+      console.error(
+        `[Register] Account created for ${normalizedEmail} but OTP email failed.`,
+      );
+      return res.status(201).json({
+        message:
+          "Account created! However, we could not send the OTP email. Please check server EMAIL configuration and use 'Resend OTP'.",
+        email: normalizedEmail,
+        requiresVerification: true,
+        emailError: true,
+      });
+    }
 
     res.status(201).json({
-      message: "Registration successful. Welcome to QuickCart!",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-      },
-      ...authData,
+      message: "Registration successful. Please check your email for the OTP.",
+      email: normalizedEmail,
+      requiresVerification: true,
     });
   } catch (e) {
     console.error("[Register] Error:", e.message);
@@ -199,12 +202,11 @@ export const resendVerificationOtp = async (req, res) => {
       return res.status(400).json({ message: "Email is already verified" });
 
     const otp = await Otp.createOtp(normalizedEmail, "verify_email");
-    const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
-
-    if (!sent) {
+    try {
+      await sendOtpEmail(normalizedEmail, otp, "verify_email");
+    } catch (err) {
       return res.status(500).json({
-        message:
-          "Failed to send OTP email. Please check server EMAIL configuration.",
+        message: `Account created but OTP failed: ${err.message}`,
       });
     }
 
@@ -363,18 +365,7 @@ export const forgotPassword = async (req, res) => {
     }
 
     const otp = await Otp.createOtp(normalizedEmail, "reset_password");
-    const sent = await sendOtpEmail(normalizedEmail, otp, "reset_password");
-
-    if (!sent) {
-      console.error(
-        `[ForgotPassword] OTP generated but email failed for ${normalizedEmail}`,
-      );
-      return res.status(500).json({
-        message:
-          "OTP was generated but the email could not be sent. Please check EMAIL_USER and EMAIL_PASS in your server .env file.",
-        emailError: true,
-      });
-    }
+    await sendOtpEmail(normalizedEmail, otp, "reset_password");
 
     res.json({ message: "If that email exists, an OTP has been sent." });
   } catch (e) {

@@ -56,10 +56,9 @@ async function sendWithRetry(mailOptions, attempts = 3) {
     }
   }
 
-  console.error(
-    `[Email] ❌ All ${attempts} attempts failed. Last error: ${lastError?.message}`,
-  );
-  return false;
+  const errorMsg = `All ${attempts} attempts failed. Last error: ${lastError?.message}`;
+  console.error(`[Email] ❌ ${errorMsg}`);
+  throw new Error(errorMsg);
 }
 
 // ── Shared HTML wrapper ─────────────────────────────────────────
