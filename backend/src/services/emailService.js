@@ -12,43 +12,39 @@
  */
 import nodemailer from "nodemailer";
 
-// ── Create transporter fresh each time ──────────────────────────
 function createTransporter() {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-
-  if (!user || !pass) {
-    throw new Error(
-      "EMAIL_USER and EMAIL_PASS must be set in .env\n" +
-        "For Gmail, use an App Password (not your account password).\n" +
-        "Steps: Google Account → Security → 2-Step Verification → App passwords",
-    );
-  }
-
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // STARTTLS
-    auth: { user, pass },
-    connectionTimeout: 15_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 15_000,
-    logger: process.env.NODE_ENV === "development", // log SMTP dialogue in dev
-    debug: false,
-  });
+  // Unused in Apps Script mode, but kept for compatibility shape if needed
+  return null;
 }
 
-// ── Retry wrapper ───────────────────────────────────────────────
+// ── Apps Script Relay ───────────────────────────────────────────────
 async function sendWithRetry(mailOptions, attempts = 3) {
+  const SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
+  
+  if (!SCRIPT_URL) {
+    console.error("[Email] ❌ GOOGLE_APPS_SCRIPT_URL is missing in .env");
+    return false;
+  }
+
   let lastError;
 
   for (let i = 1; i <= attempts; i++) {
-    let transporter;
     try {
-      transporter = createTransporter();
-
-      const info = await transporter.sendMail(mailOptions);
-      return true;
+      const response = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html
+        })
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        return true;
+      }
+      throw new Error(result.error || "Unknown Apps Script Error");
     } catch (err) {
       lastError = err;
       console.error(`[Email] Attempt ${i}/${attempts} failed: ${err.message}`);
@@ -57,22 +53,11 @@ async function sendWithRetry(mailOptions, attempts = 3) {
         const delay = 1000 * Math.pow(2, i - 1); // 1s, 2s, 4s
         await new Promise((r) => setTimeout(r, delay));
       }
-    } finally {
-      // Always close the transporter connection pool
-      if (transporter) {
-        try {
-          transporter.close();
-        } catch (_) {}
-      }
     }
   }
 
   console.error(
     `[Email] ❌ All ${attempts} attempts failed. Last error: ${lastError?.message}`,
-  );
-  console.error("[Email] Check your EMAIL_USER / EMAIL_PASS in .env");
-  console.error(
-    "[Email] Gmail requires an App Password, NOT your regular password.",
   );
   return false;
 }
@@ -203,24 +188,11 @@ export async function sendWelcomeEmail(email, name) {
 
 // ── Health check — call this on server startup to verify SMTP ──
 export async function verifyEmailConfig() {
-  try {
-    const t = createTransporter();
-    await t.verify();
-    console.log("✅ SMTP connection verified — emails will send correctly");
-    t.close();
+  if (process.env.GOOGLE_APPS_SCRIPT_URL) {
+    console.log("✅ Google Apps Script Email Relay configured correctly.");
     return true;
-  } catch (err) {
-    console.error("❌ SMTP verification failed:", err.message);
-    console.error("   EMAIL_USER:", process.env.EMAIL_USER || "(not set)");
-    console.error(
-      "   EMAIL_PASS:",
-      process.env.EMAIL_PASS
-        ? "(set, length=" + process.env.EMAIL_PASS.length + ")"
-        : "(not set)",
-    );
-    console.error(
-      "   Fix: Set EMAIL_USER and EMAIL_PASS (Gmail App Password) in .env",
-    );
+  } else {
+    console.warn("⚠️ GOOGLE_APPS_SCRIPT_URL is missing. Emails will not send.");
     return false;
   }
 }
