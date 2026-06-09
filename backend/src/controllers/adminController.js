@@ -3,7 +3,6 @@ import User from "../models/User.js";
 import Order from "../models/Order.js";
 import Store from "../models/Store.js";
 import Coupon from "../models/Coupon.js";
-import Banner from "../models/Banner.js";
 import PayoutRequest from "../models/PayoutRequest.js";
 
 export const getStats = async (req, res) => {
@@ -106,58 +105,6 @@ export const toggleCoupon = async (req, res) => {
     coupon.isActive = !coupon.isActive;
     await coupon.save();
     res.json(coupon);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-// ── Banners ────────────────────────────────────────────────────
-export const listBanners = async (req, res) => {
-  try {
-    const banners = await Banner.find().sort({ order: 1, createdAt: -1 });
-    res.json(banners);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-export const createBanner = async (req, res) => {
-  try {
-    const banner = await Banner.create(req.body);
-    res.status(201).json(banner);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-export const updateBanner = async (req, res) => {
-  try {
-    const banner = await Banner.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
-    if (!banner) return res.status(404).json({ message: "Banner not found" });
-    res.json(banner);
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-export const deleteBanner = async (req, res) => {
-  try {
-    await Banner.findByIdAndDelete(req.params.id);
-    res.json({ message: "Banner deleted" });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-};
-
-export const toggleBanner = async (req, res) => {
-  try {
-    const banner = await Banner.findById(req.params.id);
-    if (!banner) return res.status(404).json({ message: "Banner not found" });
-    banner.isActive = !banner.isActive;
-    await banner.save();
-    res.json(banner);
   } catch (e) {
     res.status(500).json({ message: e.message });
   }

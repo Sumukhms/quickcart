@@ -6,7 +6,6 @@ export function useAdminData(addToast) {
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [coupons, setCoupons] = useState([]);
-  const [banners, setBanners] = useState([]);
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [userRole, setUserRole] = useState("");
@@ -39,10 +38,6 @@ export function useAdminData(addToast) {
           const { data } = await adminAPI.getCoupons();
           setCoupons(Array.isArray(data) ? data : []);
         }
-        if (which === "banners" || which === "all") {
-          const { data } = await adminAPI.getBanners();
-          setBanners(Array.isArray(data) ? data : []);
-        }
         if (which === "payouts" || which === "all") {
           const { data } = await adminAPI.getPayouts({ status: payoutFilter });
           setPayouts(data.requests || []);
@@ -62,7 +57,6 @@ export function useAdminData(addToast) {
     users,
     orders,
     coupons,
-    banners,
     payouts,
     loading,
     userRole,
@@ -74,7 +68,6 @@ export function useAdminData(addToast) {
     setUsers,
     setOrders,
     setCoupons,
-    setBanners,
     setPayouts,
     setUserRole,
     setOrderStatus,

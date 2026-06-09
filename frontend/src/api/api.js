@@ -236,11 +236,6 @@ export const adminAPI = {
   createCoupon: (data) => api.post("/admin/coupons", data),
   deleteCoupon: (id) => api.delete(`/admin/coupons/${id}`),
   toggleCoupon: (id) => api.patch(`/admin/coupons/${id}/toggle`),
-  getBanners: () => api.get("/admin/banners"),
-  createBanner: (data) => api.post("/admin/banners", data),
-  updateBanner: (id, data) => api.put(`/admin/banners/${id}`, data),
-  deleteBanner: (id) => api.delete(`/admin/banners/${id}`),
-  toggleBanner: (id) => api.patch(`/admin/banners/${id}/toggle`),
   // ✅ FIX: store analytics is a store-protected route, admin uses it via store owner context
   // Admin panel's StoreAnalytics component calls this — it works because admin role
   // bypasses restrictTo("store") check. But to be safe, use the direct store route.

@@ -14,23 +14,17 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  Image,
-  Edit3,
-  Eye,
-  EyeOff,
   Wallet,
   CreditCard,
 } from "lucide-react";
 import { adminAPI } from "../../api/api";
 import { useCart } from "../../context/CartContext";
 import { CouponForm } from "./forms/CouponForm";
-import { BannerForm } from "./forms/BannerForm";
 import { RefundsTab } from "./tabs/RefundsTab";
 import {
   TABS,
   STATUS_COLORS,
   ROLE_COLORS,
-  BG_PRESETS,
   REFUND_STATUS_COLORS,
 } from "./constants/adminConstants";
 import { useAdminData } from "./hooks/useAdminData";
@@ -40,8 +34,6 @@ export default function AdminPanel() {
   const { addToast } = useCart();
   const [tab, setTab] = useState("overview");
   const [showCouponForm, setShowCouponForm] = useState(false);
-  const [showBannerForm, setShowBannerForm] = useState(false);
-  const [editBanner, setEditBanner] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [processingId, setProcessingId] = useState(null);
 
@@ -50,7 +42,6 @@ export default function AdminPanel() {
     users,
     orders,
     coupons,
-    banners,
     payouts,
     loading,
     userRole,
@@ -60,7 +51,6 @@ export default function AdminPanel() {
     setUsers,
     setOrders,
     setCoupons,
-    setBanners,
     setPayouts,
     setUserRole,
     setOrderStatus,
@@ -134,26 +124,6 @@ export default function AdminPanel() {
       setCoupons((prev) => prev.map((c) => (c._id === id ? data : c)));
     } catch {
       addToast("Failed to update coupon", "error");
-    }
-  };
-
-  const deleteBanner = async (id) => {
-    if (!window.confirm("Delete this banner?")) return;
-    try {
-      await adminAPI.deleteBanner(id);
-      setBanners((prev) => prev.filter((b) => b._id !== id));
-      addToast("Banner deleted", "info");
-    } catch {
-      addToast("Failed to delete banner", "error");
-    }
-  };
-
-  const toggleBanner = async (id) => {
-    try {
-      const { data } = await adminAPI.toggleBanner(id);
-      setBanners((prev) => prev.map((b) => (b._id === id ? data : b)));
-    } catch {
-      addToast("Failed to update banner", "error");
     }
   };
 
@@ -671,194 +641,6 @@ export default function AdminPanel() {
                   addToast("Coupon created!", "success");
                 }}
                 onClose={() => setShowCouponForm(false)}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Banners */}
-        {tab === "banners" && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {banners.length} banner{banners.length !== 1 ? "s" : ""} ·
-                Active ones show on the homepage carousel
-              </p>
-              <button
-                onClick={() => {
-                  setEditBanner(null);
-                  setShowBannerForm(true);
-                }}
-                className="btn btn-brand text-sm"
-              >
-                <Plus size={14} /> New Banner
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="space-y-3">
-                {[...Array(2)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="rounded-2xl h-32 shimmer"
-                    style={{ backgroundColor: "var(--card)" }}
-                  />
-                ))}
-              </div>
-            ) : banners.length === 0 ? (
-              <div
-                className="text-center py-16 rounded-2xl"
-                style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <div className="text-5xl mb-3">🖼️</div>
-                <p
-                  className="font-semibold"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  No banners yet
-                </p>
-                <p
-                  className="text-sm mt-1 mb-4"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Create homepage banners to promote offers, announce new
-                  stores, or highlight deals. When no banners exist, the
-                  homepage shows default banners.
-                </p>
-                <button
-                  onClick={() => {
-                    setEditBanner(null);
-                    setShowBannerForm(true);
-                  }}
-                  className="btn btn-brand text-sm"
-                >
-                  <Plus size={14} /> Create First Banner
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {banners.map((banner) => (
-                  <div
-                    key={banner._id}
-                    className="rounded-2xl overflow-hidden"
-                    style={{
-                      backgroundColor: "var(--card)",
-                      border: "1px solid var(--border)",
-                      opacity: banner.isActive ? 1 : 0.6,
-                    }}
-                  >
-                    <div className="flex items-center gap-4 px-5 py-4">
-                      {/* Mini preview */}
-                      <div
-                        className={`w-20 h-12 rounded-xl bg-gradient-to-br ${banner.bg} flex items-center justify-center text-xl flex-shrink-0`}
-                      >
-                        {banner.emoji}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p
-                            className="font-bold text-sm"
-                            style={{ color: "var(--text-primary)" }}
-                          >
-                            {banner.title}
-                          </p>
-                          <span
-                            className="tag text-[10px]"
-                            style={{
-                              background: banner.isActive
-                                ? "rgba(34,197,94,0.12)"
-                                : "rgba(239,68,68,0.1)",
-                              color: banner.isActive ? "#22c55e" : "#ef4444",
-                            }}
-                          >
-                            {banner.isActive ? "Visible" : "Hidden"}
-                          </span>
-                          <span
-                            className="tag text-[10px]"
-                            style={{
-                              background: "var(--elevated)",
-                              color: "var(--text-muted)",
-                            }}
-                          >
-                            Order: {banner.order}
-                          </span>
-                        </div>
-                        <p
-                          className="text-xs mt-0.5 truncate"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          {banner.sub} · CTA: "{banner.cta}" · Link:{" "}
-                          {banner.link}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => {
-                            setEditBanner(banner);
-                            setShowBannerForm(true);
-                          }}
-                          className="p-2 rounded-xl transition-all hover:scale-110"
-                          style={{
-                            background: "rgba(59,130,246,0.1)",
-                            color: "#3b82f6",
-                          }}
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        <button
-                          onClick={() => toggleBanner(banner._id)}
-                          className="p-2 rounded-xl transition-all hover:scale-110"
-                          style={{
-                            background: banner.isActive
-                              ? "rgba(34,197,94,0.1)"
-                              : "var(--elevated)",
-                            color: banner.isActive
-                              ? "#22c55e"
-                              : "var(--text-muted)",
-                          }}
-                        >
-                          {banner.isActive ? (
-                            <Eye size={13} />
-                          ) : (
-                            <EyeOff size={13} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => deleteBanner(banner._id)}
-                          className="p-2 rounded-xl transition-all hover:scale-110"
-                          style={{
-                            background: "rgba(239,68,68,0.08)",
-                            color: "#ef4444",
-                          }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {showBannerForm && (
-              <BannerForm
-                banner={editBanner}
-                onSave={() => {
-                  setShowBannerForm(false);
-                  setEditBanner(null);
-                  load("banners");
-                  addToast(
-                    editBanner ? "Banner updated!" : "Banner created!",
-                    "success",
-                  );
-                }}
-                onClose={() => {
-                  setShowBannerForm(false);
-                  setEditBanner(null);
-                }}
               />
             )}
           </div>

@@ -5,7 +5,6 @@ export const TABS = [
   { id: "users", label: "Users", icon: "Users" },
   { id: "orders", label: "Orders", icon: "Package" },
   { id: "coupons", label: "Coupons", icon: "Tag" },
-  { id: "banners", label: "Banners", icon: "Image" },
   { id: "payouts", label: "Payouts", icon: "Wallet" },
   { id: "refunds", label: "Refunds", icon: "CreditCard" },
 ];
