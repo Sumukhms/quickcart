@@ -15,6 +15,7 @@ import ProtectedRoute, {
 } from "./routes/ProtectedRoute.jsx";
 import { ForgotPasswordPage } from "./pages/AuthPages.jsx";
 import OAuthCallback from "./pages/auth/OAuthCallback.jsx";
+import RoleSelectionPage from "./pages/auth/RoleSelectionPage.jsx";
 
 // Admin pages
 import AdminPanel from "./pages/admin/AdminPanel.jsx";
@@ -68,7 +69,7 @@ export default function App() {
       <ToastContainer />
       <BottomNav />
 
-      <main className="flex-1 pb-14 md:pb-0">
+      <main className="flex-1 pb-24 md:pb-0">
         <Routes>
           {/* Root */}
           <Route path="/" element={<RootRedirect />} />
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/auth/callback" element={<OAuthCallback />} />
+          <Route path="/auth/select-role" element={<RoleSelectionPage />} />
 
           {/* ── STATIC INFO PAGES ── */}
           <Route path="/about" element={<StaticPage />} />

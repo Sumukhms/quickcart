@@ -4,6 +4,7 @@
 import { Link } from "react-router-dom";
 import { Clock, ChevronRight, Zap, Star, TrendingUp } from "lucide-react";
 import FavoriteButton from "./ui/FavoriteButton";
+import LazyImage from "./ui/LazyImage"; // <-- IMPORT ADDED HERE
 
 const categoryEmojis = {
   Groceries: "🛒",
@@ -12,15 +13,6 @@ const categoryEmojis = {
   Beverages: "🧃",
   Medicines: "💊",
   Other: "🏪",
-};
-
-const categoryGradients = {
-  Groceries: "from-emerald-500 via-teal-600 to-cyan-700",
-  Food: "from-orange-500 via-red-500 to-rose-600",
-  Snacks: "from-yellow-500 via-orange-500 to-amber-600",
-  Beverages: "from-blue-500 via-cyan-500 to-sky-600",
-  Medicines: "from-red-500 via-rose-600 to-pink-700",
-  Other: "from-purple-500 via-violet-600 to-indigo-700",
 };
 
 const categoryColors = {
@@ -34,68 +26,57 @@ const categoryColors = {
 
 export default function StoreCard({ store, linkPrefix = "/user/store" }) {
   const emoji = categoryEmojis[store.category] || "🏪";
-  const gradient =
-    categoryGradients[store.category] || "from-gray-500 to-gray-600";
+  const bannerColor = categoryColors[store.category] || "#f3f4f6";
   const accentColor = categoryColors[store.category] || "#ff6b35";
 
   return (
-    <Link to={`${linkPrefix}/${store._id}`} style={{ display: "block" }}>
+    <Link to={`${linkPrefix}/${store._id}`} style={{ display: "block", height: "100%" }}>
       <div
-        className="relative overflow-hidden cursor-pointer group h-full rounded-2xl"
+        className="relative overflow-hidden cursor-pointer h-full rounded-2xl group"
         style={{
           backgroundColor: "var(--card)",
           border: "1px solid var(--border)",
-          transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+          transition: "border-color 0.25s ease, transform 0.2s ease",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-8px)";
-          e.currentTarget.style.borderColor = accentColor + "60";
-          e.currentTarget.style.boxShadow = `0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px ${accentColor}20`;
+          e.currentTarget.style.borderColor = accentColor + "80";
+          e.currentTarget.style.transform = "translateY(-4px)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "translateY(0)";
           e.currentTarget.style.borderColor = "var(--border)";
-          e.currentTarget.style.boxShadow = "none";
+          e.currentTarget.style.transform = "translateY(0)";
         }}
       >
-        {/* Banner */}
+        {/* Banner Area */}
         <div
-          className={`relative h-40 bg-gradient-to-br ${gradient} flex items-center justify-center overflow-hidden`}
+          className="relative h-40 flex items-center justify-center overflow-hidden"
+          style={{
+            backgroundColor: bannerColor,
+            minHeight: "10rem",
+          }}
         >
-          {/* Animated background orbs */}
-          <div
-            className="absolute top-0 left-0 w-24 h-24 rounded-full opacity-30"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(255,255,255,0.4), transparent)",
-              transform: "translate(-30%, -30%)",
-              animation: "floatSlow 6s ease-in-out infinite",
-            }}
-          />
-          <div
-            className="absolute bottom-0 right-0 w-20 h-20 rounded-full opacity-20"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(255,255,255,0.4), transparent)",
-              transform: "translate(30%, 30%)",
-              animation: "floatSlow 8s ease-in-out infinite reverse",
-            }}
-          />
-
-          {/* Emoji */}
-          <div
-            className="text-6xl z-10 transition-all duration-500"
-            style={{
-              filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))",
-              animation: "float 4s ease-in-out infinite",
-            }}
-          >
-            {emoji}
-          </div>
+          {/* THE FIX: Check for store.image. If it exists, show it. Otherwise, show emoji. */}
+          {store.image ? (
+            <>
+              <LazyImage
+                src={store.image}
+                alt={store.name}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                style={{ zIndex: 0 }}
+                fallback={emoji}
+              />
+              {/* Gradient overlay to make sure badges are readable over bright images */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-black/10 to-transparent pointer-events-none z-10" />
+            </>
+          ) : (
+            <div className="text-6xl z-10 transition-transform duration-300 group-hover:scale-110" style={{ color: "white" }}>
+              {emoji}
+            </div>
+          )}
 
           {/* Status badge */}
           <div
-            className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold backdrop-blur-md"
+            className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold backdrop-blur-md z-10"
             style={{
               background: store.isOpen
                 ? "rgba(34,197,94,0.25)"
@@ -106,10 +87,7 @@ export default function StoreCard({ store, linkPrefix = "/user/store" }) {
           >
             <span
               className="w-1.5 h-1.5 rounded-full"
-              style={{
-                background: store.isOpen ? "#4ade80" : "#f87171",
-                animation: store.isOpen ? "pulseDot 1.5s infinite" : "none",
-              }}
+              style={{ background: store.isOpen ? "#4ade80" : "#f87171" }}
             />
             {store.isOpen ? "Open" : "Closed"}
           </div>
@@ -117,7 +95,7 @@ export default function StoreCard({ store, linkPrefix = "/user/store" }) {
           {/* Express badge */}
           {store.deliveryTime && store.deliveryTime.includes("10") && (
             <div
-              className="absolute top-3 right-10 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold backdrop-blur-md"
+              className="absolute top-3 right-10 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold backdrop-blur-md z-10"
               style={{
                 background: "rgba(245,158,11,0.25)",
                 border: "1px solid rgba(245,158,11,0.4)",
@@ -128,124 +106,117 @@ export default function StoreCard({ store, linkPrefix = "/user/store" }) {
             </div>
           )}
 
-          {/* Gradient overlay */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)",
-            }}
-          />
-
           {/* Favorite button */}
           <div
-            className="absolute bottom-3 right-3 z-10"
+            className="absolute bottom-3 right-3 z-20 bg-black/20 rounded-full p-1 backdrop-blur-sm"
             onClick={(e) => e.preventDefault()}
           >
-            <FavoriteButton storeId={store._id} size={15} />
+            <FavoriteButton storeId={store._id} size={16} />
           </div>
 
           {/* Category label at bottom */}
           <div
-            className="absolute bottom-3 left-3 text-xs font-bold text-white/70 backdrop-blur-sm px-2 py-0.5 rounded-lg"
-            style={{ background: "rgba(0,0,0,0.3)" }}
+            className="absolute bottom-3 left-3 text-[10px] font-bold text-white px-2 py-0.5 rounded-lg z-10 backdrop-blur-sm"
+            style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}
           >
             {store.category}
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-4">
-          {/* Store name row */}
-          <div className="flex items-start justify-between gap-2 mb-3">
-            <div className="min-w-0 flex-1">
-              <h3
-                className="font-bold text-base truncate transition-colors duration-200 group-hover:text-orange-400"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {store.name}
-              </h3>
-              <p
-                className="text-xs mt-0.5 truncate"
-                style={{ color: "var(--text-muted)" }}
-              >
-                📍 {store.address}
-              </p>
-            </div>
-            <div
-              className="flex-shrink-0 p-2 rounded-xl transition-all duration-300 group-hover:translate-x-1"
-              style={{
-                background: "var(--elevated)",
-                color: "var(--text-muted)",
-              }}
-            >
-              <ChevronRight size={14} />
-            </div>
-          </div>
-
-          {/* Metrics row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Rating */}
-            {store.totalRatings > 0 ? (
-              <div
-                className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl"
-                style={{
-                  background: "rgba(245,158,11,0.12)",
-                  color: "#f59e0b",
-                }}
-              >
-                <Star size={11} fill="#f59e0b" stroke="none" />
-                {store.rating?.toFixed(1) || "4.5"}
-                <span className="font-normal opacity-60">
-                  ({store.totalRatings})
-                </span>
+        <div className="p-4 flex flex-col justify-between" style={{ height: "calc(100% - 10rem)" }}>
+          <div>
+            {/* Store name row */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="min-w-0 flex-1">
+                <h3
+                  className="font-bold text-base truncate"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {store.name}
+                </h3>
+                <p
+                  className="text-[11px] mt-0.5 truncate"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  📍 {store.address}
+                </p>
               </div>
-            ) : (
               <div
-                className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl"
-                style={{
-                  background: "rgba(59,130,246,0.12)",
-                  color: "#3b82f6",
-                }}
-              >
-                <span className="text-sm">✨</span>
-                New
-              </div>
-            )}
-
-            {/* Delivery time */}
-            <div
-              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl"
-              style={{
-                background: "var(--elevated)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              <Clock size={11} />
-              {store.deliveryTime || "20-30 min"}
-            </div>
-
-            {/* Min order */}
-            {store.minOrder > 0 && (
-              <div
-                className="text-xs font-semibold px-2.5 py-1.5 rounded-xl"
+                className="flex-shrink-0 p-1.5 rounded-lg transition-transform group-hover:translate-x-1"
                 style={{
                   background: "var(--elevated)",
                   color: "var(--text-muted)",
                 }}
               >
-                Min ₹{store.minOrder}
+                <ChevronRight size={14} />
               </div>
-            )}
+            </div>
+
+            {/* Metrics row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Rating */}
+              {store.totalRatings > 0 ? (
+                <div
+                  className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg"
+                  style={{
+                    background: "rgba(245,158,11,0.12)",
+                    color: "#f59e0b",
+                  }}
+                >
+                  <Star size={10} fill="#f59e0b" stroke="none" />
+                  {store.rating?.toFixed(1) || "4.5"}
+                  <span className="font-normal opacity-60">
+                    ({store.totalRatings})
+                  </span>
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-lg"
+                  style={{
+                    background: "rgba(59,130,246,0.12)",
+                    color: "#3b82f6",
+                  }}
+                >
+                  <span className="text-sm">✨</span>
+                  New
+                </div>
+              )}
+
+              {/* Delivery time */}
+              <div
+                className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg"
+                style={{
+                  background: "var(--elevated)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <Clock size={10} />
+                {store.deliveryTime || "20-30 min"}
+              </div>
+
+              {/* Min order */}
+              {store.minOrder > 0 && (
+                <div
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg"
+                  style={{
+                    background: "var(--elevated)",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  Min ₹{store.minOrder}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Footer */}
           <div
-            className="flex items-center justify-between mt-3 pt-3"
+            className="flex items-center justify-between mt-4 pt-3"
             style={{ borderTop: "1px solid var(--border)" }}
           >
             <div
-              className="flex items-center gap-1 text-xs"
+              className="flex items-center gap-1 text-[11px]"
               style={{ color: "var(--text-muted)" }}
             >
               <TrendingUp size={10} style={{ color: accentColor }} />
@@ -254,7 +225,7 @@ export default function StoreCard({ store, linkPrefix = "/user/store" }) {
               </span>
             </div>
             <div
-              className="text-xs font-bold px-2.5 py-1 rounded-lg"
+              className="text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors group-hover:bg-opacity-20"
               style={{ background: accentColor + "15", color: accentColor }}
             >
               Order now →

@@ -972,6 +972,7 @@ export default function UserProfile() {
           </div>
           <div className="px-5 py-4">
             <div className="flex items-start justify-between gap-4">
+              {/* Remove the role check so delete is available for all users */}
               <div>
                 <p
                   className="font-semibold text-sm"

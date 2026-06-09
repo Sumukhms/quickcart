@@ -6,40 +6,20 @@
  * The backend embeds three params in the URL fragment:
  *   #token=<accessToken>&redirectTo=<path>&isNewGoogleUser=1|0
  *
- * When isNewGoogleUser=1, the role-selection modal is shown
- * unconditionally so new Google sign-ups can choose their role
- * before being routed to any dashboard.
+ * When isNewGoogleUser=1, the user is redirected to the role selection page
+ * before being routed into the app.
  */
-import { useEffect, useState, useCallback } from "react";
-import { useNavigate }   from "react-router-dom";
-import { useAuth }       from "../../context/AuthContext";
-import api               from "../../api/api";
-
-const ROLES = [
-  { id: "customer", emoji: "👤", label: "Customer",    sub: "Order from stores near you",   color: "#22c55e" },
-  { id: "store",    emoji: "🏪", label: "Store Owner", sub: "Manage your store & products", color: "#3b82f6" },
-  { id: "delivery", emoji: "🛵", label: "Delivery",    sub: "Earn by delivering orders",     color: "#f59e0b" },
-];
-
-const VEHICLE_TYPES = [
-  { id: "bike",    emoji: "🏍️", label: "Bike" },
-  { id: "scooter", emoji: "🛵", label: "Scooter" },
-  { id: "cycle",   emoji: "🚲", label: "Cycle" },
-];
-
-const ROLE_HOME = {
-  customer: "/user/home",
-  store:    "/store/dashboard",
-  delivery: "/delivery/dashboard",
-  admin:    "/admin",
-};
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import api from "../../api/api";
 
 // ── Role Selection Modal ──────────────────────────────────────
 function RoleSelectionModal({ user, onComplete }) {
-  const [selectedRole,    setSelectedRole]    = useState("customer");
+  const [selectedRole, setSelectedRole] = useState("customer");
   const [selectedVehicle, setSelectedVehicle] = useState("bike");
-  const [saving,          setSaving]          = useState(false);
-  const [error,           setError]           = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const handleConfirm = async () => {
     setSaving(true);
@@ -53,7 +33,9 @@ function RoleSelectionModal({ user, onComplete }) {
       const { data: updatedProfile } = await api.get("/auth/profile");
       onComplete(updatedProfile);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to save. Please try again.");
+      setError(
+        err.response?.data?.message || "Failed to save. Please try again.",
+      );
       setSaving(false);
     }
   };
@@ -65,13 +47,16 @@ function RoleSelectionModal({ user, onComplete }) {
     >
       <div
         className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl"
-        style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+        style={{
+          backgroundColor: "var(--card)",
+          border: "1px solid var(--border)",
+        }}
       >
         {/* Header */}
         <div
           className="px-6 py-5 text-center"
           style={{
-            background:   "linear-gradient(135deg, #ff6b35, #ff8c5a)",
+            background: "linear-gradient(135deg, #ff6b35, #ff8c5a)",
             borderBottom: "1px solid var(--border)",
           }}
         >
@@ -79,13 +64,18 @@ function RoleSelectionModal({ user, onComplete }) {
           <h2 className="font-display font-bold text-xl text-white">
             Welcome, {user?.name?.split(" ")[0]}!
           </h2>
-          <p className="text-white/75 text-sm mt-1">How would you like to use QuickCart?</p>
+          <p className="text-white/75 text-sm mt-1">
+            How would you like to use QuickCart?
+          </p>
         </div>
 
         <div className="px-6 py-5 space-y-4">
           {/* Role Selection */}
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+            <p
+              className="text-xs font-bold uppercase tracking-wider mb-3"
+              style={{ color: "var(--text-muted)" }}
+            >
               Choose your role
             </p>
             <div className="space-y-2">
@@ -95,8 +85,11 @@ function RoleSelectionModal({ user, onComplete }) {
                   onClick={() => setSelectedRole(id)}
                   className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all hover:scale-[1.01]"
                   style={{
-                    background: selectedRole === id ? "rgba(255,107,53,0.06)" : "var(--elevated)",
-                    border:     `1.5px solid ${selectedRole === id ? "var(--brand)" : "var(--border)"}`,
+                    background:
+                      selectedRole === id
+                        ? "rgba(255,107,53,0.06)"
+                        : "var(--elevated)",
+                    border: `1.5px solid ${selectedRole === id ? "var(--brand)" : "var(--border)"}`,
                   }}
                 >
                   <div
@@ -106,15 +99,31 @@ function RoleSelectionModal({ user, onComplete }) {
                     {emoji}
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-sm"    style={{ color: "var(--text-primary)" }}>{label}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{sub}</p>
+                    <p
+                      className="font-bold text-sm"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {label}
+                    </p>
+                    <p
+                      className="text-xs mt-0.5"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {sub}
+                    </p>
                   </div>
                   <div
                     className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                    style={{ borderColor: selectedRole === id ? "var(--brand)" : "var(--border)" }}
+                    style={{
+                      borderColor:
+                        selectedRole === id ? "var(--brand)" : "var(--border)",
+                    }}
                   >
                     {selectedRole === id && (
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--brand)" }} />
+                      <div
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ background: "var(--brand)" }}
+                      />
                     )}
                   </div>
                 </button>
@@ -125,7 +134,10 @@ function RoleSelectionModal({ user, onComplete }) {
           {/* Vehicle type — delivery only */}
           {selectedRole === "delivery" && (
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+              <p
+                className="text-xs font-bold uppercase tracking-wider mb-2"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Vehicle type
               </p>
               <div className="grid grid-cols-3 gap-2">
@@ -135,9 +147,15 @@ function RoleSelectionModal({ user, onComplete }) {
                     onClick={() => setSelectedVehicle(id)}
                     className="flex flex-col items-center py-3 px-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
                     style={{
-                      background: selectedVehicle === id ? "rgba(245,158,11,0.12)" : "var(--elevated)",
-                      color:      selectedVehicle === id ? "#f59e0b"                : "var(--text-secondary)",
-                      border:     `1.5px solid ${selectedVehicle === id ? "#f59e0b" : "var(--border)"}`,
+                      background:
+                        selectedVehicle === id
+                          ? "rgba(245,158,11,0.12)"
+                          : "var(--elevated)",
+                      color:
+                        selectedVehicle === id
+                          ? "#f59e0b"
+                          : "var(--text-secondary)",
+                      border: `1.5px solid ${selectedVehicle === id ? "#f59e0b" : "var(--border)"}`,
                     }}
                   >
                     <span className="text-xl mb-1">{emoji}</span>
@@ -153,8 +171,8 @@ function RoleSelectionModal({ user, onComplete }) {
               className="rounded-xl p-3 text-sm"
               style={{
                 background: "rgba(239,68,68,0.1)",
-                color:      "#ef4444",
-                border:     "1px solid rgba(239,68,68,0.2)",
+                color: "#ef4444",
+                border: "1px solid rgba(239,68,68,0.2)",
               }}
             >
               {error}
@@ -181,40 +199,31 @@ function RoleSelectionModal({ user, onComplete }) {
 
 // ── Main component ────────────────────────────────────────────
 export default function OAuthCallback() {
-  const navigate                         = useNavigate();
+  const navigate = useNavigate();
   const { updateUser, setTokenExternal } = useAuth();
 
-  const [status,        setStatus]        = useState("Processing sign-in…");
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [pendingUser,   setPendingUser]   = useState(null);
-
-  const handleRoleComplete = useCallback(
-    (updatedProfile) => {
-      localStorage.setItem("qc-user", JSON.stringify(updatedProfile));
-      updateUser(updatedProfile);
-      navigate(ROLE_HOME[updatedProfile.role] || "/user/home", { replace: true });
-    },
-    [updateUser, navigate],
-  );
+  const [status, setStatus] = useState("Processing sign-in…");
 
   useEffect(() => {
     async function handleCallback() {
       try {
         const fragment = window.location.hash.substring(1);
-        const params   = new URLSearchParams(fragment);
+        const params = new URLSearchParams(fragment);
 
-        const token          = params.get("token");
-        const redirectTo     = params.get("redirectTo") || "/user/home";
+        const token = params.get("token");
+        const redirectTo = params.get("redirectTo") || "/user/home";
         const isNewGoogleUser = params.get("isNewGoogleUser") === "1";
-        const error          = params.get("error");
+        const error = params.get("error");
 
         if (error || !token) {
           setStatus("Authentication failed. Redirecting to login…");
-          setTimeout(() => navigate("/login?error=oauth_failed", { replace: true }), 1500);
+          setTimeout(
+            () => navigate("/login?error=oauth_failed", { replace: true }),
+            1500,
+          );
           return;
         }
 
-        // Persist token immediately so api.get("/auth/profile") is authenticated
         localStorage.setItem("qc-token", token);
         setTokenExternal(token);
 
@@ -225,32 +234,28 @@ export default function OAuthCallback() {
         updateUser(userProfile);
 
         if (isNewGoogleUser) {
-          // Show role-selection screen; do NOT redirect yet
-          setPendingUser(userProfile);
-          setShowRoleModal(true);
-          setStatus("");
+          setStatus("Redirecting to role selection…");
+          navigate("/auth/select-role", { replace: true });
           return;
         }
 
         setStatus("Success! Redirecting…");
-        setTimeout(() => navigate(decodeURIComponent(redirectTo), { replace: true }), 200);
+        setTimeout(
+          () => navigate(decodeURIComponent(redirectTo), { replace: true }),
+          200,
+        );
       } catch (err) {
         console.error("[OAuthCallback] Error:", err);
         setStatus("Something went wrong. Redirecting to login…");
-        setTimeout(() => navigate("/login?error=oauth_failed", { replace: true }), 2000);
+        setTimeout(
+          () => navigate("/login?error=oauth_failed", { replace: true }),
+          2000,
+        );
       }
     }
 
     handleCallback();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (showRoleModal && pendingUser) {
-    return (
-      <div className="min-h-screen" style={{ backgroundColor: "var(--bg)" }}>
-        <RoleSelectionModal user={pendingUser} onComplete={handleRoleComplete} />
-      </div>
-    );
-  }
+  }, [navigate, setTokenExternal, updateUser]);
 
   return (
     <div
@@ -261,12 +266,15 @@ export default function OAuthCallback() {
         <div
           className="w-14 h-14 border-4 rounded-full mx-auto mb-5"
           style={{
-            borderColor:    "var(--border)",
+            borderColor: "var(--border)",
             borderTopColor: "var(--brand)",
-            animation:      "spin 0.9s linear infinite",
+            animation: "spin 0.9s linear infinite",
           }}
         />
-        <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+        <p
+          className="text-sm font-semibold"
+          style={{ color: "var(--text-secondary)" }}
+        >
           {status}
         </p>
         <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>

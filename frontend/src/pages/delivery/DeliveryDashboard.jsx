@@ -33,6 +33,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import DeleteAccountModal from "../../components/ui/DeleteAccountModal";
 import { useCart } from "../../context/CartContext";
 import { useSocket } from "../../context/SocketContext";
 import { orderAPI, authAPI } from "../../api/api";
@@ -354,6 +355,7 @@ export default function DeliveryDashboard() {
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [earnings, setEarnings] = useState(null);
   const [earningsLoading, setEarningsLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // ── Fetch available orders ────────────────────────────────
   const fetchAvailable = useCallback(
@@ -495,6 +497,12 @@ export default function DeliveryDashboard() {
   }, [addToast, fetchEarnings]);
 
   const handleLogout = () => {
+    logout();
+    clearCart();
+    navigate("/login");
+  };
+
+  const handleAccountDeleted = () => {
     logout();
     clearCart();
     navigate("/login");
@@ -774,8 +782,20 @@ export default function DeliveryDashboard() {
 
         {/* Sign out */}
         <button
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm mt-4 transition-all hover:scale-[1.01]"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            color: "#ef4444",
+            border: "1.5px solid rgba(239,68,68,0.18)",
+          }}
+        >
+          <AlertCircle size={15} /> Delete Account
+        </button>
+
+        <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm mt-6 transition-all hover:scale-[1.01]"
+          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-semibold text-sm mt-4 transition-all hover:scale-[1.01]"
           style={{
             background: "rgba(239,68,68,0.08)",
             color: "#ef4444",
@@ -784,6 +804,13 @@ export default function DeliveryDashboard() {
         >
           <LogOut size={15} /> Sign Out
         </button>
+
+        <DeleteAccountModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onDeleted={handleAccountDeleted}
+          user={user}
+        />
       </div>
     </div>
   );

@@ -25,11 +25,12 @@ import User from "../models/User.js";
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
-const googleClientID     = process.env.GOOGLE_CLIENT_ID?.trim();
+const googleClientID = process.env.GOOGLE_CLIENT_ID?.trim();
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-const googleCallbackURL  = process.env.GOOGLE_CALLBACK_URL?.trim();
+const googleCallbackURL = process.env.GOOGLE_CALLBACK_URL?.trim();
 
-const isGoogleConfigured = googleClientID && googleClientSecret && googleCallbackURL;
+const isGoogleConfigured =
+  googleClientID && googleClientSecret && googleCallbackURL;
 
 if (isGoogleConfigured) {
   console.log("✅ Google OAuth Strategy Loaded");
@@ -37,15 +38,16 @@ if (isGoogleConfigured) {
   passport.use(
     new GoogleStrategy(
       {
-        clientID:     googleClientID,
+        clientID: googleClientID,
         clientSecret: googleClientSecret,
-        callbackURL:  googleCallbackURL,
-        scope:        ["profile", "email"],
+        callbackURL: googleCallbackURL,
+        scope: ["profile", "email"],
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
           const email = profile.emails?.[0]?.value?.toLowerCase();
-          if (!email) return done(new Error("No email returned from Google"), null);
+          if (!email)
+            return done(new Error("No email returned from Google"), null);
 
           let user = await User.findOne({ googleId: profile.id });
           let isNewGoogleUser = false;
@@ -55,8 +57,8 @@ if (isGoogleConfigured) {
 
             if (user) {
               // Existing local account — link Google to it
-              user.googleId       = profile.id;
-              user.authProvider   = "google";
+              user.googleId = profile.id;
+              user.authProvider = "google";
               user.isEmailVerified = true;
               if (!user.avatar) user.avatar = profile.photos?.[0]?.value || "";
               await user.save();
@@ -64,13 +66,14 @@ if (isGoogleConfigured) {
               // Brand-new user — create with a temporary default role.
               // The frontend role-selection screen will update it immediately.
               user = await User.create({
-                name:            profile.displayName || email.split("@")[0],
+                name: profile.displayName || email.split("@")[0],
                 email,
-                googleId:        profile.id,
-                authProvider:    "google",
+                googleId: profile.id,
+                authProvider: "google",
                 isEmailVerified: true,
-                avatar:          profile.photos?.[0]?.value || "",
-                role:            "customer", // overridden by frontend role-selection
+                avatar: profile.photos?.[0]?.value || "",
+                role: "customer", // overridden by frontend role-selection
+                isNewGoogleUser: true,
               });
               isNewGoogleUser = true;
             }
@@ -86,7 +89,9 @@ if (isGoogleConfigured) {
     ),
   );
 } else {
-  console.warn("⚠️  Google OAuth NOT configured — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_CALLBACK_URL missing");
+  console.warn(
+    "⚠️  Google OAuth NOT configured — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_CALLBACK_URL missing",
+  );
 }
 
 export default passport;

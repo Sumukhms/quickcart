@@ -25,13 +25,13 @@ const signAccessToken = (user) =>
   );
 
 const issueTokens = async (user, res, { family, userAgent, ip } = {}) => {
-  const accessToken  = signAccessToken(user);
-  const rawRefresh   = RefreshToken.generate();
-  const tokenFamily  = family || crypto.randomBytes(16).toString("hex");
+  const accessToken = signAccessToken(user);
+  const rawRefresh = RefreshToken.generate();
+  const tokenFamily = family || crypto.randomBytes(16).toString("hex");
 
   await RefreshToken.store(user._id, rawRefresh, tokenFamily, {
     userAgent: userAgent || "",
-    ip:        ip || "",
+    ip: ip || "",
     expiresInDays: REFRESH_TOKEN_EXPIRES_DAYS,
   });
 
@@ -41,29 +41,29 @@ const issueTokens = async (user, res, { family, userAgent, ip } = {}) => {
 
 const ROLE_REDIRECT = {
   customer: "/user/home",
-  store:    "/store/dashboard",
+  store: "/store/dashboard",
   delivery: "/delivery/dashboard",
-  admin:    "/admin",
+  admin: "/admin",
 };
 
 function safeUser(user) {
   return {
-    id:              user._id,
-    name:            user.name,
-    email:           user.email,
-    role:            user.role,
-    phone:           user.phone || "",
-    address:         user.address || "",
-    addresses:       Array.isArray(user.addresses) ? user.addresses : [],
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone || "",
+    address: user.address || "",
+    addresses: Array.isArray(user.addresses) ? user.addresses : [],
     isEmailVerified: user.isEmailVerified,
-    authProvider:    user.authProvider,
-    avatar:          user.avatar || "",
-    vehicleType:     user.vehicleType || "",
-    isAvailable:     user.isAvailable,
-    storeId:         user.storeId || null,
+    authProvider: user.authProvider,
+    avatar: user.avatar || "",
+    vehicleType: user.vehicleType || "",
+    isAvailable: user.isAvailable,
+    storeId: user.storeId || null,
     totalDeliveries: user.totalDeliveries || 0,
-    rating:          user.rating || 5,
-    favoriteStores:  (user.favoriteStores || []).map((id) =>
+    rating: user.rating || 5,
+    favoriteStores: (user.favoriteStores || []).map((id) =>
       id.toString ? id.toString() : id,
     ),
   };
@@ -81,19 +81,22 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
 
     const validRoles = ["customer", "store", "delivery"];
-    const userRole   = validRoles.includes(role) ? role : "customer";
+    const userRole = validRoles.includes(role) ? role : "customer";
 
     const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
       if (existingUser.isEmailVerified) {
-        return res.status(400).json({ message: "Email already registered. Please log in." });
+        return res
+          .status(400)
+          .json({ message: "Email already registered. Please log in." });
       }
-      const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
+      const otp = await Otp.createOtp(normalizedEmail, "verify_email");
       const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
       if (!sent) {
         return res.status(500).json({
-          message: "Account exists but we could not send the OTP email. Check your EMAIL_USER and EMAIL_PASS in .env",
+          message:
+            "Account exists but we could not send the OTP email. Check your EMAIL_USER and EMAIL_PASS in .env",
         });
       }
       return res.status(200).json({
@@ -103,26 +106,30 @@ export const register = async (req, res) => {
       });
     }
 
-    const hashed   = await bcrypt.hash(password, 12);
+    const hashed = await bcrypt.hash(password, 12);
     const userData = {
-      name:            name?.trim(),
-      email:           normalizedEmail,
-      password:        hashed,
-      role:            userRole,
-      phone:           phone?.trim() || undefined,
+      name: name?.trim(),
+      email: normalizedEmail,
+      password: hashed,
+      role: userRole,
+      phone: phone?.trim() || undefined,
       isEmailVerified: false,
-      authProvider:    "local",
+      authProvider: "local",
     };
-    if (userRole === "delivery" && vehicleType) userData.vehicleType = vehicleType;
+    if (userRole === "delivery" && vehicleType)
+      userData.vehicleType = vehicleType;
 
     const user = await User.create(userData);
-    const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
+    const otp = await Otp.createOtp(normalizedEmail, "verify_email");
     const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
     if (!sent) {
-      console.error(`[Register] Account created for ${normalizedEmail} but OTP email failed.`);
+      console.error(
+        `[Register] Account created for ${normalizedEmail} but OTP email failed.`,
+      );
       return res.status(201).json({
-        message: "Account created! However, we could not send the OTP email. Please check server EMAIL configuration and use 'Resend OTP'.",
+        message:
+          "Account created! However, we could not send the OTP email. Please check server EMAIL configuration and use 'Resend OTP'.",
         email: normalizedEmail,
         requiresVerification: true,
         emailError: true,
@@ -137,7 +144,9 @@ export const register = async (req, res) => {
   } catch (e) {
     console.error("[Register] Error:", e.message);
     if (e.code === 11000)
-      return res.status(400).json({ message: "Email already registered. Please log in." });
+      return res
+        .status(400)
+        .json({ message: "Email already registered. Please log in." });
     res.status(500).json({ message: e.message });
   }
 };
@@ -147,7 +156,7 @@ export const register = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const verifyEmail = async (req, res) => {
   try {
-    const { email, otp }  = req.body;
+    const { email, otp } = req.body;
     const normalizedEmail = email?.toLowerCase().trim();
 
     const result = await Otp.verifyOtp(normalizedEmail, otp, "verify_email");
@@ -164,13 +173,13 @@ export const verifyEmail = async (req, res) => {
 
     const { accessToken } = await issueTokens(user, res, {
       userAgent: req.headers["user-agent"],
-      ip:        req.ip,
+      ip: req.ip,
     });
 
     res.json({
-      message:    "Email verified successfully! Welcome to QuickCart.",
-      token:      accessToken,
-      user:       safeUser(user),
+      message: "Email verified successfully! Welcome to QuickCart.",
+      token: accessToken,
+      user: safeUser(user),
       redirectTo: ROLE_REDIRECT[user.role] || "/user/home",
     });
   } catch (e) {
@@ -185,18 +194,21 @@ export const verifyEmail = async (req, res) => {
 export const resendVerificationOtp = async (req, res) => {
   try {
     const normalizedEmail = req.body.email?.toLowerCase().trim();
-    if (!normalizedEmail) return res.status(400).json({ message: "Email is required" });
+    if (!normalizedEmail)
+      return res.status(400).json({ message: "Email is required" });
 
     const user = await User.findOne({ email: normalizedEmail });
-    if (!user)              return res.status(404).json({ message: "Account not found" });
-    if (user.isEmailVerified) return res.status(400).json({ message: "Email is already verified" });
+    if (!user) return res.status(404).json({ message: "Account not found" });
+    if (user.isEmailVerified)
+      return res.status(400).json({ message: "Email is already verified" });
 
-    const otp  = await Otp.createOtp(normalizedEmail, "verify_email");
+    const otp = await Otp.createOtp(normalizedEmail, "verify_email");
     const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
     if (!sent) {
       return res.status(500).json({
-        message: "Failed to send OTP email. Please check server EMAIL configuration.",
+        message:
+          "Failed to send OTP email. Please check server EMAIL configuration.",
       });
     }
 
@@ -213,19 +225,22 @@ export const resendVerificationOtp = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const normalizedEmail     = email?.toLowerCase().trim();
+    const normalizedEmail = email?.toLowerCase().trim();
 
     const user = await User.findOne({ email: normalizedEmail });
-    if (!user) return res.status(400).json({ message: "Invalid email or password" });
+    if (!user)
+      return res.status(400).json({ message: "Invalid email or password" });
 
     if (user.authProvider === "google" && !user.password) {
       return res.status(400).json({
-        message: "This account uses Google Sign-In. Please continue with Google.",
+        message:
+          "This account uses Google Sign-In. Please continue with Google.",
       });
     }
 
     const match = await bcrypt.compare(password, user.password || "");
-    if (!match) return res.status(400).json({ message: "Invalid email or password" });
+    if (!match)
+      return res.status(400).json({ message: "Invalid email or password" });
 
     if (!user.isEmailVerified) {
       return res.status(403).json({
@@ -237,12 +252,12 @@ export const login = async (req, res) => {
 
     const { accessToken } = await issueTokens(user, res, {
       userAgent: req.headers["user-agent"],
-      ip:        req.ip,
+      ip: req.ip,
     });
 
     res.json({
-      token:      accessToken,
-      user:       safeUser(user),
+      token: accessToken,
+      user: safeUser(user),
       redirectTo: ROLE_REDIRECT[user.role] || "/user/home",
     });
   } catch (e) {
@@ -262,14 +277,20 @@ export const refresh = async (req, res) => {
     const record = await RefreshToken.findValid(rawToken);
 
     if (!record) {
-      const hash      = RefreshToken.hash(rawToken);
+      const hash = RefreshToken.hash(rawToken);
       const anyFamily = await RefreshToken.findOne({ tokenHash: hash }).lean();
       if (anyFamily) {
         await RefreshToken.revokeFamily(anyFamily.family);
-        console.warn(`[refresh] Reuse attack detected for family ${anyFamily.family} — all sessions revoked`);
+        console.warn(
+          `[refresh] Reuse attack detected for family ${anyFamily.family} — all sessions revoked`,
+        );
       }
       res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
-      return res.status(401).json({ message: "Invalid or expired refresh token. Please log in again." });
+      return res
+        .status(401)
+        .json({
+          message: "Invalid or expired refresh token. Please log in again.",
+        });
     }
 
     const user = await User.findById(record.userId);
@@ -283,9 +304,9 @@ export const refresh = async (req, res) => {
     await record.deleteOne();
 
     const { accessToken } = await issueTokens(user, res, {
-      family:    oldFamily,
+      family: oldFamily,
       userAgent: req.headers["user-agent"],
-      ip:        req.ip,
+      ip: req.ip,
     });
 
     res.json({ token: accessToken, user: safeUser(user) });
@@ -334,21 +355,27 @@ export const logoutAll = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const normalizedEmail = req.body.email?.toLowerCase().trim();
-    if (!normalizedEmail) return res.status(400).json({ message: "Email is required" });
+    if (!normalizedEmail)
+      return res.status(400).json({ message: "Email is required" });
 
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user || user.authProvider === "google") {
-      return res.json({ message: "If that email exists, an OTP has been sent." });
+      return res.json({
+        message: "If that email exists, an OTP has been sent.",
+      });
     }
 
-    const otp  = await Otp.createOtp(normalizedEmail, "reset_password");
+    const otp = await Otp.createOtp(normalizedEmail, "reset_password");
     const sent = await sendOtpEmail(normalizedEmail, otp, "reset_password");
 
     if (!sent) {
-      console.error(`[ForgotPassword] OTP generated but email failed for ${normalizedEmail}`);
+      console.error(
+        `[ForgotPassword] OTP generated but email failed for ${normalizedEmail}`,
+      );
       return res.status(500).json({
-        message:    "OTP was generated but the email could not be sent. Please check EMAIL_USER and EMAIL_PASS in your server .env file.",
+        message:
+          "OTP was generated but the email could not be sent. Please check EMAIL_USER and EMAIL_PASS in your server .env file.",
         emailError: true,
       });
     }
@@ -366,13 +393,13 @@ export const forgotPassword = async (req, res) => {
 export const resetPassword = async (req, res) => {
   try {
     const { email, otp, password } = req.body;
-    const normalizedEmail          = email?.toLowerCase().trim();
+    const normalizedEmail = email?.toLowerCase().trim();
 
     const result = await Otp.verifyOtp(normalizedEmail, otp, "reset_password");
     if (!result.valid) return res.status(400).json({ message: result.reason });
 
     const hashed = await bcrypt.hash(password, 12);
-    const user   = await User.findOneAndUpdate(
+    const user = await User.findOneAndUpdate(
       { email: normalizedEmail },
       { password: hashed },
       { new: true },
@@ -395,12 +422,12 @@ export const resetPassword = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const googleCallback = async (req, res) => {
   try {
-    const user        = req.user;
+    const user = req.user;
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
     const { accessToken } = await issueTokens(user, res, {
       userAgent: req.headers["user-agent"],
-      ip:        req.ip,
+      ip: req.ip,
     });
 
     const redirectTo = ROLE_REDIRECT[user.role] || "/user/home";
@@ -408,8 +435,8 @@ export const googleCallback = async (req, res) => {
     // Pass isNewGoogleUser so the frontend can show the role-selection screen
     // reliably, without resorting to timing heuristics.
     const params = new URLSearchParams({
-      token:          accessToken,
-      redirectTo:     encodeURIComponent(redirectTo),
+      token: accessToken,
+      redirectTo: encodeURIComponent(redirectTo),
       isNewGoogleUser: user.isNewGoogleUser ? "1" : "0",
     });
 
@@ -437,27 +464,35 @@ export const getProfile = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const validRoles      = ["customer", "store", "delivery"];
-    const requestedRole   = req.body.role;
-    const updates         = {};
+    const validRoles = ["customer", "store", "delivery"];
+    const requestedRole = req.body.role;
+    const updates = {};
 
     if (req.body.name?.trim()) updates.name = req.body.name.trim();
 
-    if (req.body.address !== undefined) updates.address = req.body.address?.trim() || "";
+    if (req.body.address !== undefined)
+      updates.address = req.body.address?.trim() || "";
 
     if (req.body.phone !== undefined) {
       const digits = (req.body.phone || "").replace(/\D/g, "");
       if (digits && digits.length !== 10) {
-        return res.status(400).json({ message: "Phone number must be exactly 10 digits" });
+        return res
+          .status(400)
+          .json({ message: "Phone number must be exactly 10 digits" });
       }
       updates.phone = digits || "";
     }
 
-    if (requestedRole && validRoles.includes(requestedRole)) updates.role = requestedRole;
+    if (requestedRole && validRoles.includes(requestedRole))
+      updates.role = requestedRole;
 
-    if (req.body.vehicleType && (req.user.role === "delivery" || requestedRole === "delivery")) {
+    if (
+      req.body.vehicleType &&
+      (req.user.role === "delivery" || requestedRole === "delivery")
+    ) {
       const validVehicles = ["bike", "scooter", "cycle"];
-      if (validVehicles.includes(req.body.vehicleType)) updates.vehicleType = req.body.vehicleType;
+      if (validVehicles.includes(req.body.vehicleType))
+        updates.vehicleType = req.body.vehicleType;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -483,19 +518,27 @@ export const updateProfile = async (req, res) => {
 export const addAddress = async (req, res) => {
   try {
     const { address } = req.body;
-    const trimmed     = address?.trim();
+    const trimmed = address?.trim();
 
-    if (!trimmed)          return res.status(400).json({ message: "Address is required" });
-    if (trimmed.length < 10) return res.status(400).json({ message: "Address is too short" });
+    if (!trimmed)
+      return res.status(400).json({ message: "Address is required" });
+    if (trimmed.length < 10)
+      return res.status(400).json({ message: "Address is too short" });
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (user.addresses.length >= 5) {
-      return res.status(400).json({ message: "Maximum 5 addresses allowed. Please delete one first." });
+      return res
+        .status(400)
+        .json({
+          message: "Maximum 5 addresses allowed. Please delete one first.",
+        });
     }
     if (user.addresses.includes(trimmed)) {
-      return res.status(400).json({ message: "This address is already saved." });
+      return res
+        .status(400)
+        .json({ message: "This address is already saved." });
     }
 
     user.addresses.push(trimmed);
@@ -511,7 +554,7 @@ export const addAddress = async (req, res) => {
 
 export const removeAddress = async (req, res) => {
   try {
-    const idx  = Number(req.params.index);
+    const idx = Number(req.params.index);
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -531,7 +574,7 @@ export const removeAddress = async (req, res) => {
 
 export const setDefaultAddress = async (req, res) => {
   try {
-    const idx  = Number(req.params.index);
+    const idx = Number(req.params.index);
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
     if (isNaN(idx) || idx < 0 || idx >= user.addresses.length)
@@ -587,31 +630,46 @@ export const deleteAccount = async (req, res) => {
     const userId = req.user.userId;
 
     if (confirmation !== "DELETE")
-      return res.status(400).json({ message: 'Please type "DELETE" exactly to confirm' });
+      return res
+        .status(400)
+        .json({ message: 'Please type "DELETE" exactly to confirm' });
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (user.authProvider === "local" && user.password) {
       if (!password)
-        return res.status(400).json({ message: "Password is required to delete your account" });
+        return res
+          .status(400)
+          .json({ message: "Password is required to delete your account" });
       const match = await bcrypt.compare(password, user.password);
       if (!match)
-        return res.status(400).json({ message: "Incorrect password — account not deleted" });
+        return res
+          .status(400)
+          .json({ message: "Incorrect password — account not deleted" });
     }
 
     await Order.updateMany(
       { userId, status: { $in: ["pending", "confirmed"] } },
       {
         $set: { status: "cancelled" },
-        $push: { statusHistory: { status: "cancelled", timestamp: new Date(), updatedBy: userId } },
+        $push: {
+          statusHistory: {
+            status: "cancelled",
+            timestamp: new Date(),
+            updatedBy: userId,
+          },
+        },
       },
     );
     await Cart.findOneAndDelete({ userId });
     if (user.role === "store") {
-      await Store.findOneAndUpdate({ ownerId: userId }, { isOpen: false });
+      await Store.findOneAndDelete({ ownerId: userId });
     }
-    await User.updateMany({ favoriteStores: userId }, { $pull: { favoriteStores: userId } });
+    await User.updateMany(
+      { favoriteStores: userId },
+      { $pull: { favoriteStores: userId } },
+    );
     await RefreshToken.deleteMany({ userId });
     res.clearCookie(REFRESH_COOKIE_NAME, { path: "/" });
     await User.findByIdAndDelete(userId);
