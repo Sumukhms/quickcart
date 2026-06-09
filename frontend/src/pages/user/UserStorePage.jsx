@@ -1,53 +1,27 @@
 /**
- * UserStorePage — UPDATED
- *
- * Changes:
- *   1. FavoriteButton (badge variant) in store hero
- *   2. Veg/Non-Veg filter toggle — shown only for food stores
- *   3. SearchBar already existed — verified it's wired correctly
- *   4. All other UI unchanged
+ * UserStorePage — 100% Functionality Restored with Premium UI
  */
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
-  ArrowLeft,
-  Star,
-  Clock,
-  MapPin,
-  Phone,
-  AlertCircle,
-  RefreshCw,
-  Leaf,
-  Flame,
+  ArrowLeft, Star, Clock, MapPin, Phone,
+  AlertCircle, RefreshCw, Leaf, Flame, Search
 } from "lucide-react";
 import { storeAPI, productAPI } from "../../api/api";
 import ProductCard from "../../components/store/ProductCard";
-import SearchBar from "../../components/ui/SearchBar";
 import FavoriteButton from "../../components/ui/FavoriteButton";
 import { PageLoader, EmptyState } from "../../components/ui/Skeleton";
 
-const CAT_GRADIENT = {
-  Groceries: "from-emerald-600 to-teal-700",
-  Food: "from-orange-600 to-red-700",
-  Snacks: "from-yellow-500 to-orange-600",
-  Beverages: "from-blue-600 to-cyan-700",
-  Medicines: "from-red-600 to-rose-700",
-  Other: "from-purple-600 to-violet-700",
-};
 const CAT_EMOJI = {
-  Groceries: "🛒",
-  Food: "🍛",
-  Snacks: "🍿",
-  Beverages: "🧃",
-  Medicines: "💊",
-  Other: "🏪",
+  Groceries: "🛒", Food: "🍛", Snacks: "🍿",
+  Beverages: "🧃", Medicines: "💊", Other: "🏪",
 };
 
 // Veg filter options
 const VEG_OPTIONS = [
   { id: "all", label: "All", icon: null },
-  { id: "veg", label: "Veg", icon: Leaf, color: "#22c55e" },
-  { id: "nonveg", label: "Non-Veg", icon: Flame, color: "#ef4444" },
+  { id: "veg", label: "Veg", icon: Leaf, color: "text-green-600" },
+  { id: "nonveg", label: "Non-Veg", icon: Flame, color: "text-red-500" },
 ];
 
 export default function UserStorePage() {
@@ -56,16 +30,15 @@ export default function UserStorePage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
   const [search, setSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
-  // ── NEW: veg filter ──
-  const [vegFilter, setVegFilter] = useState("all"); // "all" | "veg" | "nonveg"
-  // ── NEW: scroll tracking ──
+  const [vegFilter, setVegFilter] = useState("all"); 
   const [scrolled, setScrolled] = useState(false);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const [storeRes, prodRes] = await Promise.all([
         storeAPI.getById(id),
@@ -74,22 +47,17 @@ export default function UserStorePage() {
       setStore(storeRes.data);
       setProducts(prodRes.data);
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Could not load store. Please try again.",
-      );
+      setError(err.response?.data?.message || "Could not load store. Please try again.");
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── NEW: scroll tracking for sticky header ──
+  // Track scroll for sticky glass header
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 160);
+    const handleScroll = () => setScrolled(window.scrollY > 120);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -98,26 +66,16 @@ export default function UserStorePage() {
 
   if (error) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}
-      >
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
         <div className="text-center max-w-sm">
           <div className="text-6xl mb-4">😕</div>
-          <h2
-            className="font-bold text-xl mb-2"
-            style={{ color: "var(--text-primary)" }}
-          >
-            Store not found
-          </h2>
-          <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
-            {error}
-          </p>
+          <h2 className="font-display font-black tracking-tight text-2xl mb-2 text-[var(--text-primary)]">Store not found</h2>
+          <p className="text-sm mb-6 text-[var(--text-muted)]">{error}</p>
           <div className="flex gap-3 justify-center">
-            <button onClick={fetchData} className="btn btn-brand text-sm">
+            <button onClick={fetchData} className="btn bg-[var(--text-primary)] text-[var(--surface)] text-sm active:scale-95 transition-all">
               <RefreshCw size={14} /> Retry
             </button>
-            <Link to="/user/home" className="btn btn-ghost text-sm">
+            <Link to="/user/home" className="btn btn-ghost text-sm active:scale-95 transition-all">
               ← Back
             </Link>
           </div>
@@ -133,15 +91,8 @@ export default function UserStorePage() {
 
   const filtered = products.filter((p) => {
     const matchCat = activeCategory === "All" || p.category === activeCategory;
-    const matchSearch =
-      !search || p.name.toLowerCase().includes(search.toLowerCase());
-    // ── NEW: veg/non-veg filter (only relevant for food stores) ──
-    const matchVeg =
-      !isFood || vegFilter === "all"
-        ? true
-        : vegFilter === "veg"
-          ? p.isVeg === true
-          : p.isVeg === false;
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+    const matchVeg = !isFood || vegFilter === "all" ? true : vegFilter === "veg" ? p.isVeg === true : p.isVeg === false;
     return matchCat && matchSearch && matchVeg;
   });
 
@@ -152,235 +103,161 @@ export default function UserStorePage() {
     return acc;
   }, {});
 
-  const grad = CAT_GRADIENT[store.category] || CAT_GRADIENT.Other;
   const emoji = CAT_EMOJI[store.category] || "🏪";
 
   return (
-    <div
-      className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
-    >
-      {/* Store Hero */}
-      <div className={`relative bg-gradient-to-br ${grad} pt-4 pb-16`}>
-        <div className="max-w-7xl mx-auto px-4 lg:px-6">
-          <Link
-            to="/user/home"
-            className="inline-flex items-center gap-2 text-white/80 hover:text-white transition-colors mb-4 text-sm font-medium"
-          >
-            <ArrowLeft size={16} /> Back to stores
-          </Link>
-          <div className="flex items-start gap-4">
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0 shadow-2xl"
-              style={{
-                background: "rgba(255,255,255,0.2)",
-                backdropFilter: "blur(10px)",
-              }}
-            >
+    <div className="min-h-screen page-enter pb-24" style={{ backgroundColor: "var(--bg)" }}>
+      
+      {/* ── PREMIUM STORE HERO ── */}
+      <div className="bg-[var(--surface)] pt-4 pb-6 px-4 lg:px-6 relative">
+        <div className="max-w-7xl mx-auto">
+          
+          {/* Top Navigation */}
+          <div className="flex items-center justify-between mb-6">
+            <Link to="/user/home" className="inline-flex items-center gap-2 text-[var(--text-primary)] hover:text-[var(--brand)] transition-colors text-[13px] font-bold active:scale-95">
+              <ArrowLeft size={16} /> Back
+            </Link>
+            <FavoriteButton storeId={store._id} variant="badge" />
+          </div>
+
+          {/* Store Info */}
+          <div className="flex items-start gap-4 md:gap-6">
+            <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl flex items-center justify-center text-4xl shrink-0 bg-[var(--elevated)] border border-[var(--border)] shadow-sm overflow-hidden">
               {store.image ? (
-                <img
-                  src={store.image}
-                  alt={store.name}
-                  className="w-full h-full object-cover rounded-2xl"
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                    e.target.parentNode.textContent = emoji;
-                  }}
-                />
-              ) : (
-                emoji
-              )}
+                <img src={store.image} alt={store.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; e.target.parentNode.textContent = emoji; }} />
+              ) : emoji}
             </div>
+            
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="font-display font-bold text-2xl md:text-3xl text-white">
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <h1 className="font-display font-black tracking-tight text-2xl md:text-4xl text-[var(--text-primary)] leading-none">
                   {store.name}
                 </h1>
-                <span
-                  className={`tag text-xs ${store.isOpen ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"}`}
-                >
-                  {store.isOpen ? "● Open" : "● Closed"}
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${store.isOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                  {store.isOpen ? "Open" : "Closed"}
                 </span>
               </div>
+              
               {store.description && (
-                <p className="text-white/70 text-sm mt-1 line-clamp-2">
+                <p className="text-[var(--text-muted)] text-[13px] md:text-sm mt-1.5 line-clamp-2 max-w-xl font-medium">
                   {store.description}
                 </p>
               )}
-              <div className="flex items-center gap-4 mt-2 flex-wrap">
+              
+              <div className="flex items-center gap-1.5 md:gap-3 mt-3 flex-wrap text-[11px] md:text-xs font-bold text-[var(--text-secondary)]">
                 {store.rating > 0 && (
-                  <span className="flex items-center gap-1 text-yellow-300 text-sm font-semibold">
-                    <Star size={14} fill="currentColor" />
-                    {store.rating.toFixed(1)} (
-                    {store.totalRatings?.toLocaleString() || 0})
+                  <span className="flex items-center gap-1 bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                    <Star size={11} fill="currentColor" /> {store.rating.toFixed(1)} <span className="opacity-60 font-medium">({store.totalRatings?.toLocaleString()})</span>
                   </span>
                 )}
-                <span className="flex items-center gap-1 text-white/70 text-sm">
-                  <Clock size={13} /> {store.deliveryTime}
-                </span>
-                <span className="flex items-center gap-1 text-white/70 text-sm">
-                  <MapPin size={13} /> {store.address}
-                </span>
-              </div>
-              {/* ── NEW: Favorite button in hero ── */}
-              <div className="mt-3">
-                <FavoriteButton storeId={store._id} variant="badge" />
+                <span className="flex items-center gap-1 bg-[var(--elevated)] px-2 py-1 rounded-md"><MapPin size={12} /> {store.address}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Sticky meta + category strip */}
-      <div
-        className="sticky top-16 z-30 shadow-md"
-        style={{
-          backgroundColor: "var(--surface)",
-          borderBottom: "1px solid var(--border)",
-        }}
+      {/* ── STICKY GLASS HEADER ── */}
+      <div 
+        className={`sticky top-0 z-30 transition-all duration-200 ${scrolled ? "bg-[var(--surface)]/90 backdrop-blur-xl border-b border-[var(--border)] shadow-sm pt-2" : "bg-[var(--surface)] border-b border-[var(--border)] pt-0"}`}
       >
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
-          {/* Store name row that appears on scroll */}
+          
+          {/* Mini Header on scroll */}
           {scrolled && (
-            <div
-              className="flex items-center justify-between py-2.5 mb-1.5 border-b border-opacity-30"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--border)] animate-fade-in">
+              <div className="flex items-center gap-2">
                 <span className="text-lg">{emoji}</span>
-                <div>
-                  <p
-                    className="font-bold text-sm"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {store.name}
-                  </p>
-                </div>
+                <p className="font-black tracking-tight text-[15px] text-[var(--text-primary)]">{store.name}</p>
               </div>
-              <span
-                className={`text-xs font-bold px-2.5 py-0.5 rounded-lg ${store.isOpen ? "bg-green-500/15 text-green-600" : "bg-red-500/15 text-red-600"}`}
-              >
-                {store.isOpen ? "Open" : "Closed"}
-              </span>
             </div>
           )}
-          <div className="flex items-center gap-4 py-3 overflow-x-auto scrollbar-hide">
-            {[
-              { icon: "🚚", label: "Free delivery" },
-              { icon: "⏱️", label: store.deliveryTime },
-              {
-                icon: "💰",
-                label:
-                  store.minOrder > 0 ? `Min ₹${store.minOrder}` : "No minimum",
-              },
-            ].map(({ icon, label }) => (
-              <div
-                key={label}
-                className="flex items-center gap-1.5 text-xs flex-shrink-0 font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                <span>{icon}</span>
-                <span>{label}</span>
-                <span className="opacity-30">·</span>
-              </div>
-            ))}
+
+          {/* RESTORED: Quick Info & Contact Bar (Visible on Mobile & Desktop) */}
+          <div className="flex items-center gap-4 py-2.5 overflow-x-auto scrollbar-hide border-b border-[var(--border)] border-opacity-50">
+            <span className="flex items-center gap-1.5 text-[12px] font-bold text-[var(--text-secondary)] shrink-0">
+              <span className="text-base">🚚</span> Free delivery
+            </span>
+            <span className="opacity-30 text-[var(--border)]">|</span>
+            <span className="flex items-center gap-1 text-[12px] font-bold text-[var(--text-secondary)] shrink-0">
+              <Clock size={13} className="text-[var(--text-muted)]" /> {store.deliveryTime}
+            </span>
+            <span className="opacity-30 text-[var(--border)]">|</span>
+            <span className="flex items-center gap-1 text-[12px] font-bold text-[var(--text-secondary)] shrink-0">
+              💰 {store.minOrder > 0 ? `Min ₹${store.minOrder}` : "No minimum"}
+            </span>
             {store.phone && (
-              <a
-                href={`tel:${store.phone}`}
-                className="flex items-center gap-1 text-xs font-semibold flex-shrink-0"
-                style={{ color: "var(--brand)" }}
-              >
-                <Phone size={11} /> Call store
-              </a>
+              <>
+                <span className="opacity-30 text-[var(--border)]">|</span>
+                <a href={`tel:${store.phone}`} className="flex items-center gap-1.5 text-[12px] font-bold text-[var(--brand)] shrink-0 hover:underline">
+                  <Phone size={12} /> Call store
+                </a>
+              </>
             )}
           </div>
 
-          {/* Category filter tabs */}
-          {categories.length > 1 && (
-            <div className="flex gap-2 pb-3 overflow-x-auto scrollbar-hide">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold flex-shrink-0 transition-all"
-                  style={{
-                    background:
-                      activeCategory === cat
-                        ? "var(--brand)"
-                        : "var(--elevated)",
-                    color:
-                      activeCategory === cat
-                        ? "white"
-                        : "var(--text-secondary)",
-                    border: `1px solid ${activeCategory === cat ? "var(--brand)" : "var(--border)"}`,
-                  }}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center justify-between gap-4 py-2.5">
+            {/* Category Pills */}
+            {categories.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide flex-1">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-4 py-1.5 rounded-full text-[13px] font-bold flex-shrink-0 transition-all duration-200 active:scale-95 ${
+                      activeCategory === cat ? "bg-[var(--text-primary)] text-[var(--surface)] shadow-sm" : "bg-[var(--elevated)] text-[var(--text-secondary)] hover:bg-[var(--hover)]"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Products section */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-20">
-        {/* Search + Veg filter row */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder={
-              isFood ? `Search ${store.name}'s menu…` : "Search products…"
-            }
-            className="flex-1 min-w-[200px] max-w-md"
-          />
+      {/* ── STORE CONTENT ── */}
+      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
+        
+        {/* Closed Banner */}
+        {!store.isOpen && (
+          <div className="flex items-center gap-2 p-3 rounded-xl mb-6 text-[13px] font-bold bg-red-50 text-red-600 border border-red-100 dark:bg-red-500/10 dark:border-red-500/20">
+            <AlertCircle size={16} /> Store is currently closed. You cannot place orders right now.
+          </div>
+        )}
 
-          {/* ── NEW: Veg / Non-veg toggle (food stores only) ── */}
+        {/* Search & Native Segmented Filters */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          
+          <div className={`relative transition-all duration-300 ${isSearching ? "flex-1" : "w-full md:w-64"}`}>
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <Search size={16} className="text-[var(--text-muted)]" />
+            </div>
+            <input
+              type="text"
+              placeholder={`Search in ${store.name}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => setIsSearching(true)}
+              onBlur={() => setIsSearching(search.length > 0)}
+              className="w-full bg-[var(--elevated)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-xl py-2.5 pl-10 pr-4 outline-none focus:bg-[var(--surface)] focus:border-[var(--brand)] transition-all shadow-sm"
+            />
+          </div>
+
           {isFood && (
-            <div
-              className="flex items-center gap-1 p-1 rounded-xl flex-shrink-0"
-              style={{
-                background: "var(--elevated)",
-                border: "1px solid var(--border)",
-              }}
-            >
+            <div className="flex items-center p-1 rounded-xl bg-[var(--elevated)] border border-[var(--border)] w-fit shrink-0 shadow-inner">
               {VEG_OPTIONS.map(({ id, label, icon: Icon, color }) => {
                 const active = vegFilter === id;
                 return (
                   <button
                     key={id}
                     onClick={() => setVegFilter(id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                    style={{
-                      background: active
-                        ? id === "veg"
-                          ? "rgba(34,197,94,0.15)"
-                          : id === "nonveg"
-                            ? "rgba(239,68,68,0.12)"
-                            : "var(--card)"
-                        : "transparent",
-                      color: active
-                        ? id === "veg"
-                          ? "#22c55e"
-                          : id === "nonveg"
-                            ? "#ef4444"
-                            : "var(--text-primary)"
-                        : "var(--text-muted)",
-                      border: active
-                        ? `1px solid ${
-                            id === "veg"
-                              ? "rgba(34,197,94,0.3)"
-                              : id === "nonveg"
-                                ? "rgba(239,68,68,0.25)"
-                                : "var(--border)"
-                          }`
-                        : "1px solid transparent",
-                    }}
+                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                      active ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    }`}
                   >
-                    {Icon && <Icon size={11} />}
-                    {id === "veg" && "🟢 "}
-                    {id === "nonveg" && "🔴 "}
+                    {Icon && <Icon size={12} className={active ? color : "text-[var(--text-muted)]"} />}
                     {label}
                   </button>
                 );
@@ -389,98 +266,47 @@ export default function UserStorePage() {
           )}
         </div>
 
-        {!store.isOpen && (
-          <div
-            className="flex items-center gap-2 p-4 rounded-2xl mb-5 text-sm"
-            style={{
-              background: "rgba(239,68,68,0.08)",
-              color: "#ef4444",
-              border: "1px solid rgba(239,68,68,0.2)",
-            }}
-          >
-            <AlertCircle size={15} />
-            This store is currently closed. You can browse but cannot place
-            orders right now.
-          </div>
-        )}
-
+        {/* Empty States */}
         {products.length === 0 ? (
-          <EmptyState
-            icon={isFood ? "🍽️" : "📦"}
-            title={`${store.name} hasn't added any ${isFood ? "menu items" : "products"} yet`}
-            subtitle="Check back later!"
-          />
+          <EmptyState icon={isFood ? "🍽️" : "📦"} title="Menu is empty" subtitle="This store hasn't added any items yet." />
         ) : filtered.length === 0 ? (
-          <EmptyState
-            icon="🔍"
-            title="No items found"
-            subtitle={
-              vegFilter !== "all"
-                ? `No ${vegFilter === "veg" ? "vegetarian" : "non-vegetarian"} items match your search`
-                : "Try a different search or category"
-            }
-            action={
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setActiveCategory("All");
-                  setVegFilter("all");
-                }}
-                className="btn btn-brand text-sm"
-              >
-                Clear filters
-              </button>
-            }
+          <EmptyState 
+            icon="🔍" 
+            title="No items found" 
+            subtitle="Try adjusting your search or filters."
+            action={<button onClick={() => { setSearch(""); setActiveCategory("All"); setVegFilter("all"); }} className="btn bg-[var(--text-primary)] text-white text-sm">Clear filters</button>}
           />
         ) : (
+          /* Grouped Product Grid */
           Object.entries(grouped).map(([cat, prods]) => (
-            <div key={cat} className="mb-10">
-              <div className="flex items-center gap-3 mb-4 flex-wrap">
-                <h3
-                  className="font-display font-bold text-xl"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {cat}
-                </h3>
-                <span
-                  className="tag text-xs"
-                  style={{
-                    background: "var(--elevated)",
-                    color: "var(--text-muted)",
-                  }}
-                >
+            <div key={cat} className="mb-12">
+              
+              {/* RESTORED: Category Header with Unavailable Badges and Veg/NonVeg Legend */}
+              <div className="flex items-center gap-3 mb-5 border-b border-[var(--border)] pb-2 flex-wrap">
+                <h3 className="font-display font-black tracking-tight text-2xl text-[var(--text-primary)]">{cat}</h3>
+                <span className="text-[11px] font-bold text-[var(--text-muted)] bg-[var(--elevated)] px-2 py-0.5 rounded-md">
                   {prods.length}
                 </span>
+
                 {prods.some((p) => !p.available || p.stock === 0) && (
-                  <span
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: "rgba(239,68,68,0.08)",
-                      color: "#ef4444",
-                    }}
-                  >
-                    {prods.filter((p) => !p.available || p.stock === 0).length}{" "}
-                    unavailable
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100 dark:bg-red-500/10 dark:border-red-500/20 shadow-sm">
+                    {prods.filter((p) => !p.available || p.stock === 0).length} unavailable
                   </span>
                 )}
+
                 {isFood && (
-                  <div
-                    className="flex items-center gap-2 ml-1 text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    <span>🟢 Veg</span>
-                    <span>🔴 Non-veg</span>
+                  <div className="flex items-center gap-2 ml-auto text-[11px] font-bold text-[var(--text-muted)]">
+                    <span className="flex items-center gap-1"><Leaf size={10} className="text-green-500" /> Veg</span>
+                    <span className="flex items-center gap-1"><Flame size={10} className="text-red-500" /> Non-veg</span>
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 stagger">
-                {prods.map((p) => (
-                  <ProductCard
-                    key={p._id}
-                    product={p}
-                    store={store}
-                    isFood={isFood}
-                  />
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {prods.map((p, i) => (
+                  <div key={p._id} style={{ animation: "slideUp 0.3s ease both", animationDelay: `${i * 30}ms` }}>
+                    <ProductCard product={p} store={store} isFood={isFood} />
+                  </div>
                 ))}
               </div>
             </div>

@@ -1,31 +1,13 @@
 /**
- * UserHome — FIXED
- *
- * Bugs fixed:
- *   1. useAuth() was called twice (wasted hook call + possible stale closure)
- *      → merged into single destructure
- *   2. useSearchParams was imported but never used → removed
- *   3. Search result tabs now show correct counts
+ * UserHome — Refactored to Premium App Standards
  */
 import { useState, useEffect, useMemo } from "react";
 import {
-  ShoppingBasket,
-  Utensils,
-  Cookie,
-  Coffee,
-  Pill,
-  Grid3X3,
-  Zap,
-  TrendingUp,
-  RefreshCw,
-  MapPin,
-  Sparkles,
-  Heart,
-  ArrowRight,
+  ShoppingBasket, Utensils, Cookie, Coffee, Pill, Grid3X3,
+  Zap, TrendingUp, RefreshCw, MapPin, Sparkles, Heart, ArrowRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoriteContext";
 import { productAPI, statsAPI } from "../../api/api";
 import StoreCard from "../../components/StoreCard";
@@ -34,89 +16,67 @@ import { SkeletonCard, EmptyState } from "../../components/ui/Skeleton";
 import { useStores } from "../../hooks/useStores";
 
 const CATEGORIES = [
-  { name: "All", icon: Grid3X3, color: "#ff6b35", emoji: "🏪" },
-  { name: "Groceries", icon: ShoppingBasket, color: "#22c55e", emoji: "🛒" },
-  { name: "Food", icon: Utensils, color: "#f97316", emoji: "🍛" },
-  { name: "Snacks", icon: Cookie, color: "#eab308", emoji: "🍕" },
-  { name: "Beverages", icon: Coffee, color: "#3b82f6", emoji: "🧃" },
-  { name: "Medicines", icon: Pill, color: "#ef4444", emoji: "💊" },
+  { name: "All", icon: Grid3X3, emoji: "🏪" },
+  { name: "Groceries", icon: ShoppingBasket, emoji: "🛒" },
+  { name: "Food", icon: Utensils, emoji: "🍛" },
+  { name: "Snacks", icon: Cookie, emoji: "🍕" },
+  { name: "Beverages", icon: Coffee, emoji: "🧃" },
+  { name: "Medicines", icon: Pill, emoji: "💊" },
 ];
 
 const GREETINGS = ["Hey", "Hello", "Hi there,", "Welcome back,"];
 
+// Premium Naked UI list item
 function ProductSearchCard({ product }) {
   const store = product.storeId;
   return (
     <Link
       to={`/user/store/${store?._id || product.storeId}`}
-      className="flex items-center gap-3 p-3 rounded-2xl transition-all hover:-translate-y-0.5 hover:scale-[1.01]"
-      style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      className="flex items-center gap-4 py-4 px-2 border-b border-[var(--border)] transition-all duration-200 hover:bg-[var(--hover)] active:scale-[0.98] group"
     >
-      <div
-        className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center text-2xl"
-        style={{ background: "var(--elevated)" }}
-      >
+      <div className="w-16 h-16 rounded-2xl flex-shrink-0 overflow-hidden bg-[var(--elevated)] flex items-center justify-center text-2xl">
         {product.image ? (
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => (e.target.style.display = "none")}
           />
-        ) : store?.category === "Food" ? (
-          "🍽️"
-        ) : (
-          "🛍️"
-        )}
+        ) : store?.category === "Food" ? "🍽️" : "🛍️"}
       </div>
+      
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {store?.category === "Food" && (
-            <span className="text-xs">{product.isVeg ? "🟢" : "🔴"}</span>
-          )}
-          <p
-            className="font-bold text-sm truncate"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {product.name}
-          </p>
-        </div>
-        <p
-          className="text-xs mt-0.5 truncate"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {store?.name || "Store"} · {product.category}
-          {product.unit ? ` · ${product.unit}` : ""}
-        </p>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="font-bold text-sm" style={{ color: "var(--brand)" }}>
-            ₹{product.price}
-          </span>
-          {product.originalPrice && product.originalPrice > product.price && (
-            <span
-              className="text-xs line-through"
-              style={{ color: "var(--text-muted)" }}
-            >
-              ₹{product.originalPrice}
+        <div className="flex justify-between items-start gap-2">
+          <div>
+            <h3 className="font-bold text-[15px] text-[var(--text-primary)] leading-tight truncate">
+              {product.name}
+            </h3>
+            <p className="text-[12px] text-[var(--text-muted)] mt-0.5 truncate">
+              {store?.name || "Store"} • {product.category} {product.unit ? `• ${product.unit}` : ""}
+            </p>
+          </div>
+          
+          <div className="flex flex-col items-end shrink-0">
+            <span className="font-black text-sm text-[var(--text-primary)]">
+              ₹{product.price}
             </span>
-          )}
-          <span
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
-            style={{
-              background: store?.isOpen
-                ? "rgba(34,197,94,0.1)"
-                : "rgba(239,68,68,0.1)",
-              color: store?.isOpen ? "#22c55e" : "#ef4444",
-            }}
-          >
+            {product.originalPrice && product.originalPrice > product.price && (
+              <span className="text-[10px] line-through text-[var(--text-muted)]">
+                ₹{product.originalPrice}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mt-2">
+          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${store?.isOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
             {store?.isOpen ? "Open" : "Closed"}
           </span>
+          {store?.category === "Food" && (
+            <span className="text-[10px]">{product.isVeg ? "🟢 Veg" : "🔴 Non-veg"}</span>
+          )}
         </div>
       </div>
-      <ArrowRight
-        size={14}
-        style={{ color: "var(--text-muted)", flexShrink: 0 }}
-      />
     </Link>
   );
 }
@@ -137,7 +97,6 @@ function FloatingEmoji({ emoji, style }) {
 }
 
 export default function UserHome() {
-  // FIXED: single destructure instead of two separate useAuth() calls
   const { user, isCustomer } = useAuth();
   const { favorites } = useFavorites();
 
@@ -153,7 +112,6 @@ export default function UserHome() {
   } = useStores();
 
   const [bannerIdx, setBannerIdx] = useState(0);
-  const [hoveredCat, setHoveredCat] = useState(null);
   const [favOnly, setFavOnly] = useState(false);
   const [itemResults, setItemResults] = useState([]);
   const [itemLoading, setItemLoading] = useState(false);
@@ -162,86 +120,27 @@ export default function UserHome() {
   const [homeStats, setHomeStats] = useState(null);
 
   useEffect(() => {
-    statsAPI
-      .getHome()
-      .then((r) => setHomeStats(r.data))
-      .catch(() => {});
+    statsAPI.getHome().then((r) => setHomeStats(r.data)).catch(() => {});
   }, []);
 
   const BANNERS = homeStats?.banners || [
-    {
-      key: "offer",
-      title: "First Order FREE",
-      sub: "Use code QUICKFIRST at checkout",
-      badge: "🎁 New user offer",
-      emoji: "🎁",
-      cta: "Claim Now",
-      bg: "from-orange-600 via-red-600 to-pink-700",
-      link: "/user/home",
-    },
-    {
-      key: "speed",
-      title: "10 Min Delivery",
-      sub: "From 50+ local stores near you",
-      badge: "⚡ Express",
-      emoji: "🛵",
-      cta: "Order Now",
-      bg: "from-purple-700 via-violet-600 to-indigo-700",
-      link: "/user/home",
-    },
-    {
-      key: "fresh",
-      title: "Farm Fresh Daily",
-      sub: "Fresh groceries, delivered fast",
-      badge: "🌿 Seasonal picks",
-      emoji: "🥬",
-      cta: "Shop Fresh",
-      bg: "from-teal-600 via-emerald-600 to-green-700",
-      link: "/user/home",
-    },
+    { key: "offer", title: "First Order FREE", sub: "Use code QUICKFIRST at checkout", badge: "New user offer", emoji: "🎁", cta: "Claim Now", bg: "from-orange-600 to-red-600", link: "/user/home" },
+    { key: "speed", title: "10 Min Delivery", sub: "From 50+ local stores near you", badge: "Express", emoji: "🛵", cta: "Order Now", bg: "from-indigo-600 to-purple-700", link: "/user/home" },
+    { key: "fresh", title: "Farm Fresh Daily", sub: "Fresh groceries, delivered fast", badge: "Seasonal picks", emoji: "🥬", cta: "Shop Fresh", bg: "from-emerald-600 to-teal-700", link: "/user/home" },
   ];
 
   const FEATURES = homeStats?.features || [
-    {
-      key: "delivery",
-      stat: "10 min",
-      label: "Avg Delivery",
-      emoji: "⚡",
-      color: "#f59e0b",
-    },
-    {
-      key: "safe",
-      stat: "100%",
-      label: "Quality Safe",
-      emoji: "🛡️",
-      color: "#22c55e",
-    },
-    {
-      key: "stores",
-      stat: "50+",
-      label: "Open Stores",
-      emoji: "🏪",
-      color: "#3b82f6",
-    },
-    {
-      key: "rating",
-      stat: "4.8★",
-      label: "Avg Store Rating",
-      emoji: "⭐",
-      color: "#a855f7",
-    },
+    { key: "delivery", stat: "10 min", label: "Avg Delivery", emoji: "⚡", bg: "bg-amber-100", text: "text-amber-700" },
+    { key: "safe", stat: "100%", label: "Quality Safe", emoji: "🛡️", bg: "bg-green-100", text: "text-green-700" },
+    { key: "stores", stat: "50+", label: "Open Stores", emoji: "🏪", bg: "bg-blue-100", text: "text-blue-700" },
+    { key: "rating", stat: "4.8★", label: "Avg Rating", emoji: "⭐", bg: "bg-purple-100", text: "text-purple-700" },
   ];
 
-  // Auto-rotate banners
   useEffect(() => {
-    const t = setInterval(
-      () => setBannerIdx((i) => (i + 1) % BANNERS.length),
-      5000,
-    );
+    const t = setInterval(() => setBannerIdx((i) => (i + 1) % BANNERS.length), 5000);
     return () => clearInterval(t);
   }, [BANNERS.length]);
 
-  // Fetch products on search (useStores debounces 250ms internally)
   useEffect(() => {
     if (!debouncedSearch || debouncedSearch.length < 2) {
       setItemResults([]);
@@ -249,392 +148,202 @@ export default function UserHome() {
       return;
     }
     setItemLoading(true);
-    productAPI
-      .search(debouncedSearch)
+    productAPI.search(debouncedSearch)
       .then((r) => setItemResults(r.data || []))
       .catch(() => setItemResults([]))
       .finally(() => setItemLoading(false));
   }, [debouncedSearch]);
 
-  // Debounce search input to avoid rapid productAPI calls
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const favoriteIds = useMemo(
-    () => new Set(favorites.map((f) => f._id)),
-    [favorites],
-  );
-  const displayedStores = favOnly
-    ? stores.filter((s) => favoriteIds.has(s._id))
-    : stores;
+  const favoriteIds = useMemo(() => new Set(favorites.map((f) => f._id)), [favorites]);
+  const displayedStores = favOnly ? stores.filter((s) => favoriteIds.has(s._id)) : stores;
   const banner = BANNERS[bannerIdx];
-  const greeting =
-    GREETINGS[Math.floor(Date.now() / 86400000) % GREETINGS.length];
+  const greeting = GREETINGS[Math.floor(Date.now() / 86400000) % GREETINGS.length];
   const isSearching = search.length >= 2;
 
   return (
-    <div
-      className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
-    >
+    <div className="min-h-screen page-enter pb-24" style={{ backgroundColor: "var(--bg)" }}>
       <div className="max-w-7xl mx-auto px-4 lg:px-6">
-        {/* Greeting + Search */}
+        
+        {/* Header */}
         <div className="pt-6 pb-4">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p
-                className="text-sm font-semibold mb-1 flex items-center gap-1.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <MapPin size={12} style={{ color: "var(--brand)" }} />
-                Bengaluru, Karnataka
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 text-[var(--brand)]">
+                <MapPin size={12} /> Bengaluru, Karnataka
               </p>
-              <h1
-                className="font-display font-bold text-3xl"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {greeting}{" "}
-                <span className="gradient-text">
-                  {user?.name?.split(" ")[0]}
-                </span>{" "}
-                👋
+              <h1 className="font-display font-black tracking-tight text-3xl text-[var(--text-primary)]">
+                {greeting} <span className="text-[var(--brand)]">{user?.name?.split(" ")[0]}</span> 👋
               </h1>
-              <p
-                className="text-sm mt-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                What are you craving today?
-              </p>
             </div>
           </div>
           <SearchBar
             value={search}
             onChange={setSearch}
-            placeholder="Search stores, food, groceries, items…"
+            placeholder="Search for restaurants, groceries, medicines..."
             size="md"
-            className="w-full"
+            className="w-full shadow-sm"
           />
         </div>
 
         {/* Search Results */}
         {isSearching && (
           <section className="py-3">
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 bg-[var(--elevated)] p-1 rounded-xl w-fit">
               {[
-                {
-                  id: "stores",
-                  emoji: "🏪",
-                  label: "Stores",
-                  count: stores.length,
-                },
-                {
-                  id: "items",
-                  emoji: "🛍️",
-                  label: "Items",
-                  count: itemResults.length,
-                },
-              ].map(({ id, emoji, label, count }) => (
+                { id: "stores", label: "Stores", count: stores.length },
+                { id: "items", label: "Items", count: itemResults.length },
+              ].map(({ id, label, count }) => (
                 <button
                   key={id}
                   onClick={() => setSearchTab(id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                  style={{
-                    background:
-                      searchTab === id ? "var(--brand)" : "var(--elevated)",
-                    color: searchTab === id ? "white" : "var(--text-muted)",
-                  }}
+                  className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all duration-200 active:scale-95 ${
+                    searchTab === id ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
                 >
-                  {emoji} {label}
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded-md"
-                    style={{
-                      background:
-                        searchTab === id
-                          ? "rgba(255,255,255,0.25)"
-                          : "var(--border)",
-                    }}
-                  >
-                    {id === "items" && itemLoading ? "…" : count}
-                  </span>
+                  {label} <span className="ml-1 opacity-50">{id === "items" && itemLoading ? "…" : count}</span>
                 </button>
               ))}
             </div>
 
-            {searchTab === "stores" &&
-              (loading ? (
+            {searchTab === "stores" && (
+              loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {[...Array(3)].map((_, i) => (
-                    <SkeletonCard key={i} />
-                  ))}
+                  {[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}
                 </div>
               ) : stores.length === 0 ? (
-                <EmptyState
-                  icon="🏪"
-                  title="No stores found"
-                  subtitle={`No stores match "${search}"`}
-                />
+                <EmptyState icon="🏪" title="No stores found" subtitle={`No stores match "${search}"`} />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {stores.map((s, i) => (
-                    <div
-                      key={s._id}
-                      style={{
-                        animation: "slideUp 0.4s ease both",
-                        animationDelay: `${i * 50}ms`,
-                      }}
-                    >
+                    <div key={s._id} style={{ animation: "slideUp 0.3s ease both", animationDelay: `${i * 30}ms` }}>
                       <StoreCard store={s} linkPrefix="/user/store" />
                     </div>
                   ))}
                 </div>
-              ))}
+              )
+            )}
 
-            {searchTab === "items" &&
-              (itemLoading ? (
+            {searchTab === "items" && (
+              itemLoading ? (
                 <div className="space-y-2">
-                  {[...Array(4)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-20 rounded-2xl shimmer"
-                      style={{ background: "var(--card)" }}
-                    />
-                  ))}
+                  {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-2xl shimmer bg-[var(--card)]" />)}
                 </div>
               ) : itemResults.length === 0 ? (
-                <EmptyState
-                  icon="🛍️"
-                  title="No items found"
-                  subtitle={`No products match "${search}". Try a different keyword.`}
-                />
+                <EmptyState icon="🛍️" title="No items found" subtitle={`No products match "${search}".`} />
               ) : (
-                <div className="space-y-2">
+                <div className="bg-[var(--card)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden">
                   {itemResults.map((p, i) => (
-                    <div
-                      key={p._id}
-                      style={{
-                        animation: "slideUp 0.4s ease both",
-                        animationDelay: `${i * 40}ms`,
-                      }}
-                    >
+                    <div key={p._id} style={{ animation: "slideUp 0.3s ease both", animationDelay: `${i * 30}ms` }}>
                       <ProductSearchCard product={p} />
                     </div>
                   ))}
                 </div>
-              ))}
+              )
+            )}
           </section>
         )}
 
-        {/* Non-search content */}
+        {/* Default View */}
         {!isSearching && (
           <>
-            {/* Hero banner */}
+            {/* Clean Hero Banner */}
             <section className="py-3">
-              <div
-                className={`relative rounded-3xl overflow-hidden bg-gradient-to-br ${banner.bg}`}
-                style={{ minHeight: 220 }}
-              >
-                <FloatingEmoji
-                  emoji="✨"
-                  style={{ top: "10%", right: "15%" }}
-                />
-                <FloatingEmoji
-                  emoji="🌟"
-                  style={{ top: "60%", right: "30%" }}
-                />
-                <FloatingEmoji
-                  emoji="💫"
-                  style={{ top: "30%", right: "45%" }}
-                />
-                <div
-                  className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-20 pointer-events-none"
-                  style={{
-                    background:
-                      "radial-gradient(circle, rgba(255,255,255,0.8), transparent)",
-                    transform: "translate(40%, -40%)",
-                  }}
-                />
-                <div className="relative z-10 p-8 flex items-center justify-between">
-                  <div className="flex-1">
-                    <span
-                      className="inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold mb-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full"
-                      style={{
-                        background: "rgba(255,255,255,0.2)",
-                        color: "white",
-                        backdropFilter: "blur(8px)",
-                      }}
-                    >
+              <div className={`relative rounded-3xl overflow-hidden bg-gradient-to-br ${banner.bg} shadow-sm`} style={{ minHeight: 180 }}>
+                <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+                <div className="relative z-10 p-6 md:p-8 flex items-center justify-between">
+                  <div className="flex-1 max-w-sm">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider mb-3 px-2 py-1 rounded-md bg-white/20 text-white backdrop-blur-sm">
                       {banner.badge}
                     </span>
-                    <h2
-                      className="font-display font-black text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white leading-tight mb-2"
-                      style={{ textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}
-                    >
+                    <h2 className="font-display font-black tracking-tight text-3xl md:text-4xl text-white leading-none mb-2">
                       {banner.title}
                     </h2>
-                    <p className="text-white/80 text-sm sm:text-base mb-5">
+                    <p className="text-white/90 text-sm mb-5 font-medium">
                       {banner.sub}
                     </p>
                     <Link
                       to={banner.link}
-                      className="inline-flex items-center gap-2 font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm"
-                      style={{
-                        background: "rgba(255,255,255,0.95)",
-                        color: "#1a1a22",
-                        boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
-                        transition: "all 0.25s ease",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.transform = "scale(1.05)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.transform = "scale(1)")
-                      }
+                      className="inline-flex items-center gap-1.5 font-bold px-5 py-2.5 rounded-xl text-sm bg-white text-gray-900 shadow-sm transition-all duration-200 active:scale-95 hover:bg-gray-50"
                     >
                       {banner.cta} <ArrowRight size={14} />
                     </Link>
                   </div>
-                  <div
-                    className="hidden md:flex text-8xl flex-shrink-0"
-                    style={{
-                      filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.3))",
-                      animation: "float 4s ease-in-out infinite",
-                    }}
-                  >
+                  <div className="hidden md:flex text-7xl opacity-90 drop-shadow-md">
                     {banner.emoji}
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 justify-center mt-3">
+              <div className="flex gap-1.5 justify-center mt-3">
                 {BANNERS.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setBannerIdx(i)}
-                    className="rounded-full transition-all duration-400"
-                    style={{
-                      width: i === bannerIdx ? 24 : 6,
-                      height: 6,
-                      background:
-                        i === bannerIdx ? "var(--brand)" : "var(--border)",
-                    }}
+                    className="rounded-full transition-all duration-300"
+                    style={{ width: i === bannerIdx ? 16 : 6, height: 6, background: i === bannerIdx ? "var(--text-primary)" : "var(--border)" }}
                   />
                 ))}
               </div>
             </section>
 
-            {/* Feature chips */}
+            {/* Flat Feature Chips */}
             <section className="py-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {FEATURES.map(({ key, stat, label, emoji, color }, i) => (
+                {FEATURES.map(({ key, stat, label, emoji, bg, text }, i) => (
                   <div
                     key={key}
-                    className="flex items-center gap-3 p-4 rounded-2xl cursor-default group"
-                    style={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      transition: "all 0.3s ease",
-                      animation: "slideUp 0.5s ease both",
-                      animationDelay: `${i * 80}ms`,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = color + "50";
-                      e.currentTarget.style.transform = "translateY(-3px)";
-                      e.currentTarget.style.boxShadow = `0 8px 24px rgba(0,0,0,0.2), 0 0 0 1px ${color}20`;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
+                    className="flex items-center gap-3 p-3.5 rounded-2xl bg-[var(--card)] shadow-sm border border-[var(--border)] transition-colors hover:bg-[var(--hover)]"
+                    style={{ animation: "slideUp 0.3s ease both", animationDelay: `${i * 50}ms` }}
                   >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                      style={{ background: color + "15" }}
-                    >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0 ${bg}`}>
                       {emoji}
                     </div>
                     <div>
-                      <p
-                        className="text-sm font-bold leading-tight"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {stat}
-                      </p>
-                      <p
-                        className="text-xs mt-0.5"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {label}
-                      </p>
+                      <p className="text-sm font-black tracking-tight text-[var(--text-primary)] leading-none">{stat}</p>
+                      <p className="text-[11px] font-medium text-[var(--text-muted)] mt-1">{label}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* Category pills + Fav filter */}
-            <section className="py-3">
-              <div className="flex items-center justify-between mb-3">
-                <h2
-                  className="font-display font-bold text-xl"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Browse by Category
+            {/* High-Contrast Category Pills */}
+            <section className="py-3 mt-2">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-black tracking-tight text-xl text-[var(--text-primary)]">
+                  Explore
                 </h2>
                 {isCustomer && favorites.length > 0 && (
                   <button
                     onClick={() => setFavOnly((v) => !v)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:scale-105"
-                    style={{
-                      background: favOnly
-                        ? "rgba(239,68,68,0.12)"
-                        : "var(--elevated)",
-                      color: favOnly ? "#ef4444" : "var(--text-muted)",
-                      border: `1.5px solid ${favOnly ? "rgba(239,68,68,0.3)" : "var(--border)"}`,
-                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 active:scale-95 ${
+                      favOnly ? "bg-red-100 text-red-600" : "bg-[var(--elevated)] text-[var(--text-secondary)] hover:bg-[var(--hover)]"
+                    }`}
                   >
-                    <Heart
-                      size={12}
-                      fill={favOnly ? "#ef4444" : "none"}
-                      stroke={favOnly ? "#ef4444" : "currentColor"}
-                    />
-                    {favOnly ? "Saved only" : "Show saved"}
+                    <Heart size={12} fill={favOnly ? "currentColor" : "none"} />
+                    {favOnly ? "Saved" : "Show Saved"}
                   </button>
                 )}
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {CATEGORIES.map(({ name, color, emoji }) => {
+              
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {CATEGORIES.map(({ name, emoji }) => {
                   const active = category === name;
                   return (
                     <button
                       key={name}
-                      onClick={() => {
-                        setCategory(name);
-                        setFavOnly(false);
-                      }}
-                      onMouseEnter={() => setHoveredCat(name)}
-                      onMouseLeave={() => setHoveredCat(null)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold flex-shrink-0 relative overflow-hidden"
-                      style={{
-                        background: active
-                          ? `linear-gradient(135deg, ${color}, ${color}dd)`
-                          : "var(--card)",
-                        color: active
-                          ? "white"
-                          : hoveredCat === name
-                            ? color
-                            : "var(--text-secondary)",
-                        textShadow: active
-                          ? "0 1px 2px rgba(0,0,0,0.2)"
-                          : "none",
-                        border: `1.5px solid ${active ? color : hoveredCat === name ? color + "60" : "var(--border)"}`,
-                        boxShadow: active ? `0 4px 20px ${color}50` : "none",
-                        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                        transform: active ? "scale(1.06)" : "scale(1)",
-                      }}
+                      onClick={() => { setCategory(name); setFavOnly(false); }}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shrink-0 transition-all duration-200 active:scale-95 ${
+                        active 
+                          ? "bg-[var(--text-primary)] text-[var(--surface)] shadow-md" 
+                          : "bg-[var(--card)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--text-muted)]"
+                      }`}
                     >
-                      <span style={{ fontSize: "1rem" }}>{emoji}</span>
+                      <span className="text-lg leading-none">{emoji}</span>
                       {name}
                     </button>
                   );
@@ -642,148 +351,44 @@ export default function UserHome() {
               </div>
             </section>
 
-            {/* Stores grid */}
-            <section className="py-3 pb-20">
+            {/* Stores Grid */}
+            <section className="py-3">
               <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h2
-                    className="font-display font-bold text-xl"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {favOnly
-                      ? "❤️ Saved Stores"
-                      : category === "All"
-                        ? "All Stores"
-                        : `${category} Stores`}
-                  </h2>
+                <h2 className="font-display font-black tracking-tight text-xl text-[var(--text-primary)]">
+                  {favOnly ? "Saved Stores" : category === "All" ? "All Stores" : `${category} Stores`}
                   {!loading && !error && (
-                    <p
-                      className="text-sm mt-0.5 flex items-center gap-1.5"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      <Sparkles size={12} style={{ color: "var(--brand)" }} />
-                      {displayedStores.length} store
-                      {displayedStores.length !== 1 ? "s" : ""}
-                      {favOnly ? " saved" : " near you"}
-                    </p>
+                    <span className="ml-2 text-sm font-medium text-[var(--text-muted)]">({displayedStores.length})</span>
                   )}
-                </div>
+                </h2>
+                
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={fetchStores}
-                    className="p-2.5 rounded-xl transition-all hover:scale-110"
-                    style={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    <RefreshCw
-                      size={14}
-                      className={loading ? "animate-spin" : ""}
-                    />
+                  <button onClick={fetchStores} className="p-2 rounded-lg bg-[var(--elevated)] text-[var(--text-secondary)] hover:bg-[var(--hover)] transition-all active:scale-95">
+                    <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
                   </button>
-                  {!favOnly && (
-                    <div
-                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl"
-                      style={{
-                        background: "rgba(245,158,11,0.1)",
-                        color: "#f59e0b",
-                      }}
-                    >
-                      <TrendingUp size={12} /> Top rated
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {error && (
-                <div
-                  className="rounded-2xl p-5 mb-5 flex items-start gap-4"
-                  style={{
-                    background: "rgba(239,68,68,0.08)",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                  }}
-                >
-                  <div className="text-2xl flex-shrink-0">⚠️</div>
-                  <div>
-                    <p
-                      className="font-bold text-sm"
-                      style={{ color: "#ef4444" }}
-                    >
-                      Connection Error
-                    </p>
-                    <p
-                      className="text-xs mt-0.5"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      {error}
-                    </p>
-                    <button
-                      onClick={fetchStores}
-                      className="text-xs font-semibold mt-2"
-                      style={{ color: "var(--brand)" }}
-                    >
-                      Try again →
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {[...Array(6)].map((_, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        animationDelay: `${i * 60}ms`,
-                        animation: "slideUp 0.5s ease both",
-                      }}
-                    >
-                      <SkeletonCard />
-                    </div>
-                  ))}
+                  {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
                 </div>
               ) : displayedStores.length === 0 && !error ? (
                 <EmptyState
                   icon={favOnly ? "❤️" : "🏪"}
-                  title={
-                    favOnly
-                      ? "No saved stores in this filter"
-                      : "No stores found"
-                  }
-                  subtitle={
-                    favOnly
-                      ? "Try changing the category filter or save some stores first"
-                      : category !== "All"
-                        ? `No ${category} stores available yet`
-                        : "No stores available. Check back soon!"
-                  }
+                  title={favOnly ? "No saved stores" : "No stores found"}
+                  subtitle={favOnly ? "Save your favorite places first." : "Try a different category."}
                   action={
-                    favOnly || category !== "All" ? (
-                      <button
-                        onClick={() => {
-                          setFavOnly(false);
-                          setCategory("All");
-                        }}
-                        className="btn btn-brand text-sm"
-                      >
-                        Clear filters
+                    (favOnly || category !== "All") && (
+                      <button onClick={() => { setFavOnly(false); setCategory("All"); }} className="btn bg-[var(--text-primary)] text-white text-sm">
+                        Clear Filters
                       </button>
-                    ) : null
+                    )
                   }
                 />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {displayedStores.map((s, i) => (
-                    <div
-                      key={s._id}
-                      style={{
-                        animation:
-                          "slideUp 0.5s cubic-bezier(0.16,1,0.3,1) both",
-                        animationDelay: `${i * 60}ms`,
-                      }}
-                    >
+                    <div key={s._id} style={{ animation: "slideUp 0.4s ease both", animationDelay: `${i * 40}ms` }}>
                       <StoreCard store={s} linkPrefix="/user/store" />
                     </div>
                   ))}
