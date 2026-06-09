@@ -92,6 +92,7 @@ export const register = async (req, res) => {
           .json({ message: "Email already registered. Please log in." });
       }
       try {
+        const otp = await Otp.createOtp(normalizedEmail, "verify_email");
         await sendOtpEmail(normalizedEmail, otp, "verify_email");
       } catch (err) {
         return res.status(500).json({
