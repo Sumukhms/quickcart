@@ -432,7 +432,7 @@ export default function UserOrders() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}

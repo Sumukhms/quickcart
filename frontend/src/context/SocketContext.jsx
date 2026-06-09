@@ -43,7 +43,10 @@ export function SocketProvider({ children }) {
 
     connectionAttemptedRef.current = true;
 
+    const token = localStorage.getItem("qc-token");
+
     const socket = io(SOCKET_URL, {
+      auth: { token: `Bearer ${token}` },
       transports: ["websocket", "polling"],
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
@@ -54,7 +57,6 @@ export function SocketProvider({ children }) {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("[Socket] Connected to server");
       setConnected(true);
       // Auto-join role-based rooms
       if (user?.role === "delivery") {
@@ -68,22 +70,18 @@ export function SocketProvider({ children }) {
     });
 
     socket.on("disconnect", (reason) => {
-      console.log("[Socket] Disconnected:", reason);
       setConnected(false);
     });
 
     socket.on("connect_error", (error) => {
-      console.error("[Socket] Connection error:", error?.message || error);
       setConnected(false);
     });
 
     socket.on("reconnect", (attemptNumber) => {
-      console.log("[Socket] Reconnected after", attemptNumber, "attempts");
       setConnected(true);
     });
 
     return () => {
-      console.log("[Socket] Cleaning up connection");
       socket.disconnect();
       socketRef.current = null;
       setConnected(false);

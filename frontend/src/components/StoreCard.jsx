@@ -1,235 +1,214 @@
 /**
- * StoreCard — Enhanced with animations, micro-interactions, and visual polish
+ * StoreCard — Production commerce card, Blinkit/Zepto style
  */
 import { Link } from "react-router-dom";
-import { Clock, ChevronRight, Zap, Star, TrendingUp } from "lucide-react";
+import { Clock, ChevronRight, Zap, Star } from "lucide-react";
 import FavoriteButton from "./ui/FavoriteButton";
-import LazyImage from "./ui/LazyImage"; // <-- IMPORT ADDED HERE
+import LazyImage from "./ui/LazyImage";
+
+const categoryColors = {
+  Groceries: { bg: "#16a34a", light: "rgba(22,163,74,0.12)", text: "#16a34a" },
+  Food:      { bg: "#ea580c", light: "rgba(234,88,12,0.12)",  text: "#ea580c" },
+  Snacks:    { bg: "#ca8a04", light: "rgba(202,138,4,0.12)",  text: "#ca8a04" },
+  Beverages: { bg: "#2563eb", light: "rgba(37,99,235,0.12)",  text: "#2563eb" },
+  Medicines: { bg: "#dc2626", light: "rgba(220,38,38,0.12)",  text: "#dc2626" },
+  Other:     { bg: "#7c3aed", light: "rgba(124,58,237,0.12)", text: "#7c3aed" },
+};
 
 const categoryEmojis = {
   Groceries: "🛒",
-  Food: "🍛",
-  Snacks: "🍕",
+  Food:      "🍛",
+  Snacks:    "🍕",
   Beverages: "🧃",
   Medicines: "💊",
-  Other: "🏪",
-};
-
-const categoryColors = {
-  Groceries: "#22c55e",
-  Food: "#f97316",
-  Snacks: "#eab308",
-  Beverages: "#3b82f6",
-  Medicines: "#ef4444",
-  Other: "#8b5cf6",
+  Other:     "🏪",
 };
 
 export default function StoreCard({ store, linkPrefix = "/user/store" }) {
-  const emoji = categoryEmojis[store.category] || "🏪";
-  const bannerColor = categoryColors[store.category] || "#f3f4f6";
-  const accentColor = categoryColors[store.category] || "#ff6b35";
+  const emoji  = categoryEmojis[store.category] || "🏪";
+  const colors = categoryColors[store.category] || categoryColors.Other;
 
   return (
-    <Link to={`${linkPrefix}/${store._id}`} style={{ display: "block", height: "100%" }}>
+    <Link to={`${linkPrefix}/${store._id}`} className="block h-full group">
       <div
-        className="relative overflow-hidden cursor-pointer h-full rounded-2xl group"
-        style={{
-          backgroundColor: "var(--card)",
-          border: "1px solid var(--border)",
-          transition: "border-color 0.25s ease, transform 0.2s ease",
-        }}
+        className="relative overflow-hidden h-full rounded-xl card card-hover"
+        style={{ cursor: "pointer" }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = accentColor + "80";
-          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.borderColor = "var(--border-strong)";
+          e.currentTarget.style.transform = "translateY(-3px)";
+          e.currentTarget.style.boxShadow = "var(--shadow-card-hover)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.borderColor = "var(--border)";
           e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "var(--shadow-card)";
         }}
       >
-        {/* Banner Area */}
-        <div
-          className="relative h-40 flex items-center justify-center overflow-hidden"
-          style={{
-            backgroundColor: bannerColor,
-            minHeight: "10rem",
-          }}
-        >
-          {/* THE FIX: Check for store.image. If it exists, show it. Otherwise, show emoji. */}
-          {store.image ? (
-            <>
-              <LazyImage
-                src={store.image}
-                alt={store.name}
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                style={{ zIndex: 0 }}
-                fallback={emoji}
-              />
-              {/* Gradient overlay to make sure badges are readable over bright images */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-black/10 to-transparent pointer-events-none z-10" />
-            </>
-          ) : (
-            <div className="text-6xl z-10 transition-transform duration-300 group-hover:scale-110" style={{ color: "white" }}>
-              {emoji}
-            </div>
-          )}
+        {/* ── Banner ── */}
+        <div className="relative h-40 overflow-hidden bg-transparent">
+          <LazyImage
+            src={store.image}
+            alt={store.name}
+            className="absolute inset-0 w-full h-full p-2 transition-transform duration-500 group-hover:scale-[1.04]"
+            imageClassName="object-contain drop-shadow-sm"
+            style={{ zIndex: 0 }}
+            fallback={
+              <div
+                className="absolute inset-0 flex items-center justify-center w-full h-full"
+                style={{
+                  background: `linear-gradient(145deg, ${colors.light}, var(--elevated))`,
+                }}
+              >
+                <span className="text-5xl transition-transform duration-300 group-hover:scale-110 select-none drop-shadow-sm">
+                  {emoji}
+                </span>
+              </div>
+            }
+          />
 
-          {/* Status badge */}
+          {/* Open/Closed badge */}
           <div
-            className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold backdrop-blur-md z-10"
+            className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-bold z-10"
             style={{
               background: store.isOpen
-                ? "rgba(34,197,94,0.25)"
-                : "rgba(239,68,68,0.25)",
-              border: `1px solid ${store.isOpen ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
-              color: store.isOpen ? "#4ade80" : "#f87171",
+                ? "rgba(22,163,74,0.88)"
+                : "rgba(220,38,38,0.80)",
+              color: "#fff",
+              backdropFilter: "blur(6px)",
             }}
           >
             <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: store.isOpen ? "#4ade80" : "#f87171" }}
+              className="w-1.5 h-1.5 rounded-full bg-white"
+              style={{ opacity: store.isOpen ? 1 : 0.7 }}
             />
             {store.isOpen ? "Open" : "Closed"}
           </div>
 
           {/* Express badge */}
-          {store.deliveryTime && store.deliveryTime.includes("10") && (
+          {store.deliveryTime?.includes("10") && (
             <div
-              className="absolute top-3 right-10 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold backdrop-blur-md z-10"
+              className="absolute top-2.5 left-[70px] flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold z-10"
               style={{
-                background: "rgba(245,158,11,0.25)",
-                border: "1px solid rgba(245,158,11,0.4)",
-                color: "#fbbf24",
+                background: "rgba(217,119,6,0.88)",
+                color: "#fff",
+                backdropFilter: "blur(6px)",
               }}
             >
-              <Zap size={10} />⚡ Express
+              <Zap size={10} />
+              Express
             </div>
           )}
 
-          {/* Favorite button */}
+          {/* Favorite */}
           <div
-            className="absolute bottom-3 right-3 z-20 bg-black/20 rounded-full p-1 backdrop-blur-sm"
+            className="absolute top-2 right-2 z-20"
             onClick={(e) => e.preventDefault()}
           >
-            <FavoriteButton storeId={store._id} size={16} />
-          </div>
-
-          {/* Category label at bottom */}
-          <div
-            className="absolute bottom-3 left-3 text-[10px] font-bold text-white px-2 py-0.5 rounded-lg z-10 backdrop-blur-sm"
-            style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            {store.category}
+            <FavoriteButton storeId={store._id} size={15} />
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-4 flex flex-col justify-between" style={{ height: "calc(100% - 10rem)" }}>
-          <div>
-            {/* Store name row */}
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="min-w-0 flex-1">
-                <h3
-                  className="font-bold text-base truncate"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {store.name}
-                </h3>
-                <p
-                  className="text-[11px] mt-0.5 truncate"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  📍 {store.address}
-                </p>
-              </div>
+        {/* ── Content ── */}
+        <div className="p-3.5">
+          {/* Store name + chevron */}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0 flex-1">
+              <h3
+                className="font-display font-bold text-[15px] leading-tight truncate"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {store.name}
+              </h3>
+              <p
+                className="text-[12px] mt-0.5 truncate flex items-center gap-1"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {store.address}
+              </p>
+            </div>
+            <div
+              className="flex-shrink-0 mt-0.5 transition-transform duration-200 group-hover:translate-x-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <ChevronRight size={16} />
+            </div>
+          </div>
+
+          {/* Metrics row */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Rating */}
+            {store.totalRatings > 0 ? (
               <div
-                className="flex-shrink-0 p-1.5 rounded-lg transition-transform group-hover:translate-x-1"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[12px] font-bold"
+                style={{
+                  background: "rgba(202,138,4,0.10)",
+                  color: "#b45309",
+                }}
+              >
+                <Star size={10} fill="#b45309" stroke="none" />
+                {store.rating?.toFixed(1) || "4.5"}
+                <span className="font-normal opacity-70">
+                  ({store.totalRatings})
+                </span>
+              </div>
+            ) : (
+              <div
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[12px] font-bold"
+                style={{
+                  background: "var(--blue-bg)",
+                  color: "var(--blue)",
+                }}
+              >
+                New
+              </div>
+            )}
+
+            {/* Delivery time */}
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[12px] font-semibold"
+              style={{
+                background: "var(--elevated)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <Clock size={10} />
+              {store.deliveryTime || "20–30 min"}
+            </div>
+
+            {/* Min order */}
+            {store.minOrder > 0 && (
+              <div
+                className="px-2 py-1 rounded-md text-[12px] font-semibold"
                 style={{
                   background: "var(--elevated)",
                   color: "var(--text-muted)",
                 }}
               >
-                <ChevronRight size={14} />
+                Min ₹{store.minOrder}
               </div>
-            </div>
-
-            {/* Metrics row */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Rating */}
-              {store.totalRatings > 0 ? (
-                <div
-                  className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg"
-                  style={{
-                    background: "rgba(245,158,11,0.12)",
-                    color: "#f59e0b",
-                  }}
-                >
-                  <Star size={10} fill="#f59e0b" stroke="none" />
-                  {store.rating?.toFixed(1) || "4.5"}
-                  <span className="font-normal opacity-60">
-                    ({store.totalRatings})
-                  </span>
-                </div>
-              ) : (
-                <div
-                  className="flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-lg"
-                  style={{
-                    background: "rgba(59,130,246,0.12)",
-                    color: "#3b82f6",
-                  }}
-                >
-                  <span className="text-sm">✨</span>
-                  New
-                </div>
-              )}
-
-              {/* Delivery time */}
-              <div
-                className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg"
-                style={{
-                  background: "var(--elevated)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <Clock size={10} />
-                {store.deliveryTime || "20-30 min"}
-              </div>
-
-              {/* Min order */}
-              {store.minOrder > 0 && (
-                <div
-                  className="text-[11px] font-semibold px-2 py-1 rounded-lg"
-                  style={{
-                    background: "var(--elevated)",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  Min ₹{store.minOrder}
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Footer */}
+          {/* Footer strip */}
           <div
-            className="flex items-center justify-between mt-4 pt-3"
+            className="flex items-center justify-between mt-3 pt-2.5"
             style={{ borderTop: "1px solid var(--border)" }}
           >
-            <div
-              className="flex items-center gap-1 text-[11px]"
-              style={{ color: "var(--text-muted)" }}
+            <span
+              className="text-[12px] font-semibold"
+              style={{ color: "var(--green)" }}
             >
-              <TrendingUp size={10} style={{ color: accentColor }} />
-              <span style={{ color: accentColor, fontWeight: 700 }}>
-                Free delivery
-              </span>
-            </div>
-            <div
-              className="text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors group-hover:bg-opacity-20"
-              style={{ background: accentColor + "15", color: accentColor }}
+              Free delivery
+            </span>
+            <span
+              className="text-[12px] font-bold px-2.5 py-1 rounded-md transition-colors"
+              style={{
+                background: "var(--brand-dim)",
+                color: "var(--brand)",
+              }}
             >
-              Order now →
-            </div>
+              Order →
+            </span>
           </div>
         </div>
       </div>

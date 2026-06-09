@@ -22,6 +22,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoriteContext";
 import DeleteAccountModal from "../../components/ui/DeleteAccountModal";
+import AddressManager from "../../components/address/AddressManager";
 import api from "../../api/api";
 
 const STATUS_CONFIG = {
@@ -128,18 +129,7 @@ export default function UserProfile() {
   const [saving, setSaving] = useState(false);
   const [recentOrders, setRecentOrders] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", address: "" });
-
-  useEffect(() => {
-    if (user) {
-      setForm({
-        name: user.name || "",
-        phone: (user.phone || "").replace(/\D/g, ""),
-        address: user.address || "",
-      });
-    }
-    fetchRecentOrders();
-  }, [user]);
+  const [form, setForm] = useState({ name: "", phone: "", address: "", vehicleType: "bike" });
 
   const fetchRecentOrders = async () => {
     try {
@@ -149,6 +139,18 @@ export default function UserProfile() {
       setRecentOrders([]);
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        name: user.name || "",
+        phone: (user.phone || "").replace(/\D/g, ""),
+        address: user.address || "",
+        vehicleType: user.vehicleType || "bike",
+      });
+    }
+    fetchRecentOrders();
+  }, [user]);
 
   const handleSave = async () => {
     if (!form.name.trim()) {
@@ -167,6 +169,9 @@ export default function UserProfile() {
       };
       if (form.phone.trim()) {
         payload.phone = form.phone.replace(/\D/g, "");
+      }
+      if (user?.role === "delivery" && form.vehicleType) {
+        payload.vehicleType = form.vehicleType;
       }
       await api.put("/auth/profile", payload);
       updateUser(payload);
@@ -262,41 +267,25 @@ export default function UserProfile() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       {/* ── Hero header ── */}
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden mb-5"
         style={{
-          background:
-            "linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)",
-          paddingBottom: "2rem",
+          backgroundColor: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+          boxShadow: "var(--shadow-sm)",
         }}
       >
-        <div
-          className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-25 pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, var(--brand), transparent)",
-            transform: "translate(35%, -35%)",
-          }}
-        />
-        <div
-          className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-10 pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, #ff8c5a, transparent)",
-            transform: "translate(-30%, 30%)",
-          }}
-        />
-
-        <div className="max-w-2xl mx-auto px-4 pt-6 pb-4">
-          <div className="flex items-center gap-5">
-            {/* Avatar — initials only, no broken camera button */}
+        <div className="max-w-2xl mx-auto px-4 pt-8 pb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+            {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-display font-black text-2xl shadow-2xl"
+                className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-display font-black text-3xl shadow-lg"
                 style={{
                   background: "linear-gradient(135deg, var(--brand), #ff8c5a)",
-                  boxShadow: "0 0 30px rgba(255,107,53,0.45)",
                 }}
               >
                 {initials}
@@ -306,32 +295,29 @@ export default function UserProfile() {
             <div className="flex-1 min-w-0">
               {editing ? (
                 <input
-                  className="input-theme text-xl font-bold mb-2 py-2"
+                  className="input-theme text-2xl font-bold mb-2 py-2 w-full max-w-sm"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  style={{
-                    maxWidth: 260,
-                    background: "rgba(255,255,255,0.1)",
-                    borderColor: "rgba(255,255,255,0.2)",
-                    color: "white",
-                  }}
                 />
               ) : (
-                <h1 className="font-display font-bold text-2xl text-white mb-1">
+                <h1 
+                  className="font-display font-extrabold text-2xl md:text-3xl mb-1.5 truncate"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   {user?.name}
                 </h1>
               )}
               <div className="flex items-center gap-2 flex-wrap">
                 <span
-                  className="tag text-xs font-semibold"
+                  className="tag text-[11px] font-bold uppercase tracking-wider"
                   style={{ background: roleMeta.bg, color: roleMeta.color }}
                 >
                   {roleMeta.label}
                 </span>
                 {user?.isEmailVerified && (
                   <span
-                    className="flex items-center gap-1 text-xs"
-                    style={{ color: "rgba(255,255,255,0.5)" }}
+                    className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(34,197,94,0.1)", color: "#16a34a" }}
                   >
                     ✓ Verified
                   </span>
@@ -339,7 +325,7 @@ export default function UserProfile() {
               </div>
             </div>
 
-            <div className="flex gap-2 flex-shrink-0">
+            <div className="flex gap-2 flex-shrink-0 mt-2 sm:mt-0">
               {editing ? (
                 <>
                   <button
@@ -351,25 +337,25 @@ export default function UserProfile() {
                         address: user.address || "",
                       });
                     }}
-                    className="p-2.5 rounded-xl text-white/50 hover:text-white transition-colors"
+                    className="p-2.5 rounded-xl transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                     style={{
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "var(--text-muted)",
+                      border: "1px solid var(--border)",
                     }}
                   >
-                    <X size={15} />
+                    <X size={16} />
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition-all hover:scale-105 shadow-sm"
                     style={{ background: "var(--brand)", color: "white" }}
                   >
                     {saving ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <>
-                        <Save size={13} /> Save
+                        <Save size={14} /> Save Profile
                       </>
                     )}
                   </button>
@@ -377,14 +363,14 @@ export default function UserProfile() {
               ) : (
                 <button
                   onClick={() => setEditing(true)}
-                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-105"
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition-all hover:scale-105 shadow-sm"
                   style={{
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "var(--elevated)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border)",
                   }}
                 >
-                  <Edit3 size={13} /> Edit
+                  <Edit3 size={14} /> Edit Profile
                 </button>
               )}
             </div>
@@ -532,118 +518,64 @@ export default function UserProfile() {
             </div>
           </div>
 
+          {/* Vehicle Type (Delivery Only) */}
+          {user?.role === "delivery" && (
+            <div
+              className="flex items-center gap-4 px-5 py-4"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(255,107,53,0.1)" }}
+              >
+                <Truck size={14} style={{ color: "var(--brand)" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wider mb-1"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Vehicle Type
+                </p>
+                {editing ? (
+                  <select
+                    className="input-theme text-sm py-2 appearance-none w-full max-w-[200px]"
+                    value={form.vehicleType}
+                    onChange={(e) =>
+                      setForm({ ...form, vehicleType: e.target.value })
+                    }
+                  >
+                    <option value="bike" className="text-black">🏍️ Bike</option>
+                    <option value="scooter" className="text-black">🛵 Scooter</option>
+                    <option value="cycle" className="text-black">🚲 Cycle</option>
+                  </select>
+                ) : (
+                  <p
+                    className="text-sm font-medium capitalize"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {form.vehicleType || "bike"}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Addresses */}
           <div
             className="px-5 py-4"
             style={{ borderTop: "1px solid var(--border)" }}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <p
                 className="text-xs font-semibold uppercase tracking-wider"
                 style={{ color: "var(--text-muted)" }}
               >
                 Saved Addresses
               </p>
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {user?.addresses?.length || 0}/5
-              </span>
             </div>
-
-            {/* Saved addresses list */}
-            {user?.addresses?.length > 0 ? (
-              <div className="space-y-2 mb-3">
-                {user.addresses.map((addr, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 p-3 rounded-xl transition-colors"
-                    style={{
-                      background: "var(--hover)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: "rgba(255,107,53,0.1)" }}
-                    >
-                      <MapPin size={12} style={{ color: "var(--brand)" }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="text-sm font-medium truncate"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {addr}
-                      </p>
-                      {i === 0 && (
-                        <span className="tag tag-green text-[10px] mt-1">
-                          Default
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      {i !== 0 && (
-                        <button
-                          onClick={() => setDefaultAddress(i)}
-                          className="p-1.5 rounded-lg text-xs font-medium transition-colors hover:scale-105"
-                          style={{
-                            background: "rgba(34,197,94,0.1)",
-                            color: "#22c55e",
-                          }}
-                        >
-                          Set Default
-                        </button>
-                      )}
-                      <button
-                        onClick={() => removeAddress(i)}
-                        className="p-1.5 rounded-lg transition-colors hover:scale-105"
-                        style={{
-                          background: "rgba(239,68,68,0.1)",
-                          color: "#ef4444",
-                        }}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p
-                className="text-sm mb-3"
-                style={{ color: "var(--text-muted)" }}
-              >
-                No saved addresses yet
-              </p>
-            )}
-
-            {/* Add new address */}
-            <div className="flex gap-2">
-              <input
-                className="input-theme text-sm py-2 flex-1"
-                placeholder="Add new address"
-                value={form.newAddress || ""}
-                onChange={(e) =>
-                  setForm({ ...form, newAddress: e.target.value })
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    addAddress(form.newAddress);
-                    setForm({ ...form, newAddress: "" });
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  addAddress(form.newAddress);
-                  setForm({ ...form, newAddress: "" });
-                }}
-                disabled={!form.newAddress?.trim()}
-                className="px-3 py-2 rounded-xl font-medium text-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: "var(--brand)", color: "white" }}
-              >
-                Add
-              </button>
-            </div>
+            
+            <AddressManager showActions={true} />
           </div>
         </div>
 

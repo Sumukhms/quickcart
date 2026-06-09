@@ -170,9 +170,29 @@ export const createCoupon = async (req, res) => {
 
 export const listCoupons = async (req, res) => {
   try {
-    const coupons = await Coupon.find({
-      $or: [{ storeId: null }, { storeId: { $exists: false } }],
-    }).sort({ createdAt: -1 });
+    const { storeId } = req.query;
+    
+    // Only return active coupons that haven't expired to users
+    const filter = {
+      isActive: true,
+      $or: [
+        { expiresAt: { $gt: new Date() } },
+        { expiresAt: null },
+        { expiresAt: { $exists: false } }
+      ]
+    };
+    
+    if (storeId) {
+      filter.storeId = storeId;
+    } else {
+      filter.$and = [
+        { $or: [{ storeId: null }, { storeId: { $exists: false } }] }
+      ];
+    }
+    
+    const coupons = await Coupon.find(filter).sort({ createdAt: -1 });
     res.json(coupons);
-  } catch (e) { res.status(500).json({ message: e.message }); }
+  } catch (e) { 
+    res.status(500).json({ message: e.message }); 
+  }
 };

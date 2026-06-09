@@ -514,7 +514,7 @@ export default function DeliveryDashboard() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
         {/* Header */}

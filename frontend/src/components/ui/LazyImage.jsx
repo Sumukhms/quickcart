@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
  
-export default function LazyImage({ src, alt, className, fallback = "🛍️", style }) {
+export default function LazyImage({ src, alt, className, imageClassName = "object-cover", fallback = "🛍️", style }) {
   const [loaded,  setLoaded]  = useState(false);
   const [error,   setError]   = useState(false);
   const [visible, setVisible] = useState(false);
@@ -18,8 +18,16 @@ export default function LazyImage({ src, alt, className, fallback = "🛍️", s
  
   if (!src || error) {
     return (
-      <div ref={imgRef} className={className} style={style}>
-        <span style={{ fontSize: "2rem" }}>{fallback}</span>
+      <div 
+        ref={imgRef} 
+        className={`${className} flex items-center justify-center bg-[var(--elevated)]`} 
+        style={style}
+      >
+        {typeof fallback === 'string' ? (
+          <span className="text-5xl opacity-80">{fallback}</span>
+        ) : (
+          fallback
+        )}
       </div>
     );
   }
@@ -32,7 +40,7 @@ export default function LazyImage({ src, alt, className, fallback = "🛍️", s
         <img
           src={src}
           alt={alt}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+          className={`w-full h-full ${imageClassName} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
           loading="lazy"

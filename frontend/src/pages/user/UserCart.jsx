@@ -7,7 +7,7 @@ export default function UserCart() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen page-enter pb-24" style={{ backgroundColor: "var(--bg)" }}>
+    <div className="min-h-screen page-enter pb-24" >
       <div className="max-w-2xl mx-auto px-4 py-6">
         
         {/* Header */}

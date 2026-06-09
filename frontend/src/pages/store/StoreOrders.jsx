@@ -273,7 +273,7 @@ export default function StoreOrders() {
 
   if (error === "no_store") {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
+      <div className="min-h-screen flex items-center justify-center px-4" >
         <div className="text-center max-w-sm">
           <div className="text-6xl mb-4">🏪</div>
           <h2 className="font-bold text-xl mb-2" style={{ color: "var(--text-primary)" }}>Create your store first</h2>
@@ -284,7 +284,7 @@ export default function StoreOrders() {
   }
 
   return (
-    <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
+    <div className="min-h-screen page-enter" >
       <div className="max-w-3xl mx-auto px-4 py-6 pb-20">
 
         {/* Header */}

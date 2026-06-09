@@ -7,7 +7,7 @@ import {
   ArrowLeft, Star, Clock, MapPin, Phone,
   AlertCircle, RefreshCw, Leaf, Flame, Search
 } from "lucide-react";
-import { storeAPI, productAPI } from "../../api/api";
+import { storeAPI, productAPI, couponAPI } from "../../api/api";
 import ProductCard from "../../components/store/ProductCard";
 import FavoriteButton from "../../components/ui/FavoriteButton";
 import { PageLoader, EmptyState } from "../../components/ui/Skeleton";
@@ -30,6 +30,7 @@ export default function UserStorePage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [coupons, setCoupons] = useState([]);
   
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -40,12 +41,14 @@ export default function UserStorePage() {
   const fetchData = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [storeRes, prodRes] = await Promise.all([
+      const [storeRes, prodRes, couponRes] = await Promise.all([
         storeAPI.getById(id),
         productAPI.getByStore(id),
+        couponAPI.list(id).catch(() => ({ data: [] })),
       ]);
       setStore(storeRes.data);
       setProducts(prodRes.data);
+      setCoupons(couponRes.data || []);
     } catch (err) {
       setError(err.response?.data?.message || "Could not load store. Please try again.");
     } finally {
@@ -66,7 +69,7 @@ export default function UserStorePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--bg)" }}>
+      <div className="min-h-screen flex items-center justify-center px-4" >
         <div className="text-center max-w-sm">
           <div className="text-6xl mb-4">😕</div>
           <h2 className="font-display font-black tracking-tight text-2xl mb-2 text-[var(--text-primary)]">Store not found</h2>
@@ -106,7 +109,7 @@ export default function UserStorePage() {
   const emoji = CAT_EMOJI[store.category] || "🏪";
 
   return (
-    <div className="min-h-screen page-enter pb-24" style={{ backgroundColor: "var(--bg)" }}>
+    <div className="min-h-screen page-enter pb-24" >
       
       {/* ── PREMIUM STORE HERO ── */}
       <div className="bg-[var(--surface)] pt-4 pb-6 px-4 lg:px-6 relative">
@@ -225,6 +228,62 @@ export default function UserStorePage() {
           <div className="flex items-center gap-2 p-3 rounded-xl mb-6 text-[13px] font-bold bg-red-50 text-red-600 border border-red-100 dark:bg-red-500/10 dark:border-red-500/20">
             <AlertCircle size={16} /> Store is currently closed. You cannot place orders right now.
           </div>
+        )}
+
+        {/* ── Store Offers / Coupons ── */}
+        {coupons.length > 0 && (
+          <section className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="section-header font-display font-bold text-[17px] text-[var(--text-primary)]">
+                Available Offers
+              </h2>
+              <div className="px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[var(--brand-dim)] text-[var(--brand)]">
+                {coupons.length} active
+              </div>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
+              {coupons.map((coupon, i) => (
+                <div
+                  key={coupon._id}
+                  className="flex-shrink-0 w-72 rounded-xl p-4 relative overflow-hidden"
+                  style={{
+                    background: i % 2 === 0 ? "linear-gradient(135deg, #10b981, #34d399)" : "linear-gradient(135deg, #8b5cf6, #a78bfa)",
+                    boxShadow: "var(--shadow-sm)",
+                    animation: "slideUp 0.3s ease both",
+                    animationDelay: `${i * 50}ms`,
+                  }}
+                >
+                  {/* Decorative shapes */}
+                  <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white opacity-10 pointer-events-none" />
+                  <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white opacity-10 pointer-events-none" />
+                  
+                  <div className="relative z-10 text-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-bold uppercase tracking-widest opacity-90">
+                        {coupon.discountType === "free_delivery" ? "Free Delivery" : "Store Discount"}
+                      </span>
+                      <span className="font-mono font-bold px-2 py-1 bg-white/20 rounded text-[12px] tracking-widest backdrop-blur-sm">
+                        {coupon.code}
+                      </span>
+                    </div>
+                    <h3 className="font-display font-extrabold text-[20px] leading-tight mb-1">
+                      {coupon.discountType === "percent" && `${coupon.discountValue}% OFF`}
+                      {coupon.discountType === "flat" && `₹${coupon.discountValue} OFF`}
+                      {coupon.discountType === "free_delivery" && "FREE DELIVERY"}
+                    </h3>
+                    <p className="text-[12px] opacity-90 truncate">
+                      {coupon.description || `Use code ${coupon.code} at checkout`}
+                    </p>
+                    {coupon.minOrderAmount > 0 && (
+                      <div className="text-[10px] mt-2 opacity-80">
+                        *Min. order ₹{coupon.minOrderAmount}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Search & Native Segmented Filters */}

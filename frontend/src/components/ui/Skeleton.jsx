@@ -1,153 +1,146 @@
+/* ══════════════════════════════════════════════════════════════
+   Skeleton.jsx — Production-quality loading & empty states
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Store Card Skeleton ── */
 export function SkeletonCard() {
   return (
     <div
-      className="rounded-2xl overflow-hidden"
+      className="rounded-xl overflow-hidden"
       style={{
         backgroundColor: "var(--card)",
         border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-card)",
       }}
     >
-      {/* Banner — matches StoreCard h-40 */}
+      {/* Banner */}
       <div className="shimmer h-40 w-full" />
 
-      <div className="p-4 space-y-4">
-        {/* Store name row */}
+      <div className="p-3.5 space-y-3">
+        {/* Name + chevron row */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 space-y-2">
-            <div className="shimmer h-4 w-3/4 rounded-lg" />
-            <div className="shimmer h-3 w-1/2 rounded-lg" />
+          <div className="flex-1 space-y-1.5">
+            <div className="shimmer h-4 w-3/5 rounded-md" />
+            <div className="shimmer h-3 w-2/5 rounded-md" />
           </div>
-          <div className="shimmer h-8 w-8 rounded-full flex-shrink-0" />
+          <div className="shimmer h-5 w-5 rounded-md flex-shrink-0" />
         </div>
 
-        {/* Metrics row — mirrors the tag chips */}
-        <div className="flex gap-2 flex-wrap">
-          <div className="shimmer h-6 w-20 rounded-full" />
-          <div className="shimmer h-6 w-24 rounded-full" />
-          <div className="shimmer h-6 w-16 rounded-full" />
+        {/* Chips row */}
+        <div className="flex gap-1.5">
+          <div className="shimmer h-6 w-16 rounded-md" />
+          <div className="shimmer h-6 w-24 rounded-md" />
+          <div className="shimmer h-6 w-14 rounded-md" />
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between items-center pt-2">
-          <div className="shimmer h-4 w-24 rounded" />
-          <div className="shimmer h-5 w-14 rounded-lg" />
+        <div
+          className="flex justify-between items-center pt-2"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          <div className="shimmer h-3.5 w-20 rounded-md" />
+          <div className="shimmer h-6 w-14 rounded-md" />
         </div>
       </div>
     </div>
   );
 }
 
+/* ── Product Card Skeleton ── */
 export function SkeletonProductCard() {
   return (
     <div
-      className="rounded-2xl overflow-hidden"
+      className="rounded-xl overflow-hidden"
       style={{
         backgroundColor: "var(--card)",
         border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-card)",
       }}
     >
-      {/* Image — matches h-36 in ProductCard */}
       <div className="shimmer h-36 w-full" />
 
-      <div className="p-3 space-y-3">
-        <div className="shimmer h-4 w-2/3 rounded" />
-        <div className="shimmer h-3 w-1/2 rounded" />
-        <div className="flex justify-between items-center mt-2">
-          <div className="shimmer h-5 w-16 rounded" />
-          <div className="shimmer h-11 w-11 rounded-xl" />
+      <div className="p-3 space-y-2.5">
+        <div className="shimmer h-4 w-3/4 rounded-md" />
+        <div className="shimmer h-3 w-1/2 rounded-md" />
+        <div className="flex justify-between items-center mt-1">
+          <div className="shimmer h-5 w-16 rounded-md" />
+          <div className="shimmer h-9 w-9 rounded-lg" />
         </div>
       </div>
     </div>
   );
 }
 
+/* ── Generic text skeleton ── */
 export function SkeletonText({ lines = 3 }) {
   return (
     <div className="space-y-2">
       {Array.from({ length: lines }).map((_, i) => (
         <div
           key={i}
-          className={`shimmer h-3 rounded ${i === lines - 1 ? "w-2/3" : "w-full"}`}
+          className={`shimmer h-3.5 rounded-md ${i === lines - 1 ? "w-2/3" : "w-full"}`}
         />
       ))}
     </div>
   );
 }
 
+/* ── Page loader spinner ── */
 export function PageLoader({ message = "Loading..." }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 gap-5">
-      <div className="relative w-16 h-16">
+    <div className="flex flex-col items-center justify-center py-24 gap-4">
+      <div className="relative w-10 h-10">
         {/* Outer ring */}
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            border: "2px solid var(--border)",
+            border: "2.5px solid var(--border)",
             borderTopColor: "var(--brand)",
-            animation: "spin 1s linear infinite",
+            animation: "spin 0.7s linear infinite",
           }}
         />
-        {/* Inner ring */}
-        <div
-          className="absolute inset-3 rounded-full"
-          style={{
-            border: "2px solid transparent",
-            borderBottomColor: "#f59e0b",
-            animation: "spin 0.65s linear infinite reverse",
-          }}
-        />
-        {/* Center dot */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{
-              background: "var(--brand)",
-              animation: "pulseDot 1.2s infinite",
-            }}
-          />
-        </div>
       </div>
-      <div className="text-center">
-        <p
-          className="text-sm font-semibold"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          {message}
-        </p>
-      </div>
+      <p
+        className="text-[13px] font-semibold"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {message}
+      </p>
     </div>
   );
 }
 
+/* ── Empty state ── */
 export function EmptyState({ icon, title, subtitle, action }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 gap-6 text-center">
+    <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+      {/* Icon container */}
       <div
-        className="w-20 h-20 rounded-3xl flex items-center justify-center text-5xl"
+        className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
         style={{
-          background:
-            "linear-gradient(135deg, rgba(255,107,53,0.08), rgba(255,107,53,0.04))",
-          border: "1px solid rgba(255,107,53,0.15)",
-          animation: "float 4s ease-in-out infinite",
+          background: "var(--elevated)",
+          border: "1px solid var(--border)",
         }}
       >
         {icon || "🛒"}
       </div>
+
       <div>
         <h3
-          className="text-lg font-bold mb-2"
+          className="font-display font-bold text-[17px] mb-1.5"
           style={{ color: "var(--text-primary)" }}
         >
           {title}
         </h3>
         <p
-          className="text-sm max-w-xs mx-auto leading-relaxed"
+          className="text-sm max-w-[260px] mx-auto leading-relaxed"
           style={{ color: "var(--text-muted)" }}
         >
           {subtitle}
         </p>
       </div>
-      {action && <div className="mt-4">{action}</div>}
+
+      {action && <div className="mt-1">{action}</div>}
     </div>
   );
 }

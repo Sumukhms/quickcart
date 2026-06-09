@@ -118,7 +118,7 @@ export default function DeliveryHistory() {
   const monthEarnings  = deliveries.filter(d => new Date(d.createdAt) >= monthStart).reduce((s, d) => s + fee(d), 0);
 
   return (
-    <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
+    <div className="min-h-screen page-enter" >
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
 
         {/* Header */}

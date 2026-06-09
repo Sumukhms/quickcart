@@ -130,7 +130,7 @@ export default function AdminPanel() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-6xl mx-auto px-4 py-6 pb-20">
         <div className="flex items-center justify-between mb-6">

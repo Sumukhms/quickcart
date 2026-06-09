@@ -373,7 +373,7 @@ export default function StaticPage() {
   };
 
   return (
-    <div className="min-h-screen page-enter" style={{ backgroundColor: "var(--bg)" }}>
+    <div className="min-h-screen page-enter" >
       {PAGE_MAP[pathname] || <About />}
       <div className="pb-16" />
     </div>

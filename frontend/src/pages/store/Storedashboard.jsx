@@ -276,7 +276,7 @@ function CreateStoreForm({ onCreated }) {
   return (
     <div
       className="min-h-screen page-enter flex items-center justify-center px-4 py-12"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
@@ -589,7 +589,7 @@ export default function StoreDashboard() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="text-center px-4">
           <div className="text-6xl mb-4">🏪</div>
@@ -611,7 +611,7 @@ export default function StoreDashboard() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="flex flex-col items-center gap-3">
           <Loader2
@@ -667,7 +667,7 @@ export default function StoreDashboard() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
         {/* Header */}

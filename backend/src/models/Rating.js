@@ -7,7 +7,7 @@ const ratingSchema = new mongoose.Schema({
   rating:  { type: Number, required: true, min: 1, max: 5 },
 }, { timestamps: true });
 
-// One rating per user per order (prevents double-submission)
-ratingSchema.index({ userId: 1, orderId: 1 }, { unique: true });
+// One rating per user per order per target (store or delivery agent)
+ratingSchema.index({ userId: 1, orderId: 1, storeId: 1 }, { unique: true });
 
 export default mongoose.model("Rating", ratingSchema);

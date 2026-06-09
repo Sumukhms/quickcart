@@ -4,6 +4,9 @@ dotenv.config();
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
+import Order from "./src/models/Order.js";
+import User from "./src/models/User.js";
 
 import cors from "cors";
 import helmet from "helmet";
@@ -191,53 +194,98 @@ const io = new Server(httpServer, {
   allowEIO3: true,
 });
 
+io.use(async (socket, next) => {
+  try {
+    const tokenStr = socket.handshake.auth?.token;
+    if (!tokenStr || !tokenStr.startsWith("Bearer ")) {
+      return next(new Error("Authentication error: No token provided"));
+    }
+    const token = tokenStr.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded || !decoded.userId) {
+      return next(new Error("Authentication error: Invalid token payload"));
+    }
+    
+    const user = await User.findById(decoded.userId).select("storeId");
+    socket.user = {
+      ...decoded,
+      storeId: user?.storeId?.toString()
+    };
+    
+    next();
+  } catch (err) {
+    next(new Error("Authentication error: " + err.message));
+  }
+});
+
 io.on("connection", (socket) => {
-  console.log(`[Socket] Client connected: ${socket.id}`);
+  console.log(`[Socket] Client connected: ${socket.id} (User: ${socket.user.userId})`);
 
   socket.on("join_store", (id) => {
-    if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
+    if (socket.user.role === "store" && socket.user.storeId === id) {
       socket.join(`store_${id}`);
     } else {
-      console.warn(`[Socket] Invalid store ID: ${id}`);
+      console.warn(`[Socket] Unauthorized join_store attempt by ${socket.user.userId}`);
     }
   });
 
-  socket.on("join_order", (id) => {
-    if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
-      socket.join(`order_${id}`);
-    } else {
-      console.warn(`[Socket] Invalid order ID: ${id}`);
+  socket.on("join_order", async (id) => {
+    try {
+      if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
+        const order = await Order.findById(id).select("userId deliveryAgentId storeId");
+        if (!order) return;
+        
+        const isCustomer = order.userId.toString() === socket.user.userId;
+        const isDelivery = order.deliveryAgentId?.toString() === socket.user.userId;
+        const isStore = order.storeId.toString() === socket.user.storeId;
+        const isAdmin = socket.user.role === "admin";
+
+        if (isCustomer || isDelivery || isStore || isAdmin) {
+          socket.join(`order_${id}`);
+        } else {
+          console.warn(`[Socket] Unauthorized join_order attempt by ${socket.user.userId} for order ${id}`);
+        }
+      }
+    } catch (err) {
+      console.error("[Socket] join_order error:", err.message);
     }
   });
 
   socket.on("join_delivery", (id) => {
-    if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
+    if (socket.user.role === "delivery" && socket.user.userId === id) {
       socket.join(`delivery_${id}`);
     } else {
-      console.warn(`[Socket] Invalid delivery ID: ${id}`);
+      console.warn(`[Socket] Unauthorized join_delivery attempt by ${socket.user.userId}`);
     }
   });
 
   socket.on("join_user_room", (id) => {
-    if (typeof id === "string" && /^[a-f\d]{24}$/i.test(id)) {
+    if (socket.user.userId === id) {
       socket.join(`user_${id}`);
     } else {
-      console.warn(`[Socket] Invalid user ID: ${id}`);
+      console.warn(`[Socket] Unauthorized join_user_room attempt by ${socket.user.userId}`);
     }
   });
 
-  socket.on("update_location", ({ orderId, lat, lng }) => {
-    if (
-      typeof orderId === "string" &&
-      /^[a-f\d]{24}$/i.test(orderId) &&
-      typeof lat === "number" &&
-      typeof lng === "number" &&
-      lat >= -90 && lat <= 90 &&
-      lng >= -180 && lng <= 180
-    ) {
-      io.to(`order_${orderId}`).emit("location_update", { lat, lng });
-    } else {
-      console.warn(`[Socket] Invalid location update:`, { orderId, lat, lng });
+  socket.on("update_location", async ({ orderId, lat, lng }) => {
+    try {
+      if (
+        socket.user.role === "delivery" &&
+        typeof orderId === "string" &&
+        /^[a-f\d]{24}$/i.test(orderId) &&
+        typeof lat === "number" &&
+        typeof lng === "number"
+      ) {
+        // Verify delivery agent actually owns this order
+        const order = await Order.findById(orderId).select("deliveryAgentId");
+        if (order && order.deliveryAgentId?.toString() === socket.user.userId) {
+          io.to(`order_${orderId}`).emit("location_update", { lat, lng });
+        } else {
+          console.warn(`[Socket] Unauthorized location update by ${socket.user.userId} for order ${orderId}`);
+        }
+      }
+    } catch (err) {
+      console.error("[Socket] update_location error:", err.message);
     }
   });
 

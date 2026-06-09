@@ -23,7 +23,7 @@ export default class ErrorBoundary extends Component {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="text-center max-w-md">
           <div

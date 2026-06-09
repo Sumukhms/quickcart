@@ -80,10 +80,10 @@ function PasswordField({ label = "Password", value, onChange, showPw, setShowPw,
 function ErrorBox({ message }) {
   return (
     <div
-      className="p-3.5 rounded-2xl text-sm font-semibold flex items-start gap-2"
-      style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}
+      className="p-3 rounded-xl text-[13px] font-semibold flex items-start gap-2"
+      style={{ background: "var(--red-bg)", color: "var(--red)", border: "1px solid rgba(220,38,38,0.20)" }}
     >
-      <span className="flex-shrink-0 mt-0.5">❌</span>
+      <span className="flex-shrink-0 mt-0.5">⚠️</span>
       <span>{message}</span>
     </div>
   );
@@ -92,10 +92,10 @@ function ErrorBox({ message }) {
 function WarningBox({ message }) {
   return (
     <div
-      className="p-3.5 rounded-2xl text-sm font-semibold flex items-start gap-2"
-      style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}
+      className="p-3 rounded-xl text-[13px] font-semibold flex items-start gap-2"
+      style={{ background: "var(--amber-bg)", color: "var(--amber)", border: "1px solid rgba(217,119,6,0.20)" }}
     >
-      <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
       <span>{message}</span>
     </div>
   );
@@ -104,10 +104,10 @@ function WarningBox({ message }) {
 function SuccessBox({ message }) {
   return (
     <div
-      className="p-3.5 rounded-2xl text-sm font-semibold flex items-center gap-2"
-      style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
+      className="p-3 rounded-xl text-[13px] font-semibold flex items-center gap-2"
+      style={{ background: "var(--green-bg)", color: "var(--green)", border: "1px solid rgba(22,163,74,0.20)" }}
     >
-      ✅ {message}
+      ✓ {message}
     </div>
   );
 }
@@ -117,11 +117,12 @@ function SubmitBtn({ loading, label, disabled = false }) {
     <button
       type="submit"
       disabled={loading || disabled}
-      className="btn btn-brand w-full justify-center text-base py-4 mt-2"
+      className="btn btn-brand w-full justify-center mt-2"
+      style={{ paddingTop: "0.8125rem", paddingBottom: "0.8125rem", fontSize: "0.9375rem" }}
     >
       {loading
-        ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-        : <>{label} <ArrowRight size={17} /></>}
+        ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.65s linear infinite" }} />
+        : <>{label} <ArrowRight size={16} /></>}
     </button>
   );
 }
@@ -132,10 +133,14 @@ function GoogleButton() {
   return (
     <a
       href={`${baseUrl}/api/auth/google`}
-      className="flex items-center justify-center gap-3 w-full py-3 rounded-2xl font-bold text-sm transition-all hover:scale-[1.02]"
-      style={{ background: "var(--elevated)", border: "1.5px solid var(--border)", color: "var(--text-primary)" }}
+      className="flex items-center justify-center gap-2.5 w-full py-2.5 rounded-xl font-semibold text-[14px] transition-all hover:bg-[var(--hover)]"
+      style={{
+        background: "var(--surface)",
+        border: "1.5px solid var(--border)",
+        color: "var(--text-primary)",
+      }}
     >
-      <svg width="18" height="18" viewBox="0 0 48 48">
+      <svg width="16" height="16" viewBox="0 0 48 48">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
         <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
@@ -149,39 +154,60 @@ function GoogleButton() {
 function AuthLayout({ title, subtitle, children }) {
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-12 page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      className="min-h-screen flex items-center justify-center px-4 py-10 page-enter"
+      
     >
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, var(--brand), transparent)", transform: "translate(40%, -40%)" }} />
-        <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full opacity-8"
-          style={{ background: "radial-gradient(circle, #7c3aed, transparent)", transform: "translate(-40%, 40%)" }} />
-      </div>
-      <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2.5 mb-6">
+      <div className="w-full max-w-[420px]">
+        {/* Logo */}
+        <div className="text-center mb-7">
+          <Link to="/" className="inline-flex items-center gap-2 mb-5">
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white text-xl"
-              style={{ background: "linear-gradient(135deg, #ff6b35, #ff8c5a)", boxShadow: "0 8px 25px rgba(255,107,53,0.4)" }}
-            >Q</div>
-            <span className="font-display font-bold text-2xl" style={{ color: "var(--text-primary)" }}>
+              className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-base"
+              style={{ background: "var(--brand)", boxShadow: "0 4px 14px rgba(255,107,53,0.30)" }}
+            >
+              Q
+            </div>
+            <span
+              className="font-display font-bold text-xl tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
               Quick<span style={{ color: "var(--brand)" }}>Cart</span>
             </span>
           </Link>
-          <h1 className="font-display font-black text-3xl mb-2" style={{ color: "var(--text-primary)" }}>{title}</h1>
-          <p style={{ color: "var(--text-muted)" }}>{subtitle}</p>
+          <h1
+            className="font-display font-extrabold text-[26px] mb-1 tracking-tight"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {title}
+          </h1>
+          <p
+            className="text-[14px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {subtitle}
+          </p>
         </div>
+
+        {/* Card */}
         <div
-          className="p-6 rounded-3xl shadow-2xl"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 25px 60px rgba(0,0,0,0.4)" }}
+          className="p-6 rounded-2xl"
+          style={{
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-lg)",
+          }}
         >
           {children}
         </div>
-        <div className="flex items-center justify-center gap-4 mt-5 text-xs" style={{ color: "var(--text-muted)" }}>
-          <span className="flex items-center gap-1"><Sparkles size={11} style={{ color: "var(--brand)" }} /> 50k+ users</span>
+
+        {/* Trust strip */}
+        <div
+          className="flex items-center justify-center gap-3 mt-4 text-[11px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <span>🔒 SSL secured</span>
           <span>·</span>
-          <span>🔒 256-bit SSL</span>
+          <span>50k+ users</span>
           <span>·</span>
           <span>⭐ 4.8 rated</span>
         </div>
@@ -498,21 +524,26 @@ export function RegisterPage() {
 
         {/* Role selection */}
         <div>
-          <label className="block text-sm font-bold mb-2" style={{ color: "var(--text-secondary)" }}>I am a</label>
+          <label className="block text-[13px] font-bold mb-2" style={{ color: "var(--text-secondary)" }}>I want to</label>
           <div className="grid grid-cols-3 gap-2">
-            {ROLES.map(({ id, emoji, label }) => (
+            {ROLES.map(({ id, emoji, label, sub }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setForm({ ...form, role: id })}
-                className="py-3.5 px-2 rounded-2xl text-xs font-bold text-center transition-all hover:scale-105 relative overflow-hidden"
+                className="py-3 px-2 rounded-xl text-center transition-all duration-150 active:scale-95"
                 style={{
-                  background: form.role === id ? "rgba(255,107,53,0.1)" : "var(--elevated)",
-                  color:      form.role === id ? "var(--brand)"          : "var(--text-secondary)",
-                  border: `2px solid ${form.role === id ? "var(--brand)" : "var(--border)"}`,
+                  background: form.role === id ? "var(--brand-dim)" : "var(--elevated)",
+                  border: `1.5px solid ${form.role === id ? "rgba(255,107,53,0.40)" : "var(--border)"}`,
                 }}
               >
-                <div className="text-2xl mb-1">{emoji}</div>{label}
+                <div className="text-2xl mb-1 leading-none">{emoji}</div>
+                <p
+                  className="text-[12px] font-bold leading-tight"
+                  style={{ color: form.role === id ? "var(--brand)" : "var(--text-primary)" }}
+                >
+                  {label}
+                </p>
               </button>
             ))}
           </div>

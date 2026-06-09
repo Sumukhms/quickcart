@@ -761,7 +761,7 @@ export default function StoreProducts() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="flex flex-col items-center gap-3">
           <div
@@ -784,7 +784,7 @@ export default function StoreProducts() {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="text-center max-w-sm">
           <div className="text-6xl mb-4">🏪</div>
@@ -810,7 +810,7 @@ export default function StoreProducts() {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="text-center max-w-sm">
           <AlertCircle
@@ -838,7 +838,7 @@ export default function StoreProducts() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
         {/* Demo banner */}

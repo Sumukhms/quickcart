@@ -37,7 +37,7 @@ export default function RoleSelectionPage() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, setTokenExternal } = useAuth();
 
   const handleSave = async () => {
     setError("");
@@ -50,7 +50,24 @@ export default function RoleSelectionPage() {
       const { data } = await api.put("/auth/profile", payload);
       updateUser(data);
       localStorage.setItem("qc-user", JSON.stringify(data));
-      navigate("/user/home", { replace: true });
+
+      // 1. Force a token refresh so the new role is embedded in the JWT payload!
+      // Otherwise, the old "customer" role token will be sent and throw "Access denied"
+      try {
+        const { data: refreshData } = await api.post("/auth/refresh");
+        if (refreshData?.token) {
+          setTokenExternal(refreshData.token);
+        }
+      } catch (err) {
+        console.warn("Could not refresh token immediately:", err);
+      }
+
+      // 2. Redirect to the correct dashboard based on role
+      let route = "/user/home";
+      if (role === "store") route = "/store/dashboard";
+      if (role === "delivery") route = "/delivery/dashboard";
+
+      navigate(route, { replace: true });
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -64,7 +81,7 @@ export default function RoleSelectionPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="w-full max-w-2xl rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl">
         <div className="mb-6">

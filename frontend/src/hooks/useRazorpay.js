@@ -81,7 +81,11 @@ export function useRazorpay() {
         description: description,
         order_id: razorpayOrderId,
 
-        prefill: { name, email, contact },
+        prefill: { 
+          name: name || "Customer", 
+          email: email || "test@example.com", 
+          contact: contact || "9999999999" 
+        },
         theme: { color: "#ff6b35" }, // QuickCart brand colour
 
         handler: (response) => {

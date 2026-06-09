@@ -25,7 +25,7 @@ import { useTheme } from "../context/ThemeContext";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import CartDrawer from "./cart/CartDrawer";
-import NotificationBell from "./ui/NotificationBell"; // ← NEW
+import NotificationBell from "./ui/NotificationBell";
 
 function getNavLinks(user) {
   const storeShopLink = user?.storeId
@@ -52,19 +52,16 @@ function getNavLinks(user) {
       { to: "/delivery/dashboard", icon: Truck, label: "Dashboard" },
       { to: "/delivery/active", icon: MapPin, label: "Active" },
       { to: "/delivery/history", icon: History, label: "History" },
+      { to: "/user/profile", icon: Settings, label: "Settings" },
     ],
   };
 }
 
 const ROLE_BADGE = {
-  customer: { label: "Customer", color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
-  store: { label: "Store", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  delivery: {
-    label: "Delivery",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,0.12)",
-  },
-  admin: { label: "Admin", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
+  customer: { label: "Customer", color: "#16a34a", bg: "rgba(22,163,74,0.10)" },
+  store:    { label: "Store",    color: "#2563eb", bg: "rgba(37,99,235,0.10)"  },
+  delivery: { label: "Delivery", color: "#d97706", bg: "rgba(217,119,6,0.10)" },
+  admin:    { label: "Admin",    color: "#7c3aed", bg: "rgba(124,58,237,0.10)" },
 };
 
 export default function Navbar() {
@@ -87,7 +84,7 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    const h = () => setScrolled(window.scrollY > 10);
+    const h = () => setScrolled(window.scrollY > 8);
     window.addEventListener("scroll", h);
     return () => window.removeEventListener("scroll", h);
   }, []);
@@ -109,44 +106,44 @@ export default function Navbar() {
   return (
     <>
       <nav
-        className={`sticky top-0 z-50 glass bg-[var(--surface)]/90 transition-all duration-400 ${scrolled ? "shadow-[0_4px_30px_rgba(0,0,0,0.12)]" : ""}`}
+        className="sticky top-0 z-50"
+        style={{
+          background: scrolled ? "var(--glass-bg)" : "transparent",
+          backdropFilter: scrolled ? "blur(16px) saturate(160%)" : "none",
+          WebkitBackdropFilter: scrolled ? "blur(16px) saturate(160%)" : "none",
+          borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
+          boxShadow: scrolled ? "var(--shadow-nav)" : "none",
+          transition: "box-shadow 0.2s ease, background 0.2s ease",
+        }}
       >
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
-          <div className="flex items-center gap-3 h-16">
-            {/* Logo */}
+          <div className="flex items-center gap-3 h-[58px]">
+
+            {/* ── Logo ── */}
             <Link
               to={homeRoute}
-              className="flex items-center gap-2.5 flex-shrink-0 group"
+              className="flex items-center gap-2 flex-shrink-0 group"
             >
-              <div className="relative">
-                <div
-                  className="w-9 h-9 rounded-2xl flex items-center justify-center font-black text-white text-base transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
-                  style={{
-                    background: "linear-gradient(135deg, #ff6b35, #ff8c5a)",
-                    boxShadow: "0 4px 15px rgba(255,107,53,0.45)",
-                  }}
-                >
-                  Q
-                </div>
-                <div
-                  className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2"
-                  style={{
-                    borderColor: "var(--bg)",
-                    animation: "pulseDot 2s infinite",
-                  }}
-                />
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-white text-sm transition-transform duration-200 group-hover:scale-105"
+                style={{
+                  background: "var(--brand)",
+                  boxShadow: "0 2px 8px rgba(255,107,53,0.35)",
+                }}
+              >
+                Q
               </div>
               <span
-                className="font-display font-bold text-lg hidden sm:block"
+                className="font-display font-bold text-[17px] hidden sm:block tracking-tight"
                 style={{ color: "var(--text-primary)" }}
               >
                 Quick<span style={{ color: "var(--brand)" }}>Cart</span>
               </span>
             </Link>
 
-            {/* Desktop nav links */}
+            {/* ── Desktop nav links ── */}
             {isLoggedIn && (
-              <nav className="hidden md:flex items-center gap-1 ml-2 overflow-x-auto scrollbar-hide">
+              <nav className="hidden md:flex items-center gap-0.5 ml-3 overflow-x-auto scrollbar-hide">
                 {menuLinks
                   .slice(0, user?.role === "store" ? 6 : menuLinks.length)
                   .map(({ to, icon: Icon, label }) => {
@@ -157,75 +154,81 @@ export default function Navbar() {
                       <Link
                         key={`${to}-${label}`}
                         to={to}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                        className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 whitespace-nowrap"
                         style={{
-                          background: active
-                            ? "rgba(255,107,53,0.1)"
-                            : "transparent",
-                          color: active
-                            ? "var(--brand)"
-                            : "var(--text-secondary)",
+                          background: active ? "var(--brand-dim)" : "transparent",
+                          color: active ? "var(--brand)" : "var(--text-secondary)",
                         }}
                         onMouseEnter={(e) => {
-                          if (!active)
-                            e.currentTarget.style.background =
-                              "var(--elevated)";
+                          if (!active) {
+                            e.currentTarget.style.background = "var(--elevated)";
+                            e.currentTarget.style.color = "var(--text-primary)";
+                          }
                         }}
                         onMouseLeave={(e) => {
-                          if (!active)
+                          if (!active) {
                             e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "var(--text-secondary)";
+                          }
                         }}
                       >
-                        <Icon size={15} />
+                        <Icon size={14} />
                         {label}
+                        {active && (
+                          <span
+                            className="absolute bottom-0.5 left-3 right-3 h-[2px] rounded-full"
+                            style={{ background: "var(--brand)" }}
+                          />
+                        )}
                       </Link>
                     );
                   })}
               </nav>
             )}
 
-            {/* Right side */}
-            <div className="flex items-center gap-1.5 ml-auto">
+            {/* ── Right side ── */}
+            <div className="flex items-center gap-1 ml-auto">
+
               {/* Theme toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-xl transition-all hover:scale-110 active:scale-95"
+                className="p-2 rounded-lg transition-all duration-150 hover:scale-105 active:scale-95"
                 style={{
                   background: "var(--elevated)",
                   color: "var(--text-secondary)",
+                  border: "1px solid var(--border)",
                 }}
+                title={isDark ? "Light mode" : "Dark mode"}
               >
-                {isDark ? (
-                  <Moon size={16} />
-                ) : (
-                  <Sun size={16} style={{ color: "#f59e0b" }} />
-                )}
+                {isDark
+                  ? <Moon size={15} />
+                  : <Sun size={15} style={{ color: "#d97706" }} />
+                }
               </button>
 
-              {/* ── NOTIFICATION BELL ── */}
+              {/* Notification Bell */}
               {isLoggedIn && <NotificationBell />}
 
               {/* Cart */}
               {isLoggedIn && (
                 <button
                   onClick={() => setCartOpen(true)}
-                  className="relative p-2 rounded-xl transition-all hover:scale-110 active:scale-95"
+                  className="relative p-2 rounded-lg transition-all duration-150 hover:scale-105 active:scale-95"
                   style={{
-                    background: "var(--elevated)",
-                    color: "var(--text-secondary)",
+                    background: count > 0 ? "var(--brand-dim)" : "var(--elevated)",
+                    color: count > 0 ? "var(--brand)" : "var(--text-secondary)",
+                    border: `1px solid ${count > 0 ? "rgba(255,107,53,0.25)" : "var(--border)"}`,
                   }}
                   title={cartLabel}
                 >
-                  <ShoppingCart size={20} />
+                  <ShoppingCart size={18} />
                   {count > 0 && (
                     <span
-                      className="absolute -top-1.5 -right-1.5 min-w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                      className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-black text-white px-1"
                       style={{
-                        background:
-                          "linear-gradient(135deg, var(--brand), var(--brand-dark))",
-                        boxShadow: "0 2px 8px rgba(255,107,53,0.5)",
-                        animation: "badgeBounce 0.5s ease",
-                        padding: "0 4px",
+                        background: "var(--brand)",
+                        boxShadow: "0 2px 6px rgba(255,107,53,0.4)",
+                        animation: "badgeBounce 0.35s cubic-bezier(0.16,1,0.3,1) both",
                       }}
                     >
                       {count > 99 ? "99+" : count}
@@ -234,24 +237,25 @@ export default function Navbar() {
                 </button>
               )}
 
-              {/* My Orders shortcut */}
+              {/* My Orders shortcut (store/delivery roles) */}
               {isLoggedIn &&
                 (user?.role === "store" || user?.role === "delivery") && (
                   <Link
                     to="/user/orders"
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 hover:scale-105"
                     style={{
                       background:
                         location.pathname === "/user/orders"
-                          ? "rgba(255,107,53,0.1)"
+                          ? "var(--brand-dim)"
                           : "var(--elevated)",
                       color:
                         location.pathname === "/user/orders"
                           ? "var(--brand)"
                           : "var(--text-secondary)",
+                      border: "1px solid var(--border)",
                     }}
                   >
-                    <ShoppingBag size={15} />
+                    <ShoppingBag size={14} />
                     <span className="hidden lg:block">My Orders</span>
                   </Link>
                 )}
@@ -261,79 +265,69 @@ export default function Navbar() {
                 <div className="relative" ref={userMenuRef}>
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:scale-105"
+                    className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-lg transition-all duration-150 hover:scale-105"
                     style={{
-                      background: "var(--elevated)",
-                      border: `1px solid ${userMenuOpen ? "rgba(255,107,53,0.3)" : "var(--border)"}`,
+                      background: userMenuOpen ? "var(--brand-dim)" : "var(--elevated)",
+                      border: `1px solid ${userMenuOpen ? "rgba(255,107,53,0.30)" : "var(--border)"}`,
                     }}
                   >
                     <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, var(--brand), #ff8c5a)",
-                      }}
+                      className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[11px] font-black flex-shrink-0"
+                      style={{ background: "var(--brand)" }}
                     >
                       {user?.name?.[0]?.toUpperCase()}
                     </div>
                     <div className="hidden lg:block text-left">
                       <p
-                        className="text-xs font-bold leading-tight"
+                        className="text-[13px] font-bold leading-tight"
                         style={{ color: "var(--text-primary)" }}
                       >
                         {user?.name?.split(" ")[0]}
                       </p>
-                      {roleBadge && (
-                        <p
-                          className="text-[10px] font-semibold"
-                          style={{ color: roleBadge.color }}
-                        >
-                          {roleBadge.label}
-                        </p>
-                      )}
                     </div>
                     <ChevronDown
-                      size={14}
+                      size={13}
                       style={{
                         color: "var(--text-muted)",
-                        transition: "transform 0.3s ease",
-                        transform: userMenuOpen
-                          ? "rotate(180deg)"
-                          : "rotate(0deg)",
+                        transition: "transform 0.2s ease",
+                        transform: userMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
                       }}
                     />
                   </button>
 
                   {userMenuOpen && (
                     <div
-                      className="absolute right-0 top-full mt-2 w-60 rounded-2xl overflow-hidden shadow-2xl border py-1 z-50"
+                      className="absolute right-0 top-full mt-1.5 w-56 rounded-xl overflow-hidden py-1 z-50"
                       style={{
                         backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        boxShadow: "0 25px 60px rgba(0,0,0,0.5)",
-                        animation: "scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                        backdropFilter: "blur(24px) saturate(180%)",
+                        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                        border: "1px solid var(--border)",
+                        boxShadow: "var(--shadow-lg)",
+                        animation: "scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
                         transformOrigin: "top right",
                       }}
                     >
+                      {/* User header */}
                       <div
-                        className="px-4 py-3"
+                        className="px-3.5 py-2.5"
                         style={{ borderBottom: "1px solid var(--border)" }}
                       >
                         <p
-                          className="font-bold text-sm"
+                          className="font-bold text-sm leading-tight"
                           style={{ color: "var(--text-primary)" }}
                         >
                           {user?.name}
                         </p>
                         <p
-                          className="text-xs mt-0.5"
+                          className="text-[11px] mt-0.5 truncate"
                           style={{ color: "var(--text-muted)" }}
                         >
                           {user?.email}
                         </p>
                         {roleBadge && (
                           <span
-                            className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold"
                             style={{
                               background: roleBadge.bg,
                               color: roleBadge.color,
@@ -344,75 +338,68 @@ export default function Navbar() {
                         )}
                       </div>
 
+                      {/* Menu links */}
                       {menuLinks.map(({ to, icon: Icon, label }) => (
                         <Link
                           key={`menu-${to}-${label}`}
                           to={to}
                           onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
+                          className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] font-medium transition-colors"
                           style={{ color: "var(--text-secondary)" }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "var(--hover)")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "transparent")
-                          }
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "var(--hover)";
+                            e.currentTarget.style.color = "var(--text-primary)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "var(--text-secondary)";
+                          }}
                         >
-                          <Icon size={15} /> {label}
+                          <Icon size={14} style={{ flexShrink: 0 }} />
+                          {label}
                         </Link>
                       ))}
 
-                      {(user?.role === "store" ||
-                        user?.role === "delivery") && (
+                      {/* Personal shopping (store/delivery) */}
+                      {(user?.role === "store" || user?.role === "delivery") && (
                         <>
                           <div
                             className="border-t my-1"
                             style={{ borderColor: "var(--border)" }}
                           />
                           <p
-                            className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider"
+                            className="px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider"
                             style={{ color: "var(--text-muted)" }}
                           >
-                            Personal Shopping
+                            Shopping
                           </p>
                           {[
-                            {
-                              to: "/user/home",
-                              icon: Home,
-                              label: "Browse Stores",
-                            },
-                            {
-                              to: "/user/orders",
-                              icon: ShoppingBag,
-                              label: "My Orders",
-                            },
-                            {
-                              to: "/user/cart",
-                              icon: ShoppingCart,
-                              label: "My Cart",
-                            },
+                            { to: "/user/home",   icon: Home,         label: "Browse Stores" },
+                            { to: "/user/orders", icon: ShoppingBag,  label: "My Orders"     },
+                            { to: "/user/cart",   icon: ShoppingCart, label: "My Cart"       },
                           ].map(({ to, icon: Icon, label }) => (
                             <Link
                               key={to}
                               to={to}
                               onClick={() => setUserMenuOpen(false)}
-                              className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
+                              className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] font-medium transition-colors"
                               style={{ color: "var(--text-secondary)" }}
-                              onMouseEnter={(e) =>
-                                (e.currentTarget.style.background =
-                                  "var(--hover)")
-                              }
-                              onMouseLeave={(e) =>
-                                (e.currentTarget.style.background =
-                                  "transparent")
-                              }
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "var(--hover)";
+                                e.currentTarget.style.color = "var(--text-primary)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.color = "var(--text-secondary)";
+                              }}
                             >
-                              <Icon size={15} /> {label}
+                              <Icon size={14} style={{ flexShrink: 0 }} />
+                              {label}
                               {label === "My Cart" && count > 0 && (
                                 <span
-                                  className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full"
+                                  className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded"
                                   style={{
-                                    background: "rgba(255,107,53,0.15)",
+                                    background: "var(--brand-dim)",
                                     color: "var(--brand)",
                                   }}
                                 >
@@ -424,12 +411,13 @@ export default function Navbar() {
                         </>
                       )}
 
+                      {/* Admin */}
                       {user?.role === "admin" && (
                         <Link
                           to="/admin"
                           onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold transition-colors"
-                          style={{ color: "#8b5cf6" }}
+                          className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] font-medium transition-colors"
+                          style={{ color: "#7c3aed" }}
                           onMouseEnter={(e) =>
                             (e.currentTarget.style.background = "var(--hover)")
                           }
@@ -437,7 +425,7 @@ export default function Navbar() {
                             (e.currentTarget.style.background = "transparent")
                           }
                         >
-                          <Shield size={15} /> Admin Panel
+                          <Shield size={14} /> Admin Panel
                         </Link>
                       )}
 
@@ -451,17 +439,17 @@ export default function Navbar() {
                           setUserMenuOpen(false);
                           navigate("/login");
                         }}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold w-full transition-colors"
-                        style={{ color: "#ef4444" }}
+                        className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] font-medium w-full transition-colors text-left"
+                        style={{ color: "#dc2626" }}
                         onMouseEnter={(e) =>
-                          (e.currentTarget.style.background =
-                            "rgba(239,68,68,0.06)")
+                          (e.currentTarget.style.background = "rgba(220,38,38,0.05)")
                         }
                         onMouseLeave={(e) =>
                           (e.currentTarget.style.background = "transparent")
                         }
                       >
-                        <LogOut size={15} /> Sign Out
+                        <LogOut size={14} style={{ flexShrink: 0 }} />
+                        Sign out
                       </button>
                     </div>
                   )}
@@ -470,16 +458,17 @@ export default function Navbar() {
                 <div className="flex items-center gap-2">
                   <Link
                     to="/login"
-                    className="hidden sm:block text-sm font-semibold px-4 py-2 rounded-xl transition-all hover:opacity-80"
+                    className="hidden sm:block text-[13px] font-semibold px-3 py-2 rounded-lg transition-all hover:bg-[var(--elevated)]"
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    Sign In
+                    Sign in
                   </Link>
                   <Link
                     to="/register"
-                    className="btn btn-brand text-sm px-4 py-2"
+                    className="btn btn-brand text-[13px] px-4 py-2"
                   >
-                    Join Free <ArrowRight size={14} />
+                    Get started
+                    <ArrowRight size={13} />
                   </Link>
                 </div>
               )}

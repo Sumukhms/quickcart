@@ -18,38 +18,48 @@ export default function SearchBar({
     inputRef.current?.focus();
   };
 
-  // Use explicit left padding large enough to clear the icon (icon is at left-3.5 = 14px, icon width ~15px, so pl-10 = 40px is safe)
-  const padding = size === "sm"
-    ? "py-2 pl-10 pr-8 text-xs"
-    : "py-2.5 pl-11 pr-9 text-sm";
-  const iconSize = size === "sm" ? 13 : 15;
+  const isLg = size === "lg";
+  const iconSize = isLg ? 17 : size === "sm" ? 13 : 15;
 
   return (
     <div className={`relative ${className}`}>
       <Search
         size={iconSize}
-        className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10"
-        style={{ color: "var(--text-muted)" }}
+        className="absolute top-1/2 -translate-y-1/2 pointer-events-none z-10"
+        style={{
+          left: isLg ? "1rem" : "0.875rem",
+          color: "var(--text-muted)",
+        }}
       />
       <input
         ref={inputRef}
         type="text"
-        className={`input-theme ${padding} w-full`}
-        style={{ paddingLeft: size === "sm" ? "2.25rem" : "2.5rem" }}
+        className="input-theme w-full"
+        style={{
+          paddingLeft:  isLg ? "2.75rem" : size === "sm" ? "2.125rem" : "2.5rem",
+          paddingRight: value ? (isLg ? "2.75rem" : "2.25rem") : "1rem",
+          paddingTop:    isLg ? "0.875rem" : undefined,
+          paddingBottom: isLg ? "0.875rem" : undefined,
+          fontSize: isLg ? "1rem" : size === "sm" ? "0.8125rem" : undefined,
+          borderRadius: isLg ? "12px" : undefined,
+        }}
         placeholder={placeholder}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         autoFocus={autoFocus}
       />
       {value && (
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-md transition-all hover:scale-110"
-          style={{ color: "var(--text-muted)" }}
+          className="absolute top-1/2 -translate-y-1/2 p-1 rounded-md transition-all hover:bg-[var(--elevated)] active:scale-95"
+          style={{
+            right: "0.625rem",
+            color: "var(--text-muted)",
+          }}
           aria-label="Clear search"
         >
-          <X size={iconSize} />
+          <X size={iconSize - 1} />
         </button>
       )}
     </div>

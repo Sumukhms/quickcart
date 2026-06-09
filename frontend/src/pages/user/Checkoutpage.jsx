@@ -29,7 +29,6 @@ function OrderSuccess({ order, onContinue }) {
           <div className="w-28 h-28 rounded-full flex items-center justify-center bg-green-50 dark:bg-green-500/10 border-4 border-green-100 dark:border-green-500/20 shadow-sm">
             <CheckCircle size={52} className="text-green-500" />
           </div>
-          <div className="absolute -top-2 -right-2 text-2xl animate-bounce">🎉</div>
         </div>
         <h1 className="font-display font-black tracking-tight text-3xl mb-2 text-[var(--text-primary)]">Order Placed!</h1>
         <p className="text-[15px] font-medium mb-6 text-[var(--text-secondary)]">Your order is confirmed</p>

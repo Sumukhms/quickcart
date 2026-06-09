@@ -36,7 +36,7 @@ export const submitRating = async (req, res) => {
       if (order.userId.toString() !== userId) return res.status(403).json({ message: "Not your order" });
       if (order.status !== "delivered")       return res.status(400).json({ message: "You can only rate after delivery" });
 
-      const existing = await Rating.findOne({ userId, orderId });
+      const existing = await Rating.findOne({ userId, orderId, storeId });
       if (existing) return res.status(400).json({ message: "You have already rated this order" });
     }
 
@@ -86,11 +86,11 @@ export const submitDeliveryRating = async (req, res) => {
     if (order.status !== "delivered")         return res.status(400).json({ message: "You can only rate after delivery" });
     if (!order.deliveryAgentId)               return res.status(400).json({ message: "No delivery agent assigned to this order" });
 
-    // Prevent double-rating for the same order
-    const existing = await Rating.findOne({ userId, orderId });
-    if (existing) return res.status(400).json({ message: "You have already rated this delivery" });
-
     const agentId = order.deliveryAgentId; // already an ObjectId — use it directly as storeId
+
+    // Prevent double-rating for the same delivery partner
+    const existing = await Rating.findOne({ userId, orderId, storeId: agentId });
+    if (existing) return res.status(400).json({ message: "You have already rated this delivery" });
     // We reuse the storeId field to store the agentId (both are ObjectId).
     // This avoids a schema change while keeping Mongoose happy with the type.
     await Rating.create({

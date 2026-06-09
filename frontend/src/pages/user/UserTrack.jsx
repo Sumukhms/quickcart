@@ -11,6 +11,9 @@
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import {
   ChevronLeft,
   MapPin,
@@ -52,6 +55,10 @@ const STATUS_ICONS = {
   out_for_delivery: Truck,
   delivered: CheckCircle,
 };
+
+const storeIcon = L.divIcon({ html: "<div style='font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2));'>🏪</div>", className: "bg-transparent border-none", iconSize: [30, 30], iconAnchor: [15, 15] });
+const userIcon = L.divIcon({ html: "<div style='font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2));'>📍</div>", className: "bg-transparent border-none", iconSize: [30, 30], iconAnchor: [15, 30] });
+const riderIcon = L.divIcon({ html: "<div style='font-size:26px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.3));'>🛵</div>", className: "bg-transparent border-none", iconSize: [30, 30], iconAnchor: [15, 15] });
 
 const CANCELLABLE = ["pending", "confirmed"];
 
@@ -277,7 +284,7 @@ export default function UserTrack() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-14 h-14">
@@ -310,7 +317,7 @@ export default function UserTrack() {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="text-center">
           <AlertCircle
@@ -373,7 +380,7 @@ export default function UserTrack() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
         {/* Header */}
@@ -729,6 +736,38 @@ export default function UserTrack() {
                 🛵 Rider rated
               </span>
             )}
+          </div>
+        )}
+
+        {/* Map Integration */}
+        {(userCoords.lat || order.storeId?.lat) && (
+          <div className="rounded-3xl overflow-hidden mb-4 border border-[var(--border)] relative z-0 h-64 shadow-sm">
+            <MapContainer 
+              center={[userCoords.lat || order.storeId?.lat || 20, userCoords.lng || order.storeId?.lng || 78]} 
+              zoom={13} 
+              style={{ height: '100%', width: '100%', background: "var(--elevated)" }}
+              zoomControl={false}
+            >
+              <TileLayer 
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" 
+                attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
+              />
+              {order.storeId?.lat && order.storeId?.lng && (
+                <Marker position={[order.storeId.lat, order.storeId.lng]} icon={storeIcon}>
+                  <Popup className="font-sans font-bold text-sm rounded-xl">{order.storeId.name}</Popup>
+                </Marker>
+              )}
+              {userCoords.lat && userCoords.lng && (
+                <Marker position={[userCoords.lat, userCoords.lng]} icon={userIcon}>
+                  <Popup className="font-sans font-bold text-sm rounded-xl">Delivery Destination</Popup>
+                </Marker>
+              )}
+              {deliveryCoords.lat && deliveryCoords.lng && (
+                <Marker position={[deliveryCoords.lat, deliveryCoords.lng]} icon={riderIcon}>
+                  <Popup className="font-sans font-bold text-sm rounded-xl">Rider is here</Popup>
+                </Marker>
+              )}
+            </MapContainer>
           </div>
         )}
 

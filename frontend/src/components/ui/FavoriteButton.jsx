@@ -19,11 +19,11 @@ import { useFavorites } from "../../context/FavoriteContext";
 import { useAuth }      from "../../context/AuthContext";
 
 export default function FavoriteButton({ storeId, size = 16, className = "", variant = "icon" }) {
-  const { isCustomer } = useAuth();
+  const { isLoggedIn } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
 
-  // Only customers can favorite stores
-  if (!isCustomer) return null;
+  // Any logged-in user can favorite stores now
+  if (!isLoggedIn) return null;
 
   const active = isFavorite(storeId);
 

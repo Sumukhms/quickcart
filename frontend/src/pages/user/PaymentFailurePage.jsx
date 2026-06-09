@@ -175,7 +175,7 @@ export default function PaymentFailurePage({
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 page-enter"
-      style={{ backgroundColor: "var(--bg)" }}>
+      >
 
       {/* Background glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">

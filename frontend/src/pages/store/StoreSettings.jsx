@@ -216,7 +216,7 @@ export default function StoreSettings() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div
           className="w-8 h-8 border-2 rounded-full animate-spin"
@@ -232,7 +232,7 @@ export default function StoreSettings() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
         {/* Header */}

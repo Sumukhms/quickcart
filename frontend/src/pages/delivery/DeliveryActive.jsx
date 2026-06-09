@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import {
   ChevronLeft,
   Phone,
@@ -44,6 +47,9 @@ const STEPS = [
     color: "#22c55e",
   },
 ];
+
+const storeIcon = L.divIcon({ html: "<div style='font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2));'>🏪</div>", className: "bg-transparent border-none", iconSize: [30, 30], iconAnchor: [15, 15] });
+const userIcon = L.divIcon({ html: "<div style='font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2));'>📍</div>", className: "bg-transparent border-none", iconSize: [30, 30], iconAnchor: [15, 30] });
 
 export default function DeliveryActive() {
   const { user } = useAuth();
@@ -118,7 +124,7 @@ export default function DeliveryActive() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="flex flex-col items-center gap-3">
           <Loader2
@@ -137,7 +143,7 @@ export default function DeliveryActive() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-lg mx-auto px-4 py-6 pb-20">
         {/* Header */}
@@ -314,6 +320,33 @@ export default function DeliveryActive() {
               </div>
             </div>
 
+            {/* Map Integration */}
+            {(order.deliveryLat || order.storeId?.lat) && (
+              <div className="rounded-3xl overflow-hidden mb-4 border border-[var(--border)] relative z-0 h-64 shadow-sm">
+                <MapContainer 
+                  center={[order.storeId?.lat || order.deliveryLat || 20, order.storeId?.lng || order.deliveryLng || 78]} 
+                  zoom={13} 
+                  style={{ height: '100%', width: '100%', background: "var(--elevated)" }}
+                  zoomControl={false}
+                >
+                  <TileLayer 
+                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" 
+                    attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
+                  />
+                  {order.storeId?.lat && order.storeId?.lng && (
+                    <Marker position={[order.storeId.lat, order.storeId.lng]} icon={storeIcon}>
+                      <Popup className="font-sans font-bold text-sm rounded-xl">{order.storeId.name}</Popup>
+                    </Marker>
+                  )}
+                  {order.deliveryLat && order.deliveryLng && (
+                    <Marker position={[order.deliveryLat, order.deliveryLng]} icon={userIcon}>
+                      <Popup className="font-sans font-bold text-sm rounded-xl">Customer Destination</Popup>
+                    </Marker>
+                  )}
+                </MapContainer>
+              </div>
+            )}
+
             {/* Pickup card */}
             <div
               className="rounded-3xl overflow-hidden mb-4"
@@ -374,7 +407,10 @@ export default function DeliveryActive() {
                         <Phone size={14} />
                       </a>
                     )}
-                    <button
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.storeId?.address || order.storeId?.name || "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110"
                       style={{
                         background: "var(--elevated)",
@@ -382,7 +418,7 @@ export default function DeliveryActive() {
                       }}
                     >
                       <Navigation size={14} />
-                    </button>
+                    </a>
                   </div>
                 </div>
 
@@ -481,7 +517,10 @@ export default function DeliveryActive() {
                         <Phone size={14} />
                       </a>
                     )}
-                    <button
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.deliveryAddress || "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-110"
                       style={{
                         background: "var(--elevated)",
@@ -489,7 +528,7 @@ export default function DeliveryActive() {
                       }}
                     >
                       <Navigation size={14} />
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>

@@ -386,7 +386,7 @@ export default function StoreInventory() {
       return (
         <div
           className="min-h-screen flex items-center justify-center"
-          style={{ backgroundColor: "var(--bg)" }}
+          
         >
           <div className="flex flex-col items-center gap-3">
             <Loader2
@@ -403,7 +403,7 @@ export default function StoreInventory() {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
-        style={{ backgroundColor: "var(--bg)" }}
+        
       >
         <div className="text-center">
           <div className="text-5xl mb-3">🏪</div>
@@ -455,7 +455,7 @@ export default function StoreInventory() {
   return (
     <div
       className="min-h-screen page-enter"
-      style={{ backgroundColor: "var(--bg)" }}
+      
     >
       <div className="max-w-4xl mx-auto px-4 py-6 pb-20">
         <div className="flex items-center gap-3 mb-6">

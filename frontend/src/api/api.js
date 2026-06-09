@@ -43,7 +43,7 @@ api.interceptors.response.use(
     const isSkipped = skipRefresh.some((p) => originalRequest.url?.includes(p));
 
     if (
-      err.response?.status === 401 &&
+      (err.response?.status === 401 || err.response?.status === 403) &&
       !originalRequest._retried &&
       !isSkipped
     ) {
@@ -188,7 +188,7 @@ export const invoiceAPI = {
 export const couponAPI = {
   validate: (code, orderTotal, storeCategory, storeId) =>
     api.post("/coupons/validate", { code, orderTotal, storeCategory, storeId }),
-  list: () => api.get("/coupons"),
+  list: (storeId) => api.get("/coupons", { params: { storeId } }),
 };
 
 // ─── Store Coupons (store-owner specific) ─────────────────────
