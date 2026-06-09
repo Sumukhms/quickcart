@@ -113,33 +113,29 @@ export const register = async (req, res) => {
       password: hashed,
       role: userRole,
       phone: phone?.trim() || undefined,
-      isEmailVerified: false,
+      isEmailVerified: true, 
       authProvider: "local",
     };
     if (userRole === "delivery" && vehicleType)
       userData.vehicleType = vehicleType;
 
     const user = await User.create(userData);
-    const otp = await Otp.createOtp(normalizedEmail, "verify_email");
-    const sent = await sendOtpEmail(normalizedEmail, otp, "verify_email");
 
-    if (!sent) {
-      console.error(
-        `[Register] Account created for ${normalizedEmail} but OTP email failed.`,
-      );
-      return res.status(201).json({
-        message:
-          "Account created! However, we could not send the OTP email. Please check server EMAIL configuration and use 'Resend OTP'.",
-        email: normalizedEmail,
-        requiresVerification: true,
-        emailError: true,
-      });
-    }
+    const authData = await issueTokens(user, res, {
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+    });
 
     res.status(201).json({
-      message: "Registration successful. Please check your email for the OTP.",
-      email: normalizedEmail,
-      requiresVerification: true,
+      message: "Registration successful. Welcome to QuickCart!",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+      },
+      ...authData,
     });
   } catch (e) {
     console.error("[Register] Error:", e.message);
