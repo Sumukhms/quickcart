@@ -128,7 +128,7 @@ const HERO_IMAGES = [
 ];
 
 export default function UserHome() {
-  const { isCustomer } = useAuth();
+  const { isCustomer, user } = useAuth();
   const { favorites } = useFavorites();
 
   const {
@@ -183,8 +183,36 @@ export default function UserHome() {
 
   const isSearching = search.length >= 2;
 
-  // Pick hero image based on hour (food at meal times, groceries otherwise)
+  // Smart Contextual UX
   const heroHour = new Date().getHours();
+  const dayOfWeek = new Date().getDay(); // 0 (Sun) to 6 (Sat)
+  
+  // 1. Time-Based Greetings
+  let greeting = "Welcome";
+  if (heroHour >= 5 && heroHour < 12) greeting = "Good morning";
+  else if (heroHour >= 12 && heroHour < 17) greeting = "Good afternoon";
+  else if (heroHour >= 17 && heroHour < 22) greeting = "Good evening";
+  else greeting = "Late night cravings";
+
+  const firstName = user?.name?.split(' ')[0] || "";
+
+  // 2. Day-of-the-Week Subtitle
+  let daySubtitle = "Order from local stores. Fresh groceries, hot meals, medicines — anything you need, at your doorstep.";
+  if (dayOfWeek === 5 || dayOfWeek === 6) {
+    daySubtitle = "Kick off your weekend! Fresh groceries, hot meals, and party snacks delivered in minutes.";
+  } else if (dayOfWeek === 0) {
+    daySubtitle = "Prep for the week ahead! Fresh groceries and essentials at your doorstep.";
+  } else {
+    daySubtitle = "Mid-week restock? Fresh groceries, hot meals, medicines — anything you need, instantly.";
+  }
+
+  // 3. Highlighted Category Logic
+  let highlightedCategory = "All";
+  if (heroHour >= 6 && heroHour <= 11) highlightedCategory = "Beverages";
+  else if ((heroHour >= 12 && heroHour <= 14) || (heroHour >= 18 && heroHour <= 21)) highlightedCategory = "Food";
+  else if (heroHour >= 22 || heroHour < 5) highlightedCategory = "Snacks";
+
+  // Pick hero image based on hour (food at meal times, groceries otherwise)
   const heroImg = (heroHour >= 11 && heroHour <= 14) || (heroHour >= 18 && heroHour <= 21)
     ? HERO_IMAGES[0]
     : HERO_IMAGES[1];
@@ -228,31 +256,30 @@ export default function UserHome() {
                 Delivering to Bengaluru
               </div>
 
-              {/* Headline */}
+              {/* Dynamic Title with Greeting */}
               <h1
-                className="font-display font-extrabold text-[28px] md:text-[34px] lg:text-[38px] leading-[1.15] tracking-tight mb-2"
+                className="font-display font-extrabold text-[32px] sm:text-[38px] lg:text-[44px] leading-[1.15] mb-4 tracking-tight"
                 style={{ color: "var(--text-primary)" }}
               >
-                Groceries, food &{" "}
-                <span style={{ color: "var(--brand)" }}>
-                  more
-                </span>
+                {greeting}{firstName ? `, ${firstName}` : ""}!
                 <br className="hidden sm:block" />
-                {" "}delivered in{" "}
-                <span
-                  className="inline-flex items-center"
-                  style={{ color: "var(--brand)" }}
-                >
-                  minutes
+                <span className="text-[26px] sm:text-[32px] lg:text-[38px] block mt-1">
+                  Groceries & food in{" "}
+                  <span
+                    className="inline-flex items-center"
+                    style={{ color: "var(--brand)" }}
+                  >
+                    minutes
+                  </span>
                 </span>
               </h1>
 
+              {/* Dynamic Day-of-week Subtitle */}
               <p
                 className="text-[15px] leading-relaxed mb-6 max-w-md"
                 style={{ color: "var(--text-muted)" }}
               >
-                Order from {stores.length > 0 ? `${stores.length}+` : "your favorite"} local stores.
-                Fresh groceries, hot meals, medicines — anything you need, at your doorstep.
+                {daySubtitle}
               </p>
 
               {/* Search bar */}
@@ -530,19 +557,24 @@ export default function UserHome() {
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {CATEGORIES.map(({ name, emoji }) => {
                   const active = category === name;
+                  const isHighlighted = name === highlightedCategory && !active;
                   const activeStyle = categoryActiveStyle[name] || {};
+                  
                   return (
                     <button
                       key={name}
                       onClick={() => { setCategory(name); setFavOnly(false); }}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-bold shrink-0 transition-all duration-150 active:scale-95"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-bold shrink-0 transition-all duration-150 active:scale-95 relative overflow-hidden"
                       style={{
                         background: active ? (activeStyle.bg || "var(--text-primary)") : "var(--card)",
-                        color: active ? (activeStyle.color || "var(--surface)") : "var(--text-secondary)",
-                        border: active ? "1.5px solid transparent" : "1.5px solid var(--border)",
+                        color: active ? (activeStyle.color || "var(--surface)") : (isHighlighted ? "var(--brand)" : "var(--text-secondary)"),
+                        border: active ? "1.5px solid transparent" : (isHighlighted ? "1.5px solid var(--brand-dim-strong)" : "1.5px solid var(--border)"),
                         boxShadow: active ? "var(--shadow-sm)" : "none",
                       }}
                     >
+                      {isHighlighted && (
+                        <span className="absolute top-0 right-0 w-2 h-2 rounded-full mt-1.5 mr-1.5" style={{ background: "var(--brand)", animation: "pulse 2s infinite" }} />
+                      )}
                       <span className="text-[17px] leading-none">{emoji}</span>
                       {name}
                     </button>
