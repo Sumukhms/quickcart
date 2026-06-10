@@ -198,24 +198,24 @@ export default function ProductCard({ product, store, isFood = false }) {
               Unavailable
             </span>
           ) : inCart ? (
-            <div className="flex items-center gap-1.5 rounded-xl px-1.5 py-1.5 bg-[rgba(255,107,53,0.08)] border border-[var(--brand)]">
+            <div className="flex items-center gap-1 rounded-xl px-1 py-1 bg-[rgba(255,107,53,0.08)] border border-[var(--brand)]">
               <button
                 onClick={() =>
                   inCart.qty === 1
                     ? removeFromCart(product._id)
                     : updateQty(product._id, inCart.qty - 1)
                 }
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--brand)] transition-transform hover:bg-[rgba(255,107,53,0.12)] active:scale-95"
+                className="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-[var(--brand)] transition-transform hover:bg-[rgba(255,107,53,0.12)] active:scale-95"
                 style={{ background: "var(--card)" }}
               >
                 <Minus size={12} />
               </button>
-              <span className="w-6 text-center text-sm font-black text-[var(--brand)]">
+              <span className="w-5 text-center text-[13px] font-black text-[var(--brand)]">
                 {inCart.qty}
               </span>
               <button
                 onClick={() => updateQty(product._id, inCart.qty + 1)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white transition-transform hover:opacity-90 active:scale-95"
+                className="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-white transition-transform hover:opacity-90 active:scale-95"
                 style={{ background: "var(--brand)" }}
               >
                 <Plus size={12} />

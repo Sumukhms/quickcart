@@ -213,7 +213,7 @@ export default function Navbar() {
               {isLoggedIn && (
                 <button
                   onClick={() => setCartOpen(true)}
-                  className="relative p-2 rounded-lg transition-all duration-150 hover:scale-105 active:scale-95"
+                  className={`relative p-2 rounded-lg transition-all duration-150 hover:scale-105 active:scale-95 ${user?.role === "customer" ? "hidden md:flex" : "flex"}`}
                   style={{
                     background: count > 0 ? "var(--brand-dim)" : "var(--elevated)",
                     color: count > 0 ? "var(--brand)" : "var(--text-secondary)",
