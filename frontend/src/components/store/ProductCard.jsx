@@ -132,18 +132,25 @@ export default function ProductCard({ product, store, isFood = false }) {
       </div>
 
       {/* Info */}
-      <div className="p-3">
+      <div className="p-3 flex flex-col flex-1">
         {/* Name */}
         <p
-          className="font-bold text-sm leading-tight line-clamp-2 mb-1"
-          style={{ color: "var(--text-primary)", minHeight: "2.5rem" }}
+          className="font-bold text-sm leading-tight line-clamp-2"
+          style={{ color: "var(--text-primary)" }}
         >
           {product.name}
         </p>
+        
+        {/* Details / Description */}
+        {product.description && (
+          <p className="text-[11px] text-[var(--text-muted)] line-clamp-2 mt-1">
+            {product.description}
+          </p>
+        )}
 
         {/* Food meta chips */}
         {isFood && (spice || product.unit || product.prepTime) && (
-          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-2 mb-1 flex-wrap">
             {spice && (
               <span
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
@@ -165,23 +172,26 @@ export default function ProductCard({ product, store, isFood = false }) {
 
         {/* Non-food unit */}
         {!isFood && product.unit && (
-          <p className="text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
             {product.unit}
           </p>
         )}
 
+        {/* Spacer to push price to bottom */}
+        <div className="mt-auto pt-2"></div>
+
         {/* Price + CTA */}
-        <div className="flex flex-wrap items-center justify-between mt-2 gap-y-2">
-          <div className="flex items-baseline gap-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-1">
             <span
-              className="font-black text-base"
+              className="font-black text-[15px]"
               style={{ color: "var(--text-primary)" }}
             >
               ₹{product.price}
             </span>
             {product.originalPrice && product.originalPrice > product.price && (
               <span
-                className="text-xs line-through"
+                className="text-[10px] line-through"
                 style={{ color: "var(--text-muted)" }}
               >
                 ₹{product.originalPrice}
@@ -192,48 +202,47 @@ export default function ProductCard({ product, store, isFood = false }) {
           {/* Out of stock text */}
           {isOutOfStock ? (
             <span
-              className="text-xs font-bold px-2 py-1 rounded-xl"
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-lg"
               style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
             >
-              Unavailable
+              Sold Out
             </span>
           ) : inCart ? (
-            <div className="flex items-center gap-1 rounded-xl px-1 py-1 bg-[rgba(255,107,53,0.08)] border border-[var(--brand)]">
+            <div className="flex items-center rounded-lg bg-[rgba(255,107,53,0.08)] border border-[var(--brand)] shrink-0 overflow-hidden">
               <button
                 onClick={() =>
                   inCart.qty === 1
                     ? removeFromCart(product._id)
                     : updateQty(product._id, inCart.qty - 1)
                 }
-                className="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-[var(--brand)] transition-transform hover:bg-[rgba(255,107,53,0.12)] active:scale-95"
-                style={{ background: "var(--card)" }}
+                className="w-7 h-7 flex-shrink-0 flex items-center justify-center text-[var(--brand)] transition-colors hover:bg-[rgba(255,107,53,0.15)] active:bg-[rgba(255,107,53,0.2)]"
               >
-                <Minus size={12} />
+                <Minus size={13} strokeWidth={2.5} />
               </button>
-              <span className="w-5 text-center text-[13px] font-black text-[var(--brand)]">
+              <span className="w-5 text-center text-[12px] font-black text-[var(--brand)]">
                 {inCart.qty}
               </span>
               <button
                 onClick={() => updateQty(product._id, inCart.qty + 1)}
-                className="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-white transition-transform hover:opacity-90 active:scale-95"
+                className="w-7 h-7 flex-shrink-0 flex items-center justify-center text-white transition-opacity hover:opacity-90 active:opacity-80"
                 style={{ background: "var(--brand)" }}
               >
-                <Plus size={12} />
+                <Plus size={13} strokeWidth={2.5} />
               </button>
             </div>
           ) : (
             <button
               onClick={handleAdd}
               disabled={adding}
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-white transition-transform hover:scale-105 active:scale-95"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white transition-transform hover:scale-105 active:scale-95 shrink-0"
               style={{
                 background: "var(--brand)",
               }}
             >
               {adding ? (
-                <div className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
               ) : (
-                <Plus size={16} />
+                <Plus size={16} strokeWidth={2.5} />
               )}
             </button>
           )}
