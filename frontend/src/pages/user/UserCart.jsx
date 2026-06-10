@@ -317,9 +317,9 @@ export default function UserCart() {
       {/* ── Fixed Bottom CTA ───────────────────────────────── */}
       {cartItems.length > 0 && (
         <div
-          className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
+          className="fixed left-0 right-0 z-40 md:hidden"
           style={{
-            paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))",
+            bottom: "calc(56px + env(safe-area-inset-bottom, 0px))",
           }}
         >
           <div

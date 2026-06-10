@@ -171,7 +171,7 @@ export default function ProductCard({ product, store, isFood = false }) {
         )}
 
         {/* Price + CTA */}
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex flex-wrap items-center justify-between mt-2 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span
               className="font-black text-base"
