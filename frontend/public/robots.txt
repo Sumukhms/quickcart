@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Block search engines from indexing private or dashboard routes
+Disallow: /store/
+Disallow: /delivery/
+Disallow: /user/orders
+Disallow: /user/profile
+Disallow: /checkout
+Disallow: /*?*
+
+Sitemap: https://quickcart-webstore.vercel.app/sitemap.xml
